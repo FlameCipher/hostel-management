@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BedDouble, FileUp, GraduationCap, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
+import { BedDouble, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -29,6 +29,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
           OR: [
             { fullName: { contains: query, mode: "insensitive" } },
             { phone: { contains: query } },
+            { email: { contains: query, mode: "insensitive" } },
             { admissionNumber: { contains: query, mode: "insensitive" } },
             { guardian: { is: { name: { contains: query, mode: "insensitive" } } } },
           ],
@@ -90,7 +91,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
                 const occupancy = student.occupancies[0];
                 return (
                   <tr key={student.id}>
-                    <td><strong>{student.fullName}</strong><a className="table-phone" href={`tel:${student.phone}`}><Phone size={11} />{student.phone}</a></td>
+                    <td><strong>{student.fullName}</strong><a className="table-phone" href={`tel:${student.phone}`}><Phone size={11} />{student.phone}</a>{student.email ? <a className="table-phone" href={`mailto:${student.email}`}><Mail size={11} />{student.email}</a> : null}</td>
                     <td><strong>{student.admissionNumber || "Not provided"}</strong><small className="table-subtext">{student.university}</small></td>
                     <td>{occupancy ? <><strong>Room {occupancy.room.number}</strong><small className="table-subtext">{occupancy.semester.name}</small></> : <span className="muted-note">Not allocated</span>}</td>
                     <td>{student.guardian ? <><strong>{student.guardian.name}</strong><a className="table-phone" href={`tel:${student.guardian.phone}`}><Phone size={11} />{student.guardian.phone}</a></> : <span className="muted-note">Not provided</span>}</td>

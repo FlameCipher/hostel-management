@@ -3,8 +3,8 @@ import { hash } from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DATABASE_URL is not configured");
+const connectionString = process.env.DB_DATABASE_URL_UNPOOLED ?? process.env.DB_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DB_DATABASE_URL_UNPOOLED, DB_DATABASE_URL or DATABASE_URL must be configured");
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 const organizationId = "mama-mbugua-hostel";
 const activeSemesterName = "September to December 2026";
@@ -88,7 +88,8 @@ async function main() {
   const studentIds = new Map<string, string>();
   for (const [index, [fullName, phone, admissionNumber, guardianName, guardianPhone, relationship]] of people.entries()) {
     const status = index === 15 ? "SUSPENDED" : index >= 16 ? "CHECKED_OUT" : "ACTIVE";
-    const student = await db.student.upsert({ where: { organizationId_admissionNumber: { organizationId, admissionNumber } }, update: { fullName, phone, status, guardian: { upsert: { create: { name: guardianName, phone: guardianPhone, relationship }, update: { name: guardianName, phone: guardianPhone, relationship } } } }, create: { organizationId, fullName, phone, university: "JKUAT", admissionNumber, nationalId: `35${670000 + index}`, admittedAt: on(index >= 16 ? "2025-09-01" : "2026-09-01"), status, notes: index === 15 ? "Suspended pending document verification." : null, guardian: { create: { name: guardianName, phone: guardianPhone, relationship } } } });
+    const email = index % 4 === 0 ? null : `${slug(fullName)}@students.jkuat.ac.ke`;
+    const student = await db.student.upsert({ where: { organizationId_admissionNumber: { organizationId, admissionNumber } }, update: { fullName, phone, email, status, guardian: { upsert: { create: { name: guardianName, phone: guardianPhone, relationship }, update: { name: guardianName, phone: guardianPhone, relationship } } } }, create: { organizationId, fullName, phone, email, university: "JKUAT", admissionNumber, nationalId: `35${670000 + index}`, admittedAt: on(index >= 16 ? "2025-09-01" : "2026-09-01"), status, notes: index === 15 ? "Suspended pending document verification." : null, guardian: { create: { name: guardianName, phone: guardianPhone, relationship } } } });
     studentIds.set(fullName, student.id);
   }
 
@@ -102,7 +103,8 @@ async function main() {
     occupancyIds.set(name, occupancy.id);
     const chargeId = `seed-charge-${slug(name)}`;
     const amount = typeRate.get(roomTypeFor(Number(roomNumber)))!;
-    await db.charge.upsert({ where: { id: chargeId }, update: { occupancyId: occupancy.id, amount, dueDate: on("2026-09-05") }, create: { id: chargeId, organizationId, semesterId: activeSemesterId, studentId, occupancyId: occupancy.id, type: "SEMESTER_RENT", description: `${activeSemesterName} rent · Room ${roomNumber}`, amount, dueDate: on("2026-09-05"), status: "UNPAID" } });
+    const roomTypeId = roomTypeFor(Number(roomNumber));
+    await db.charge.upsert({ where: { id: chargeId }, update: { occupancyId: occupancy.id, roomTypeId, amount, dueDate: on("2026-09-05") }, create: { id: chargeId, organizationId, semesterId: activeSemesterId, studentId, roomTypeId, occupancyId: occupancy.id, type: "SEMESTER_RENT", description: `${activeSemesterName} rent · Room ${roomNumber}`, amount, dueDate: on("2026-09-05"), status: "UNPAID" } });
     chargeIds.set(name, chargeId);
   }
   for (const [name, roomNumber, checkout] of [["Samuel Karanja", "4", "2026-04-29"], ["Linda Atieno", "5", "2026-04-30"]] as const) {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BedDouble, CalendarDays, ExternalLink } from "lucide-react";
+import { Banknote, BedDouble, CalendarDays, ExternalLink } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { CheckInForm } from "@/components/occupancy-forms";
 import { StudentForm } from "@/components/student-form";
@@ -10,12 +10,17 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
   const session = await requireSession();
   if (session.role === "CARETAKER") redirect("/students");
   const { id } = await params;
-  const [student, activeOccupancy, semesters, rooms] = await Promise.all([
+  const [student, activeOccupancy, eligiblePayment, semesters, rooms] = await Promise.all([
     db.student.findFirst({ where: { id, organizationId: session.organizationId }, include: { guardian: true } }),
     db.occupancy.findFirst({
       where: { studentId: id, organizationId: session.organizationId, status: "ACTIVE" },
       include: { room: { include: { roomType: true } }, semester: true },
       orderBy: { checkInAt: "desc" },
+    }),
+    db.payment.findFirst({
+      where: { organizationId: session.organizationId, studentId: id, reversedAt: null, charge: { type: "SEMESTER_RENT", occupancyId: null, semester: { status: "ACTIVE" } } },
+      include: { charge: { include: { semester: true, roomType: true } } },
+      orderBy: { paidAt: "desc" },
     }),
     db.semester.findMany({
       where: { organizationId: session.organizationId, status: "ACTIVE" },
@@ -34,6 +39,7 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
   if (!student) notFound();
 
   const roomOptions = rooms.flatMap((room) => {
+    if (eligiblePayment?.charge.roomTypeId && room.roomTypeId !== eligiblePayment.charge.roomTypeId) return [];
     const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
     const heldStudentIds = new Set([
       ...room.occupancies.map((item) => item.studentId),
@@ -51,7 +57,7 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
     <div className="form-page">
       <div className="page-heading-row"><div><p className="eyebrow">Student register</p><h1>Edit student</h1><p>Update student and guardian information.</p></div></div>
       <StudentForm student={{
-        id: student.id, fullName: student.fullName, phone: student.phone, university: student.university,
+        id: student.id, fullName: student.fullName, phone: student.phone, email: student.email ?? "", university: student.university,
         admissionNumber: student.admissionNumber ?? "", nationalId: student.nationalId ?? "",
         admittedAt: student.admittedAt.toISOString().slice(0, 10), status: student.status, notes: student.notes ?? "",
         guardianName: student.guardian?.name ?? "", guardianPhone: student.guardian?.phone ?? "",
@@ -76,6 +82,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
           </section>
         ) : student.status === "SUSPENDED" || student.status === "ARCHIVED" ? (
           <section className="policy-banner"><BedDouble size={21} /><div><strong>Room assignment unavailable</strong><p>Change the student status to Active or Checked out before assigning accommodation.</p></div></section>
+        ) : !eligiblePayment ? (
+          <section className="policy-banner"><Banknote size={21} /><div><strong>Initial payment required</strong><p>A room cannot be assigned until a semester-rent payment has been recorded.</p><Link className="text-link" href="/payments/new">Record initial payment</Link></div></section>
         ) : !semesters.length ? (
           <section className="policy-banner"><CalendarDays size={21} /><div><strong>No active semester</strong><p>Create or activate a semester before assigning this student to a room.</p></div></section>
         ) : !roomOptions.length ? (
@@ -83,7 +91,9 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
         ) : (
           <CheckInForm
             cancelHref="/students"
+            paymentId={eligiblePayment.id}
             rooms={roomOptions}
+            selectedSemester={eligiblePayment.charge.semester ? { id: eligiblePayment.charge.semester.id, label: eligiblePayment.charge.semester.name } : undefined}
             selectedStudent={{ id: student.id, label: student.fullName }}
             semesters={semesters.map((item) => ({ id: item.id, label: item.name }))}
             students={[]}
@@ -93,4 +103,3 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 
 export type StayFormState = { error: string };
 
@@ -14,24 +15,37 @@ async function requireManager() {
   return session;
 }
 
-const checkInSchema = z.object({ studentId: z.string().min(1), semesterId: z.string().min(1), roomId: z.string().min(1), checkInAt: z.string().date(), dueDate: z.string().date(), expectedCheckoutAt: z.string().optional(), checkInCondition: z.string().trim().max(500).optional() });
+const checkInSchema = z.object({ paymentId: z.string().optional(), studentId: z.string().min(1), semesterId: z.string().min(1), roomId: z.string().min(1), checkInAt: z.string().date(), dueDate: z.string().date(), expectedCheckoutAt: z.string().optional(), checkInCondition: z.string().trim().max(500).optional() });
 
 export async function checkInStudentAction(_state: StayFormState, formData: FormData): Promise<StayFormState> {
   const session = await requireManager();
-  const parsed = checkInSchema.safeParse({ studentId: formData.get("studentId"), semesterId: formData.get("semesterId"), roomId: formData.get("roomId"), checkInAt: formData.get("checkInAt"), dueDate: formData.get("dueDate"), expectedCheckoutAt: formData.get("expectedCheckoutAt") || undefined, checkInCondition: formData.get("checkInCondition") || undefined });
+  const parsed = checkInSchema.safeParse({ paymentId: formData.get("paymentId") || undefined, studentId: formData.get("studentId"), semesterId: formData.get("semesterId"), roomId: formData.get("roomId"), checkInAt: formData.get("checkInAt"), dueDate: formData.get("dueDate"), expectedCheckoutAt: formData.get("expectedCheckoutAt") || undefined, checkInCondition: formData.get("checkInCondition") || undefined });
   if (!parsed.success) return { error: "Select a student, active semester, available room and valid dates." };
-  let occupancyId = "";
+  let receiptPaymentId = "";
   try {
     await db.$transaction(async (tx) => {
-      const [student, semester, room, existing] = await Promise.all([
+      const [student, semester, room, existing, initialPayment] = await Promise.all([
         tx.student.findFirst({ where: { id: parsed.data.studentId, organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } } }),
         tx.semester.findFirst({ where: { id: parsed.data.semesterId, organizationId: session.organizationId, status: "ACTIVE" } }),
         tx.room.findFirst({ where: { id: parsed.data.roomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } } } }),
         tx.occupancy.findFirst({ where: { organizationId: session.organizationId, studentId: parsed.data.studentId, status: "ACTIVE" } }),
+        tx.payment.findFirst({
+          where: {
+            ...(parsed.data.paymentId ? { id: parsed.data.paymentId } : {}),
+            organizationId: session.organizationId,
+            studentId: parsed.data.studentId,
+            reversedAt: null,
+            charge: { semesterId: parsed.data.semesterId, type: "SEMESTER_RENT", occupancyId: null },
+          },
+          include: { charge: true },
+          orderBy: { paidAt: "desc" },
+        }),
       ]);
       if (!student || !semester || !room) throw new Error("INVALID_SELECTION");
+      if (!initialPayment) throw new Error("INITIAL_PAYMENT_REQUIRED");
       if (existing) throw new Error("ALREADY_CHECKED_IN");
       if (room.status === "MAINTENANCE" || room.status === "INACTIVE") throw new Error("ROOM_UNAVAILABLE");
+      if (initialPayment.charge.roomTypeId && initialPayment.charge.roomTypeId !== room.roomTypeId) throw new Error("ROOM_TYPE_MISMATCH");
       const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
       const held = new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]);
       const studentHasHold = held.has(student.id);
@@ -40,22 +54,24 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       if (existingSemesterRecord) throw new Error("SEMESTER_DUPLICATE");
 
       const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: student.id, roomId: room.id, checkInAt: new Date(`${parsed.data.checkInAt}T12:00:00.000Z`), expectedCheckoutAt: parsed.data.expectedCheckoutAt ? new Date(`${parsed.data.expectedCheckoutAt}T12:00:00.000Z`) : semester.endDate, status: "ACTIVE", checkInCondition: parsed.data.checkInCondition || null } });
-      occupancyId = occupancy.id;
-      await tx.charge.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: student.id, occupancyId: occupancy.id, type: "SEMESTER_RENT", description: `${semester.name} rent · Room ${room.number}`, amount: room.roomType.semesterRate, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`), status: "UNPAID" } });
+      receiptPaymentId = initialPayment.id;
+      await tx.charge.update({ where: { id: initialPayment.charge.id }, data: { occupancyId: occupancy.id, roomTypeId: room.roomTypeId, description: `${semester.name} rent · Room ${room.number}`, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`) } });
       await tx.student.update({ where: { id: student.id }, data: { status: "ACTIVE" } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, roomId: room.id, status: "RESERVED_FREE" }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
       const nextHeld = studentHasHold ? held.size : held.size + 1;
       await tx.room.update({ where: { id: room.id }, data: { status: nextHeld >= capacity ? "FULL" : "PARTIALLY_OCCUPIED" } });
-      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, rent: Number(room.roomType.semesterRate) } } });
+      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, initialPaymentId: initialPayment.id, chargeId: initialPayment.charge.id } } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", ALREADY_CHECKED_IN: "This student already has an active room.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
+    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", INITIAL_PAYMENT_REQUIRED: "Record an initial payment before allocating a room.", ALREADY_CHECKED_IN: "This student already has an active room.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_TYPE_MISMATCH: "Select a room matching the accommodation type chosen during registration.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
   revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/students"); revalidatePath(`/students/${parsed.data.studentId}/edit`); revalidatePath("/payments"); revalidatePath("/dashboard");
-  redirect(`/occupancy/${occupancyId}`);
+  const delivery = await deliverPaymentReceipt(receiptPaymentId, session.organizationId);
+  revalidatePath(`/payments/${receiptPaymentId}/receipt`);
+  redirect(`/payments/${receiptPaymentId}/receipt?delivery=${delivery}`);
 }
 
 const transferSchema = z.object({ targetRoomId: z.string().min(1), reason: z.string().trim().min(5).max(300) });

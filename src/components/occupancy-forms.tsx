@@ -13,6 +13,8 @@ type CheckInFormProps = {
   semesters: Option[];
   rooms: Option[];
   selectedStudent?: Option;
+  selectedSemester?: Option;
+  paymentId?: string;
   cancelHref?: string;
 };
 
@@ -21,6 +23,8 @@ export function CheckInForm({
   semesters,
   rooms,
   selectedStudent,
+  selectedSemester,
+  paymentId,
   cancelHref = "/occupancy",
 }: CheckInFormProps) {
   const [state, action, pending] = useActionState(checkInStudentAction, initialState);
@@ -29,9 +33,10 @@ export function CheckInForm({
     <form action={action} className="panel entity-form">
       <div className="form-section-heading">
         <div><p className="panel-kicker">Room allocation</p><h2>Assign room and check in</h2></div>
-        <p>This creates the semester rent charge automatically.</p>
+        <p>An initial payment has been confirmed. Select the specific room number.</p>
       </div>
       <div className="form-grid">
+        {paymentId ? <input name="paymentId" type="hidden" value={paymentId} /> : null}
         {selectedStudent ? (
           <label className="field-group">
             <span>Student *</span>
@@ -47,20 +52,28 @@ export function CheckInForm({
             </select>
           </label>
         )}
-        <label className="field-group">
-          <span>Active semester *</span>
-          <select defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
-            <option value="">Select semester</option>
-            {semesters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-        </label>
+        {selectedSemester ? (
+          <label className="field-group">
+            <span>Active semester *</span>
+            <input readOnly value={selectedSemester.label} />
+            <input name="semesterId" type="hidden" value={selectedSemester.id} />
+          </label>
+        ) : (
+          <label className="field-group">
+            <span>Active semester *</span>
+            <select defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
+              <option value="">Select semester</option>
+              {semesters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </label>
+        )}
         <label className="field-group form-span-2">
           <span>Available room *</span>
           <select name="roomId" required>
             <option value="">Select room</option>
             {rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
-          <small>The displayed semester rate is charged when this assignment is completed.</small>
+          <small>The room must match the accommodation type selected during registration.</small>
         </label>
         <label className="field-group"><span>Check-in date *</span><input defaultValue={today} name="checkInAt" type="date" required /></label>
         <label className="field-group"><span>Rent due date *</span><input defaultValue={today} name="dueDate" type="date" required /></label>
@@ -70,7 +83,7 @@ export function CheckInForm({
       {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}
       <div className="form-actions">
         <Link className="secondary-button no-underline" href={cancelHref}><ArrowLeft size={17} /> Cancel</Link>
-        <button className="primary-button" disabled={pending}><LogIn size={17} /> Assign room and create rent</button>
+        <button className="primary-button" disabled={pending}><LogIn size={17} /> Assign room and complete intake</button>
       </div>
     </form>
   );

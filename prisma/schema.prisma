@@ -129,6 +129,18 @@ enum NotificationStatus {
   CANCELLED
 }
 
+enum ReceiptDeliveryChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum ReceiptDeliveryStatus {
+  PENDING
+  SENT
+  ACTION_REQUIRED
+  FAILED
+}
+
 enum PropertyCategory {
   LAPTOP
   SUITCASE
@@ -255,6 +267,7 @@ model RoomType {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rooms        Room[]
+  charges      Charge[]
 
   @@unique([organizationId, name])
 }
@@ -287,6 +300,7 @@ model Student {
   organizationId  String
   fullName        String
   phone           String
+  email           String?
   university      String        @default("JKUAT")
   admissionNumber String?
   nationalId      String?
@@ -403,6 +417,7 @@ model Charge {
   organizationId     String
   semesterId         String?
   studentId          String
+  roomTypeId         String?
   occupancyId        String?
   breakReservationId String?      @unique
   type               ChargeType   @default(SEMESTER_RENT)
@@ -416,33 +431,39 @@ model Charge {
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   semester         Semester?         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
   student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  roomType         RoomType?         @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
   occupancy        Occupancy?        @relation(fields: [occupancyId], references: [id], onDelete: Restrict)
   breakReservation BreakReservation? @relation(fields: [breakReservationId], references: [id], onDelete: Restrict)
   payments         Payment[]
 
   @@index([organizationId, status, dueDate])
   @@index([studentId, createdAt])
+  @@index([roomTypeId])
   @@map("SemesterCharge")
 }
 
 model Payment {
-  id             String               @id @default(cuid())
-  organizationId String
-  studentId      String
-  chargeId       String
-  recordedById   String?
-  reversedById   String?
-  amount         Decimal              @db.Decimal(12, 2)
-  paidAt         DateTime
-  method         PaymentMethod
-  reference      String?
-  receiptNumber  String
-  notes          String?
-  reversedAt     DateTime?
-  reversalReason String?
-  reversalType   PaymentReversalType?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id                     String                  @id @default(cuid())
+  organizationId         String
+  studentId              String
+  chargeId               String
+  recordedById           String?
+  reversedById           String?
+  amount                 Decimal                 @db.Decimal(12, 2)
+  paidAt                 DateTime
+  method                 PaymentMethod
+  reference              String?
+  receiptNumber          String
+  notes                  String?
+  reversedAt             DateTime?
+  reversalReason         String?
+  reversalType           PaymentReversalType?
+  receiptDeliveryChannel ReceiptDeliveryChannel?
+  receiptDeliveryStatus  ReceiptDeliveryStatus   @default(PENDING)
+  receiptDeliveredAt     DateTime?
+  receiptDeliveryError   String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
