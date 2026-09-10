@@ -6,9 +6,9 @@ import { createBreakPeriodAction, saveBreakDecisionAction, type BreakFormState }
 
 const initialState: BreakFormState = { error: "" };
 
-export function BreakPeriodForm() {
+export function BreakPeriodForm({ defaultMonths }: { defaultMonths: number }) {
   const [state, action, pending] = useActionState(createBreakPeriodAction, initialState);
-  return <form action={action} className="mini-form"><div className="form-grid"><label className="field-group form-span-2"><span>Break name *</span><input name="name" placeholder="e.g. January–March 2027 Break" required /></label><label className="field-group"><span>Start date *</span><input name="startDate" type="date" required /></label><label className="field-group"><span>End date *</span><input name="endDate" type="date" required /></label><label className="field-group"><span>Billable months if forfeited *</span><input defaultValue="3" min="1" max="12" name="months" type="number" required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<button className="primary-button mini-submit" disabled={pending}><CalendarPlus size={17} /> Create break period</button></form>;
+  return <form action={action} className="mini-form"><div className="form-grid"><label className="field-group form-span-2"><span>Break name *</span><input name="name" placeholder="e.g. January–March 2027 Break" required /></label><label className="field-group"><span>Start date *</span><input name="startDate" type="date" required /></label><label className="field-group"><span>End date *</span><input name="endDate" type="date" required /></label><label className="field-group"><span>Billable months if forfeited *</span><input defaultValue={defaultMonths} min="1" max="12" name="months" type="number" required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<button className="primary-button mini-submit" disabled={pending}><CalendarPlus size={17} /> Create break period</button></form>;
 }
 
 type Option = { id: string; label: string };

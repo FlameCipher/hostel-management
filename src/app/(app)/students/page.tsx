@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GraduationCap, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
+import { FileUp, GraduationCap, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -63,7 +63,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     <div>
       <div className="page-heading-row">
         <div><p className="eyebrow">Tenant management</p><h1>Students</h1><p>Manage student records, JKUAT details, guardians and current accommodation.</p></div>
-        {canManageStudents ? <Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link> : null}
+        {canManageStudents ? <div className="heading-actions"><Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
       </div>
 
       <section className="room-summary-grid" aria-label="Student summary">

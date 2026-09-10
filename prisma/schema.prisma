@@ -166,13 +166,22 @@ enum ClearanceStatus {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  ownerName String
-  phone     String
-  email     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  name                  String
+  ownerName             String
+  phone                 String
+  email                 String?
+  physicalAddress       String?
+  receiptPrefix         String   @default("MMH")
+  defaultSemesterMonths Int      @default(4)
+  defaultBreakMonths    Int      @default(3)
+  reminderDaysBefore    Int      @default(7)
+  mpesaShortcode        String?
+  mpesaAccountName      String?
+  whatsappEnabled       Boolean  @default(true)
+  smsEnabled            Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   users             User[]
   semesters         Semester[]

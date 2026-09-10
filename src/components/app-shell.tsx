@@ -43,11 +43,11 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-function Brand() {
+function Brand({ organizationName }: { organizationName: string }) {
   return (
     <Link className="sidebar-brand" href="/dashboard">
       <span className="brand-mark"><Building2 aria-hidden="true" size={21} /></span>
-      <span><strong>Mama Mbugua</strong><small>Hostel Management</small></span>
+      <span><strong>{organizationName}</strong><small>Hostel Management</small></span>
     </Link>
   );
 }
@@ -69,14 +69,14 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function AppShell({ children, userName }: { children: React.ReactNode; userName: string }) {
+export function AppShell({ children, organizationName, userName, userRole }: { children: React.ReactNode; organizationName: string; userName: string; userRole: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = userName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Brand />
+        <Brand organizationName={organizationName} />
         <Navigation />
         <form action={logoutAction} className="mt-auto">
           <button className="nav-link w-full" type="submit"><LogOut size={19} /><span>Sign out</span></button>
@@ -87,7 +87,7 @@ export function AppShell({ children, userName }: { children: React.ReactNode; us
         <div className="mobile-sidebar-wrap">
           <button className="mobile-backdrop" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
           <aside className="mobile-sidebar">
-            <div className="flex items-center justify-between"><Brand /><button className="icon-button" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
+            <div className="flex items-center justify-between"><Brand organizationName={organizationName} /><button className="icon-button" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
             <Navigation onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
@@ -104,7 +104,7 @@ export function AppShell({ children, userName }: { children: React.ReactNode; us
             <button className="icon-button notification-button" aria-label="Notifications"><Bell size={20} /><span /></button>
             <button className="profile-button" type="button">
               <span className="profile-avatar">{initials}</span>
-              <span className="hidden text-left sm:block"><strong>{userName}</strong><small>Owner</small></span>
+              <span className="hidden text-left sm:block"><strong>{userName}</strong><small>{userRole.charAt(0) + userRole.slice(1).toLowerCase()}</small></span>
               <ChevronDown size={16} />
             </button>
           </div>

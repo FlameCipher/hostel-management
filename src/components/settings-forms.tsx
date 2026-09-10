@@ -1,0 +1,27 @@
+"use client";
+
+import { useActionState } from "react";
+import { Building2, LoaderCircle, Save, WalletCards } from "lucide-react";
+import { updateAccommodationRatesAction, updateOrganizationSettingsAction, type SettingsFormState } from "@/app/(app)/settings/actions";
+
+const initial: SettingsFormState = { error: "", message: "" };
+type OrganizationSettings = { name: string; ownerName: string; phone: string; email: string | null; physicalAddress: string | null; receiptPrefix: string; defaultSemesterMonths: number; defaultBreakMonths: number; reminderDaysBefore: number; mpesaShortcode: string | null; mpesaAccountName: string | null; whatsappEnabled: boolean; smsEnabled: boolean };
+type Rate = { id: string; name: string; sharingMode: "PRIVATE" | "SHARED"; monthlyRate: number; semesterRate: number; defaultCapacity: number };
+
+export function OrganizationSettingsForm({ settings }: { settings: OrganizationSettings }) {
+  const [state, action, pending] = useActionState(updateOrganizationSettingsAction, initial);
+  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Hostel profile</p><h2><Building2 size={18} /> Organization and operations</h2></div></div><div className="form-grid">
+    <label className="field-group"><span>Hostel name *</span><input defaultValue={settings.name} maxLength={120} name="name" required /></label><label className="field-group"><span>Owner name *</span><input defaultValue={settings.ownerName} maxLength={120} name="ownerName" required /></label>
+    <label className="field-group"><span>Phone *</span><input defaultValue={settings.phone} name="phone" required /></label><label className="field-group"><span>Email</span><input defaultValue={settings.email ?? ""} name="email" type="email" /></label>
+    <label className="field-group form-span-2"><span>Physical/postal address</span><input defaultValue={settings.physicalAddress ?? ""} maxLength={240} name="physicalAddress" /></label>
+    <label className="field-group"><span>Receipt prefix *</span><input defaultValue={settings.receiptPrefix} maxLength={8} name="receiptPrefix" required /><small>Used on new receipt numbers, e.g. MMH-2026-00001.</small></label><label className="field-group"><span>Balance reminder lead time</span><input defaultValue={settings.reminderDaysBefore} max={90} min={0} name="reminderDaysBefore" type="number" /></label>
+    <label className="field-group"><span>Default semester months</span><input defaultValue={settings.defaultSemesterMonths} max={12} min={1} name="defaultSemesterMonths" type="number" /></label><label className="field-group"><span>Default break months</span><input defaultValue={settings.defaultBreakMonths} max={12} min={1} name="defaultBreakMonths" type="number" /></label>
+    <label className="field-group"><span>M-Pesa shortcode/till</span><input defaultValue={settings.mpesaShortcode ?? ""} maxLength={20} name="mpesaShortcode" /></label><label className="field-group"><span>M-Pesa account name</span><input defaultValue={settings.mpesaAccountName ?? ""} maxLength={120} name="mpesaAccountName" /></label>
+    <label className="check-field"><input defaultChecked={settings.whatsappEnabled} name="whatsappEnabled" type="checkbox" /> Enable WhatsApp reminders</label><label className="check-field"><input defaultChecked={settings.smsEnabled} name="smsEnabled" type="checkbox" /> Enable SMS reminders</label>
+  </div>{state.error ? <p className="form-error">{state.error}</p> : null}{state.message ? <p className="form-success">{state.message}</p> : null}<div className="form-actions"><button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />} Save settings</button></div></form>;
+}
+
+export function AccommodationRatesForm({ rates }: { rates: Rate[] }) {
+  const [state, action, pending] = useActionState(updateAccommodationRatesAction, initial);
+  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Pricing</p><h2><WalletCards size={18} /> Accommodation rates</h2><p>New rent charges use these rates. Existing charges are not changed.</p></div></div><div className="settings-rate-list">{rates.map((rate) => <fieldset className="settings-rate-row" key={rate.id}><input name="roomTypeId" type="hidden" value={rate.id} /><legend>{rate.name}<small>{rate.sharingMode === "SHARED" ? "Per person" : "Private occupancy"}</small></legend><label className="field-group"><span>Monthly (KES)</span><input defaultValue={rate.monthlyRate} min={1} name={`monthlyRate_${rate.id}`} step="0.01" type="number" required /></label><label className="field-group"><span>Semester (KES)</span><input defaultValue={rate.semesterRate} min={1} name={`semesterRate_${rate.id}`} step="0.01" type="number" required /></label><label className="field-group"><span>Default capacity</span><input defaultValue={rate.defaultCapacity} max={20} min={1} name={`defaultCapacity_${rate.id}`} type="number" required /></label></fieldset>)}</div>{state.error ? <p className="form-error">{state.error}</p> : null}{state.message ? <p className="form-success">{state.message}</p> : null}<div className="form-actions"><button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />} Save rates</button></div></form>;
+}

@@ -69,12 +69,14 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
       if (parsed.data.amount > balance) throw new Error(`OVERPAY:${balance}`);
 
       const year = new Date(`${parsed.data.paidAt}T12:00:00.000Z`).getUTCFullYear();
+      const organization = await tx.organization.findUnique({ where: { id: session.organizationId }, select: { receiptPrefix: true } });
+      if (!organization) throw new Error("ORGANIZATION_NOT_FOUND");
       const sequence = await tx.receiptSequence.upsert({
         where: { organizationId_year: { organizationId: session.organizationId, year } },
         create: { organizationId: session.organizationId, year, lastIssued: 1 },
         update: { lastIssued: { increment: 1 } },
       });
-      const receiptNumber = `MMH-${year}-${String(sequence.lastIssued).padStart(5, "0")}`;
+      const receiptNumber = `${organization.receiptPrefix}-${year}-${String(sequence.lastIssued).padStart(5, "0")}`;
       const normalizedReference = parsed.data.method === "MPESA" ? parsed.data.reference?.toUpperCase() : parsed.data.reference;
       const payment = await tx.payment.create({ data: { organizationId: session.organizationId, studentId: charge.studentId, chargeId: charge.id, recordedById: session.userId, amount: parsed.data.amount, paidAt: new Date(`${parsed.data.paidAt}T12:00:00.000Z`), method: parsed.data.method, reference: normalizedReference || null, receiptNumber, notes: parsed.data.notes || null } });
       paymentId = payment.id;
@@ -94,6 +96,7 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "CHARGE_NOT_FOUND") return { error: "The selected charge is unavailable." };
+    if (message === "ORGANIZATION_NOT_FOUND") return { error: "Organization settings are unavailable." };
     if (message === "CHARGE_PAID") return { error: "This charge has already been fully paid." };
     if (message.startsWith("DUPLICATE_REFERENCE:")) return { error: `This M-Pesa reference is already recorded on receipt ${message.split(":")[1]}.` };
     if (message.startsWith("OVERPAY:")) return { error: `Payment exceeds the remaining balance of KES ${Number(message.split(":")[1]).toLocaleString("en-KE")}.` };
