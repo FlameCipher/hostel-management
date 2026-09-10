@@ -1,0 +1,567 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  CARETAKER
+}
+
+enum SemesterStatus {
+  UPCOMING
+  ACTIVE
+  CLOSED
+}
+
+enum SharingMode {
+  PRIVATE
+  SHARED
+}
+
+enum RoomStatus {
+  VACANT
+  PARTIALLY_OCCUPIED
+  FULL
+  MAINTENANCE
+  INACTIVE
+}
+
+enum StudentStatus {
+  ACTIVE
+  CHECKED_OUT
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OccupancyStatus {
+  RESERVED
+  ACTIVE
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum ChargeStatus {
+  UNPAID
+  PARTIALLY_PAID
+  FULLY_PAID
+  OVERDUE
+  WAIVED
+}
+
+enum ChargeType {
+  SEMESTER_RENT
+  BREAK_ACCOMMODATION
+  DAMAGE
+  OTHER
+}
+
+enum BreakPeriodStatus {
+  UPCOMING
+  ACTIVE
+  CLOSED
+}
+
+enum BreakIntent {
+  UNDECIDED
+  RETURNING
+  NOT_RETURNING
+}
+
+enum BreakReservationStatus {
+  PENDING
+  RESERVED_FREE
+  RETURN_CONFIRMED
+  CLEARANCE_REQUIRED
+  VACATED_CLEARED
+  RETURN_CANCELLED
+  CHARGED
+}
+
+enum PaymentMethod {
+  MPESA
+  BANK_TRANSFER
+  CASH
+  CARD
+  OTHER
+}
+
+enum PaymentReversalType {
+  INTERNAL_CORRECTION
+  MPESA_CONFIRMED
+}
+
+enum ReconciliationStatus {
+  UNMATCHED
+  MATCHED
+  AMOUNT_MISMATCH
+  REVERSED
+  IGNORED
+}
+
+enum MpesaSource {
+  MANUAL
+  CSV
+  CALLBACK
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+}
+
+enum NotificationRecipient {
+  STUDENT
+  GUARDIAN
+}
+
+enum NotificationStatus {
+  QUEUED
+  OPENED_FOR_SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum PropertyCategory {
+  LAPTOP
+  SUITCASE
+  MATTRESS
+  ELECTRONICS
+  BICYCLE
+  OTHER
+}
+
+enum AssetCategory {
+  BED
+  MATTRESS
+  CHAIR
+  TABLE
+  CURTAIN
+  KEY
+  SOCKET
+  LIGHT
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  GOOD
+  FAIR
+  DAMAGED
+  MISSING
+  NOT_APPLICABLE
+}
+
+enum ClearanceStatus {
+  PENDING
+  CLEARED
+  BLOCKED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  ownerName String
+  phone     String
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  semesters         Semester[]
+  roomTypes         RoomType[]
+  rooms             Room[]
+  students          Student[]
+  occupancies       Occupancy[]
+  charges           Charge[]
+  payments          Payment[]
+  assets            HostelAsset[]
+  auditLogs         AuditLog[]
+  breakPeriods      BreakPeriod[]
+  breakReservations BreakReservation[]
+  receiptSequences  ReceiptSequence[]
+  notifications     Notification[]
+  mpesaTransactions MpesaTransaction[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  email          String
+  phone          String?
+  passwordHash   String
+  role           UserRole @default(ADMIN)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentsRecorded     Payment[]      @relation("PaymentRecordedBy")
+  paymentsReversed     Payment[]      @relation("PaymentReversedBy")
+  auditLogs            AuditLog[]
+  notificationsCreated Notification[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, role])
+}
+
+model Semester {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  months         Int            @default(4)
+  status         SemesterStatus @default(UPCOMING)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  occupancies  Occupancy[]
+  charges      Charge[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
+model RoomType {
+  id              String      @id @default(cuid())
+  organizationId  String
+  name            String
+  sharingMode     SharingMode
+  monthlyRate     Decimal     @db.Decimal(12, 2)
+  semesterRate    Decimal     @db.Decimal(12, 2)
+  defaultCapacity Int
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rooms        Room[]
+
+  @@unique([organizationId, name])
+}
+
+model Room {
+  id               String     @id @default(cuid())
+  organizationId   String
+  roomTypeId       String
+  number           String
+  floor            String?
+  capacityOverride Int?
+  status           RoomStatus @default(VACANT)
+  notes            String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roomType          RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+  occupancies       Occupancy[]
+  breakReservations BreakReservation[]
+  assets            HostelAsset[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([roomTypeId])
+}
+
+model Student {
+  id              String        @id @default(cuid())
+  organizationId  String
+  fullName        String
+  phone           String
+  university      String        @default("JKUAT")
+  admissionNumber String?
+  nationalId      String?
+  admittedAt      DateTime
+  status          StudentStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  guardian          Guardian?
+  occupancies       Occupancy[]
+  charges           Charge[]
+  breakReservations BreakReservation[]
+  payments          Payment[]
+  notifications     Notification[]
+
+  @@unique([organizationId, admissionNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, fullName])
+}
+
+model Guardian {
+  id           String   @id @default(cuid())
+  studentId    String   @unique
+  name         String
+  phone        String
+  relationship String?
+  email        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Occupancy {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  semesterId         String
+  studentId          String
+  roomId             String
+  checkInAt          DateTime
+  expectedCheckoutAt DateTime?
+  checkedOutAt       DateTime?
+  status             OccupancyStatus @default(ACTIVE)
+  checkInCondition   String?
+  checkoutCondition  String?
+  clearanceStatus    ClearanceStatus @default(PENDING)
+  finalBalance       Decimal         @default(0) @db.Decimal(12, 2)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  semester      Semester              @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  student       Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  room          Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  charges       Charge[]
+  propertyItems StudentPropertyItem[]
+
+  @@unique([semesterId, studentId])
+  @@index([organizationId, status])
+  @@index([roomId, status])
+}
+
+model BreakPeriod {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  months         Int               @default(3)
+  status         BreakPeriodStatus @default(UPCOMING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations BreakReservation[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
+model BreakReservation {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  breakPeriodId       String
+  studentId           String
+  roomId              String
+  intent              BreakIntent            @default(UNDECIDED)
+  status              BreakReservationStatus @default(PENDING)
+  belongingsStored    Boolean                @default(false)
+  monthlyRateSnapshot Decimal                @db.Decimal(12, 2)
+  potentialCharge     Decimal                @db.Decimal(12, 2)
+  declaredAt          DateTime?
+  clearedAt           DateTime?
+  returnConfirmedAt   DateTime?
+  notes               String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  breakPeriod  BreakPeriod  @relation(fields: [breakPeriodId], references: [id], onDelete: Restrict)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  room         Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  charge       Charge?
+
+  @@unique([breakPeriodId, studentId])
+  @@index([organizationId, status])
+  @@index([roomId, status])
+}
+
+model Charge {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  semesterId         String?
+  studentId          String
+  occupancyId        String?
+  breakReservationId String?      @unique
+  type               ChargeType   @default(SEMESTER_RENT)
+  description        String
+  amount             Decimal      @db.Decimal(12, 2)
+  dueDate            DateTime
+  status             ChargeStatus @default(UNPAID)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  semester         Semester?         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  occupancy        Occupancy?        @relation(fields: [occupancyId], references: [id], onDelete: Restrict)
+  breakReservation BreakReservation? @relation(fields: [breakReservationId], references: [id], onDelete: Restrict)
+  payments         Payment[]
+
+  @@index([organizationId, status, dueDate])
+  @@index([studentId, createdAt])
+  @@map("SemesterCharge")
+}
+
+model Payment {
+  id             String               @id @default(cuid())
+  organizationId String
+  studentId      String
+  chargeId       String
+  recordedById   String?
+  reversedById   String?
+  amount         Decimal              @db.Decimal(12, 2)
+  paidAt         DateTime
+  method         PaymentMethod
+  reference      String?
+  receiptNumber  String
+  notes          String?
+  reversedAt     DateTime?
+  reversalReason String?
+  reversalType   PaymentReversalType?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  charge           Charge            @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  recordedBy       User?             @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  reversedBy       User?             @relation("PaymentReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
+  mpesaTransaction MpesaTransaction?
+
+  @@unique([organizationId, receiptNumber])
+  @@index([organizationId, paidAt])
+  @@index([studentId, paidAt])
+}
+
+model MpesaTransaction {
+  id              String               @id @default(cuid())
+  organizationId  String
+  paymentId       String?              @unique
+  transactionCode String
+  phone           String?
+  amount          Decimal              @db.Decimal(12, 2)
+  transactedAt    DateTime
+  reference       String?
+  source          MpesaSource          @default(CSV)
+  status          ReconciliationStatus @default(UNMATCHED)
+  matchedAt       DateTime?
+  notes           String?
+  rawData         Json?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payment      Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, transactionCode])
+  @@index([organizationId, status, transactedAt])
+}
+
+model ReceiptSequence {
+  id             String   @id @default(cuid())
+  organizationId String
+  year           Int
+  lastIssued     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, year])
+}
+
+model StudentPropertyItem {
+  id                String           @id @default(cuid())
+  occupancyId       String
+  name              String
+  category          PropertyCategory
+  description       String?
+  checkInCondition  ItemCondition
+  checkoutCondition ItemCondition?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  occupancy Occupancy @relation(fields: [occupancyId], references: [id], onDelete: Cascade)
+
+  @@index([occupancyId, category])
+}
+
+model HostelAsset {
+  id             String        @id @default(cuid())
+  organizationId String
+  roomId         String?
+  name           String
+  category       AssetCategory
+  assetCode      String?
+  quantity       Int           @default(1)
+  condition      ItemCondition @default(GOOD)
+  notes          String?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, assetCode])
+  @@index([organizationId, category])
+  @@index([roomId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Notification {
+  id             String                @id @default(cuid())
+  organizationId String
+  studentId      String?
+  createdById    String?
+  channel        NotificationChannel
+  recipientType  NotificationRecipient
+  recipientName  String
+  recipientPhone String
+  message        String
+  status         NotificationStatus    @default(QUEUED)
+  scheduledAt    DateTime              @default(now())
+  openedAt       DateTime?
+  sentAt         DateTime?
+  failureReason  String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, scheduledAt])
+  @@index([studentId, createdAt])
+}

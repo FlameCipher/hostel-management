@@ -1,0 +1,19 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Building2, RotateCcw } from "lucide-react";
+import { PrintReceiptButton } from "@/components/print-receipt-button";
+import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+
+const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await requireSession();
+  const { id } = await params;
+  const payment = await db.payment.findFirst({ where: { id, organizationId: session.organizationId }, include: { organization: true, student: true, recordedBy: true, reversedBy: true, charge: { include: { payments: { where: { reversedAt: null } } } } } });
+  if (!payment) notFound();
+  const totalPaid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
+  const balance = Math.max(0, Number(payment.charge.amount) - totalPaid);
+  const canReverse = (session.role === "OWNER" || session.role === "ADMIN") && !payment.reversedAt;
+  return <div className="receipt-page"><div className="receipt-toolbar print-hidden"><Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17} /> Payments</Link><div className="heading-actions">{canReverse ? <Link className="danger-button no-underline" href={`/payments/${payment.id}/reverse`}><RotateCcw size={17} /> Reverse payment</Link> : null}<PrintReceiptButton /></div></div><article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>{payment.reversedAt ? <div className="reversal-banner"><strong>REVERSED</strong><span>{payment.reversalType === "MPESA_CONFIRMED" ? "M-Pesa reversal confirmed" : "Internal correction"} · {payment.reversedAt.toLocaleDateString("en-KE")}</span><p>{payment.reversalReason}</p></div> : null}<header className="receipt-header"><span className="brand-mark"><Building2 size={21} /></span><div><h1>{payment.organization.name}</h1><p>Official payment receipt</p></div><div className="receipt-number"><span>Receipt number</span><strong>{payment.receiptNumber}</strong></div></header><div className="receipt-rule" /><section className="receipt-meta"><div><span>Received from</span><strong>{payment.student.fullName}</strong><small>{payment.student.phone}</small></div><div><span>Payment date</span><strong>{payment.paidAt.toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}</strong></div></section><section className="receipt-payment"><div><span>Description</span><strong>{payment.charge.description}</strong></div><div><span>Amount received</span><strong>{money(Number(payment.amount))}</strong></div></section><section className="receipt-details"><div><span>Payment method</span><strong>{payment.method.replaceAll("_", " ")}</strong></div><div><span>Reference</span><strong>{payment.reference || "Not applicable"}</strong></div><div><span>Total charge</span><strong>{money(Number(payment.charge.amount))}</strong></div><div><span>Balance remaining</span><strong>{money(balance)}</strong></div>{balance > 0 ? <div><span>Next balance due</span><strong>{payment.charge.dueDate.toLocaleDateString("en-KE", { timeZone: "UTC" })}</strong></div> : null}</section><footer className="receipt-footer"><p>Received by: <strong>{payment.recordedBy?.name ?? "Hostel management"}</strong></p>{payment.reversedAt ? <p>Reversed by: <strong>{payment.reversedBy?.name ?? "Hostel management"}</strong></p> : null}<p>{payment.organization.ownerName} · {payment.organization.phone}</p><small>{payment.reversedAt ? "This receipt is retained only as a reversal audit record and is not proof of an active payment." : "This computer-generated receipt is valid without a signature."}</small></footer></article></div>;
+}

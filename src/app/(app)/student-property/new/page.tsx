@@ -1,0 +1,5 @@
+import { redirect } from "next/navigation";
+import { PropertyForm } from "@/components/property-form";
+import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+export default async function NewPropertyPage({ searchParams }: { searchParams: Promise<{ occupancyId?: string }> }) { const session = await requireSession(); if (session.role === "CARETAKER") redirect("/student-property"); const params = await searchParams; const occupancies = await db.occupancy.findMany({ where: { organizationId: session.organizationId, status: "ACTIVE" }, include: { student: true, room: true }, orderBy: { student: { fullName: "asc" } } }); const options = occupancies.map((item) => ({ id: item.id, label: `${item.student.fullName} · Room ${item.room.number}` })); return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Student property</p><h1>Add property</h1><p>Record a valuable and its condition at check-in.</p></div></div><PropertyForm occupancies={options} selectedOccupancyId={params.occupancyId} /></div>; }
