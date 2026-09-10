@@ -24,7 +24,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
   try {
     await db.$transaction(async (tx) => {
       const [student, semester, room, existing] = await Promise.all([
-        tx.student.findFirst({ where: { id: parsed.data.studentId, organizationId: session.organizationId } }),
+        tx.student.findFirst({ where: { id: parsed.data.studentId, organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } } }),
         tx.semester.findFirst({ where: { id: parsed.data.semesterId, organizationId: session.organizationId, status: "ACTIVE" } }),
         tx.room.findFirst({ where: { id: parsed.data.roomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } } } }),
         tx.occupancy.findFirst({ where: { organizationId: session.organizationId, studentId: parsed.data.studentId, status: "ACTIVE" } }),
@@ -54,7 +54,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
-  revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/payments"); revalidatePath("/dashboard");
+  revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/students"); revalidatePath(`/students/${parsed.data.studentId}/edit`); revalidatePath("/payments"); revalidatePath("/dashboard");
   redirect(`/occupancy/${occupancyId}`);
 }
 
