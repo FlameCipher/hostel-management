@@ -2,6 +2,7 @@ import "dotenv/config";
 import { hash } from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { normalizeRoomIdentifier } from "../src/lib/room-identifiers";
 
 const connectionString = process.env.DB_DATABASE_URL_UNPOOLED ?? process.env.DB_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DB_DATABASE_URL_UNPOOLED, DB_DATABASE_URL or DATABASE_URL must be configured");
@@ -81,7 +82,11 @@ async function main() {
   const roomTypeFor = (number: number) => number <= 8 || number >= 22 ? "single-shared" : number <= 13 ? "bedsitter-shared" : number <= 18 ? "single-private" : "bedsitter-private";
   for (let number = 1; number <= 24; number += 1) {
     const roomTypeId = roomTypeFor(number);
-    const room = await db.room.upsert({ where: { organizationId_number: { organizationId, number: String(number) } }, update: { roomTypeId, floor: number <= 12 ? "Ground" : "First", status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null }, create: { organizationId, roomTypeId, number: String(number), floor: number <= 12 ? "Ground" : "First", status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null } });
+    const roomNumber = String(number);
+    const floor = number <= 12 ? "Ground" : "First";
+    const numberKey = normalizeRoomIdentifier(roomNumber);
+    const floorKey = normalizeRoomIdentifier(floor);
+    const room = await db.room.upsert({ where: { organizationId_floorKey_numberKey: { organizationId, floorKey, numberKey } }, update: { roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null }, create: { organizationId, roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null } });
     roomIds.set(String(number), room.id);
   }
 

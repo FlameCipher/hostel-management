@@ -277,7 +277,9 @@ model Room {
   organizationId   String
   roomTypeId       String
   number           String
+  numberKey        String
   floor            String?
+  floorKey         String
   capacityOverride Int?
   status           RoomStatus @default(VACANT)
   notes            String?
@@ -290,7 +292,7 @@ model Room {
   breakReservations BreakReservation[]
   assets            HostelAsset[]
 
-  @@unique([organizationId, number])
+  @@unique([organizationId, floorKey, numberKey])
   @@index([organizationId, status])
   @@index([roomTypeId])
 }
