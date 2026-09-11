@@ -15,6 +15,7 @@ export function ReceiptShareActions({
   message,
   phone,
   pdfUrl,
+  publicPdfUrl,
   receiptNumber,
 }: {
   autoOpenWhatsApp: boolean;
@@ -22,16 +23,22 @@ export function ReceiptShareActions({
   message: string;
   phone: string;
   pdfUrl: string;
+  publicPdfUrl: string;
   receiptNumber: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [busyAction, setBusyAction] = useState<"share" | "whatsapp" | "download" | "email" | null>(null);
   const [error, setError] = useState("");
   const [emailSent, setEmailSent] = useState(false);
-  const whatsappUrl = useMemo(() => `https://wa.me/${whatsappNumber(phone)}?text=${encodeURIComponent(message)}`, [message, phone]);
+  const whatsappUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const pdfLink = new URL(publicPdfUrl, window.location.origin).toString();
+    const whatsappMessage = `${message}\n\nPDF receipt: ${pdfLink}`;
+    return `https://wa.me/${whatsappNumber(phone)}?text=${encodeURIComponent(whatsappMessage)}`;
+  }, [message, phone, publicPdfUrl]);
 
   useEffect(() => {
-    if (!autoOpenWhatsApp) return;
+    if (!autoOpenWhatsApp || !whatsappUrl) return;
     const key = `receipt-whatsapp-opened:${receiptNumber}`;
     if (window.sessionStorage.getItem(key)) return;
     window.sessionStorage.setItem(key, "1");
@@ -61,7 +68,7 @@ export function ReceiptShareActions({
     try {
       const file = await getPdfFile();
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `Receipt ${receiptNumber}`, text: message });
+        await navigator.share({ files: [file], title: `Receipt ${receiptNumber}`, text: "PDF payment receipt attached." });
         return;
       }
 

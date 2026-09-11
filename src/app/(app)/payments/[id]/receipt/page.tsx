@@ -5,6 +5,7 @@ import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { ReceiptShareActions } from "@/components/receipt-share-actions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { createReceiptShareToken } from "@/lib/receipt-share-token";
 
 const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
@@ -40,6 +41,10 @@ export default async function PaymentReceiptPage({
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
   const canReverse = ["OWNER", "ADMIN"].includes(session.role) && !payment.reversedAt;
+  const receiptShareToken = await createReceiptShareToken({
+    paymentId: payment.id,
+    organizationId: session.organizationId,
+  });
   const shareMessage = [
     `${payment.organization.name} payment receipt`,
     `Receipt: ${payment.receiptNumber}`,
@@ -63,6 +68,7 @@ export default async function PaymentReceiptPage({
             message={shareMessage}
             phone={payment.student.phone}
             pdfUrl={`/payments/${payment.id}/receipt/pdf`}
+            publicPdfUrl={`/receipts/${encodeURIComponent(receiptShareToken)}/pdf`}
             receiptNumber={payment.receiptNumber}
           />
           {canReverse ? <Link className="danger-button no-underline" href={`/payments/${payment.id}/reverse`}><RotateCcw size={17} /> Reverse payment</Link> : null}
@@ -71,7 +77,7 @@ export default async function PaymentReceiptPage({
       </div>
 
       {delivery === "email" ? <div className="form-success print-hidden">PDF receipt emailed automatically to {payment.student.email}.</div> : null}
-      {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>The prepared receipt is opening in WhatsApp. Use the WhatsApp button above if it does not open.</p></div></div> : null}
+      {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>WhatsApp is opening with a secure link to the PDF receipt. Use the WhatsApp PDF button above if it does not open.</p></div></div> : null}
       {delivery === "failed" ? <div className="form-error print-hidden">Automatic email delivery failed. You can still use Email, WhatsApp, Share, or Print above.</div> : null}
 
       <article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>
