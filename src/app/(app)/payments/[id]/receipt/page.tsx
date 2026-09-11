@@ -62,6 +62,7 @@ export default async function PaymentReceiptPage({
             email={payment.student.email}
             message={shareMessage}
             phone={payment.student.phone}
+            pdfUrl={`/payments/${payment.id}/receipt/pdf`}
             receiptNumber={payment.receiptNumber}
           />
           {canReverse ? <Link className="danger-button no-underline" href={`/payments/${payment.id}/reverse`}><RotateCcw size={17} /> Reverse payment</Link> : null}
@@ -69,7 +70,7 @@ export default async function PaymentReceiptPage({
         </div>
       </div>
 
-      {delivery === "email" ? <div className="form-success print-hidden">Receipt emailed automatically to {payment.student.email}.</div> : null}
+      {delivery === "email" ? <div className="form-success print-hidden">PDF receipt emailed automatically to {payment.student.email}.</div> : null}
       {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>The prepared receipt is opening in WhatsApp. Use the WhatsApp button above if it does not open.</p></div></div> : null}
       {delivery === "failed" ? <div className="form-error print-hidden">Automatic email delivery failed. You can still use Email, WhatsApp, Share, or Print above.</div> : null}
 
