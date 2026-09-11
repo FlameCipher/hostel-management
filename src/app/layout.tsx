@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     default: "Mama Mbugua Hostel Management",
     template: "%s | Mama Mbugua Hostel",
   },
-  description: "Room, student, rent and hostel operations management.",
+  description: "Student, rent and hostel operations management.",
 };
 
 export default function RootLayout({
