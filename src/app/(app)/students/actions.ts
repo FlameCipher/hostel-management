@@ -10,6 +10,7 @@ export type StudentFormState = { error: string };
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9][0-9\s-]{8,19}$/, "Enter a valid phone number.");
 const optionalText = (maximum: number) => z.string().trim().max(maximum).optional();
+const optionalPhoneSchema = z.union([z.literal(""), phoneSchema]);
 
 const studentSchema = z.object({
   fullName: z.string().trim().min(2, "Enter the student’s full name.").max(120),
@@ -21,13 +22,20 @@ const studentSchema = z.object({
   admittedAt: z.string().date("Select a valid admission date."),
   status: z.enum(["ACTIVE", "CHECKED_OUT", "SUSPENDED", "ARCHIVED"]),
   notes: optionalText(500),
-  guardianName: z.string().trim().min(2, "Enter the parent or guardian name.").max(120),
-  guardianPhone: phoneSchema,
+  guardianName: z.union([z.literal(""), z.string().trim().min(2, "Enter the parent or guardian name.").max(120)]),
+  guardianPhone: optionalPhoneSchema,
   guardianRelationship: optionalText(50),
   guardianEmail: z.union([z.literal(""), z.string().trim().email("Enter a valid guardian email.")]),
+}).superRefine((data, context) => {
+  const hasGuardianDetails = Boolean(
+    data.guardianName || data.guardianPhone || data.guardianRelationship || data.guardianEmail,
+  );
+  if (!hasGuardianDetails) return;
+  if (!data.guardianName) context.addIssue({ code: "custom", path: ["guardianName"], message: "Enter the guardian name or leave the entire guardian section blank." });
+  if (!data.guardianPhone) context.addIssue({ code: "custom", path: ["guardianPhone"], message: "Enter the guardian phone or leave the entire guardian section blank." });
 });
 
-const studentIntakeSchema = studentSchema.extend({
+const studentIntakeSchema = studentSchema.safeExtend({
   roomTypeId: z.string().min(1, "Select an accommodation type."),
   semesterId: z.string().min(1, "Select the active semester."),
 });
@@ -56,6 +64,21 @@ function normalizeAdmissionNumber(value?: string) {
   return value ? value.toUpperCase() : null;
 }
 
+function guardianData(data: {
+  guardianName: string;
+  guardianPhone: string;
+  guardianRelationship?: string;
+  guardianEmail: string;
+}) {
+  if (!data.guardianName && !data.guardianPhone && !data.guardianRelationship && !data.guardianEmail) return null;
+  return {
+    name: data.guardianName,
+    phone: data.guardianPhone,
+    relationship: data.guardianRelationship || null,
+    email: data.guardianEmail || null,
+  };
+}
+
 async function admissionNumberExists(organizationId: string, admissionNumber: string | null, exceptStudentId?: string) {
   if (!admissionNumber) return false;
   return Boolean(await db.student.findFirst({
@@ -81,6 +104,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
   ]);
   if (!roomType) return { error: "The selected accommodation type is unavailable." };
   if (!semester) return { error: "The selected semester is no longer active." };
+  const guardian = guardianData(parsed.data);
 
   let chargeId = "";
   await db.$transaction(async (tx) => {
@@ -90,7 +114,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
         university: parsed.data.university, admissionNumber, nationalId: parsed.data.nationalId || null,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status,
         notes: parsed.data.notes || null,
-        guardian: { create: { name: parsed.data.guardianName, phone: parsed.data.guardianPhone, relationship: parsed.data.guardianRelationship || null, email: parsed.data.guardianEmail || null } },
+        ...(guardian ? { guardian: { create: guardian } } : {}),
       },
     });
     const charge = await tx.charge.create({
@@ -121,6 +145,7 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
   if (!student) return { error: "This student could not be found." };
   if (await admissionNumberExists(session.organizationId, admissionNumber, studentId)) return { error: `Admission number ${admissionNumber} is already registered.` };
 
+  const guardian = guardianData(parsed.data);
   await db.$transaction(async (tx) => {
     await tx.student.update({
       where: { id: studentId },
@@ -128,9 +153,13 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
         fullName: parsed.data.fullName, phone: parsed.data.phone, email: parsed.data.email || null, university: parsed.data.university,
         admissionNumber, nationalId: parsed.data.nationalId || null,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status, notes: parsed.data.notes || null,
-        guardian: { upsert: { create: { name: parsed.data.guardianName, phone: parsed.data.guardianPhone, relationship: parsed.data.guardianRelationship || null, email: parsed.data.guardianEmail || null }, update: { name: parsed.data.guardianName, phone: parsed.data.guardianPhone, relationship: parsed.data.guardianRelationship || null, email: parsed.data.guardianEmail || null } } },
       },
     });
+    if (guardian) {
+      await tx.guardian.upsert({ where: { studentId }, create: { studentId, ...guardian }, update: guardian });
+    } else {
+      await tx.guardian.deleteMany({ where: { studentId } });
+    }
     await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_UPDATED", entityType: "Student", entityId: studentId, metadata: { fullName: parsed.data.fullName, admissionNumber, status: parsed.data.status } } });
   });
   revalidatePath("/students"); revalidatePath("/dashboard"); redirect("/students");

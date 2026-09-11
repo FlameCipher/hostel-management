@@ -43,12 +43,13 @@ export function StudentForm({
         {student ? <label className="field-group"><span>Student status *</span><select defaultValue={student.status} name="status">{(["ACTIVE", "CHECKED_OUT", "SUSPENDED", "ARCHIVED"] as const).map((status) => <option key={status} value={status}>{studentStatusLabels[status]}</option>)}</select></label> : <input name="status" type="hidden" value="ACTIVE" />}
       </div>
 
-      <div className="form-divider"><p className="panel-kicker">Parent or guardian</p><h3>Emergency contact</h3></div>
+      <div className="form-divider"><p className="panel-kicker">Parent or guardian · Optional</p><h3>Emergency contact</h3></div>
       <div className="form-grid">
-        <label className="field-group"><span>Guardian name *</span><input defaultValue={student?.guardianName} maxLength={120} name="guardianName" required /></label>
-        <label className="field-group"><span>Guardian phone *</span><input defaultValue={student?.guardianPhone} inputMode="tel" name="guardianPhone" placeholder="e.g. 0712 345 678" required /></label>
+        <label className="field-group"><span>Guardian name</span><input defaultValue={student?.guardianName} maxLength={120} name="guardianName" placeholder="Optional" /></label>
+        <label className="field-group"><span>Guardian phone</span><input defaultValue={student?.guardianPhone} inputMode="tel" name="guardianPhone" placeholder="Optional" /></label>
         <label className="field-group"><span>Relationship</span><input defaultValue={student?.guardianRelationship} maxLength={50} name="guardianRelationship" placeholder="e.g. Mother, Father" /></label>
         <label className="field-group"><span>Guardian email</span><input defaultValue={student?.guardianEmail} name="guardianEmail" placeholder="Optional" type="email" /></label>
+        <p className="muted-note form-span-2">Leave this section blank if guardian details are not currently available. If you enter any guardian information, provide both the name and phone number.</p>
         <label className="field-group form-span-2"><span>Notes</span><textarea defaultValue={student?.notes} maxLength={500} name="notes" placeholder="Optional student, medical or administrative notes" rows={4} /></label>
       </div>
 

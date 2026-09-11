@@ -29,8 +29,13 @@ const rowSchema = z.object({
   fullName: z.string().trim().min(2).max(120), phone, email: z.union([z.literal(""), z.string().trim().email()]).default(""), university: z.string().trim().min(2).max(100).default("JKUAT"),
   admissionNumber: z.string().trim().max(50).default(""), nationalId: z.string().trim().max(30).default(""),
   admittedAt: z.string().trim().default(""), status: z.enum(["ACTIVE", "CHECKED_OUT", "SUSPENDED", "ARCHIVED"]).default("ACTIVE"), notes: z.string().trim().max(500).default(""),
-  guardianName: z.string().trim().min(2).max(120), guardianPhone: phone, guardianRelationship: z.string().trim().max(50).default(""), guardianEmail: z.union([z.literal(""), z.string().trim().email()]).default(""),
+  guardianName: z.union([z.literal(""), z.string().trim().min(2).max(120)]).default(""), guardianPhone: z.union([z.literal(""), phone]).default(""), guardianRelationship: z.string().trim().max(50).default(""), guardianEmail: z.union([z.literal(""), z.string().trim().email()]).default(""),
   roomNumber: z.string().trim().max(20).default(""), semesterName: z.string().trim().max(100).default(""), checkInAt: z.string().trim().default(""),
+}).superRefine((data, context) => {
+  const hasGuardianDetails = Boolean(data.guardianName || data.guardianPhone || data.guardianRelationship || data.guardianEmail);
+  if (!hasGuardianDetails) return;
+  if (!data.guardianName) context.addIssue({ code: "custom", path: ["guardianName"], message: "Guardian name is required when guardian details are supplied." });
+  if (!data.guardianPhone) context.addIssue({ code: "custom", path: ["guardianPhone"], message: "Guardian phone is required when guardian details are supplied." });
 });
 
 function parseDate(value: string, fallback: Date) {
@@ -49,8 +54,8 @@ export async function importStudentsAction(_state: StudentImportState, formData:
   if (rows.length < 2) return { error: "The CSV has no student rows.", message: "", details: [] };
   if (rows.length > 501) return { error: "Import a maximum of 500 students at a time.", message: "", details: [] };
   const headers = rows[0].map(normalizeHeader);
-  const required = ["fullName", "phone", "guardianName", "guardianPhone"];
-  if (required.some((name) => !headers.includes(name))) return { error: "CSV requires fullName, phone, guardianName and guardianPhone columns.", message: "", details: [] };
+  const required = ["fullName", "phone"];
+  if (required.some((name) => !headers.includes(name))) return { error: "CSV requires only the fullName and phone columns.", message: "", details: [] };
 
   let imported = 0; let skipped = 0; let failed = 0;
   const details: string[] = [];
@@ -70,7 +75,8 @@ export async function importStudentsAction(_state: StudentImportState, formData:
 
     try {
       await db.$transaction(async (tx) => {
-        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: item.phone, email: item.email || null, university: item.university, admissionNumber, nationalId: item.nationalId || null, admittedAt, status: item.status, notes: item.notes || null, guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } });
+        const hasGuardian = Boolean(item.guardianName && item.guardianPhone);
+        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: item.phone, email: item.email || null, university: item.university, admissionNumber, nationalId: item.nationalId || null, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
         await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_IMPORTED", entityType: "Student", entityId: student.id, metadata: { rowNumber, admissionNumber } } });
       }, { isolationLevel: "Serializable" });
       imported += 1;
