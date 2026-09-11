@@ -209,6 +209,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .row-actions button { border: 0; background: transparent; cursor: pointer; }
 .danger-link { color: #c93750; }
 .danger-link { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 650; text-decoration: none; }
+.room-row-actions { flex-wrap: nowrap; justify-content: flex-end; }
+.room-delete-button { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; gap: 5px; border: 1px solid #efb4bf; border-radius: 8px; background: #fff4f6; padding: 0 10px; color: #bd2943; font-size: 9px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: .15s ease; }
+.room-delete-button:hover { border-color: #d73e57; background: #d73e57; color: white; }
+.room-delete-button:focus-visible { outline: 2px solid #d73e57; outline-offset: 2px; }
 .payments-table { min-width: 1060px; }
 .receipt-page { max-width: 900px; margin: 0 auto; }
 .receipt-toolbar { display: flex; justify-content: space-between; margin-bottom: 18px; }

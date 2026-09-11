@@ -160,7 +160,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                       <td>{room.occupancies.length || breakOnlyReservations.length ? <>{room.occupancies.map((occupancy) => occupancy.student.fullName).join(", ")}{room.occupancies.length && breakOnlyReservations.length ? "; " : ""}{breakOnlyReservations.map((reservation) => `${reservation.student.fullName} (break reserved)`).join(", ")}</> : <span className="muted-note">No occupants</span>}</td>
                       <td><strong>{formatCurrency(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
                       <td><span className={`status-pill ${roomStatusTone[effectiveStatus]}`}>{roomStatusLabels[effectiveStatus]}</span></td>
-                      {canManageRooms ? <td><div className="row-actions"><Link aria-label={`Edit room ${room.number}`} className="table-action" href={`/rooms/${room.id}/edit`}><Pencil size={15} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="table-action danger-link" href={`/rooms/${room.id}/delete`}><Trash2 size={15} /> Delete</Link></div></td> : null}
+                      {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`Edit room ${room.number}`} className="table-action" href={`/rooms/${room.id}/edit`}><Pencil size={15} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
                     </tr>
                   );
                 })}
