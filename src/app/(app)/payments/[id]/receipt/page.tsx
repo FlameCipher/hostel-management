@@ -48,6 +48,7 @@ export default async function PaymentReceiptPage({
         <div className="heading-actions">
           <ReceiptShareActions
             email={payment.student.email}
+            phone={payment.student.phone}
             pdfUrl={`/payments/${payment.id}/receipt/pdf`}
             receiptNumber={payment.receiptNumber}
           />
@@ -57,7 +58,7 @@ export default async function PaymentReceiptPage({
       </div>
 
       {delivery === "email" ? <div className="form-success print-hidden">PDF receipt emailed automatically to {payment.student.email}.</div> : null}
-      {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>Use WhatsApp PDF above, then choose WhatsApp and the student’s chat from the sharing menu. If file sharing is unavailable, download the PDF and attach it as a document in WhatsApp.</p></div></div> : null}
+      {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>Use WhatsApp PDF above to download the receipt, then open the student’s recorded number and attach the PDF as a document. You do not need to save the contact.</p></div></div> : null}
       {delivery === "failed" ? <div className="form-error print-hidden">Automatic email delivery failed. You can still use Email, WhatsApp, Share, or Print above.</div> : null}
 
       <article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>

@@ -5,10 +5,12 @@ import { Check, Download, LoaderCircle, Mail, MessageCircle, Share2 } from "luci
 
 export function ReceiptShareActions({
   email,
+  phone,
   pdfUrl,
   receiptNumber,
 }: {
   email: string | null;
+  phone: string;
   pdfUrl: string;
   receiptNumber: string;
 }) {
@@ -18,6 +20,12 @@ export function ReceiptShareActions({
   const [emailSent, setEmailSent] = useState(false);
   const [prepared, setPrepared] = useState<{ url: string; file: File } | null>(null);
   const [notice, setNotice] = useState("");
+  const [chatReady, setChatReady] = useState(false);
+  const digits = phone.replace(/[^0-9]/g, "");
+  const internationalPhone = digits.startsWith("00") ? digits.slice(2)
+    : /^0[17]\d{8}$/.test(digits) ? `254${digits.slice(1)}`
+    : /^[17]\d{8}$/.test(digits) ? `254${digits}` : digits;
+  const whatsappUrl = /^[1-9]\d{7,14}$/.test(internationalPhone) ? `https://wa.me/${internationalPhone}` : null;
   const file = prepared?.url === pdfUrl ? prepared.file : null;
 
   useEffect(() => {
@@ -54,6 +62,13 @@ export function ReceiptShareActions({
     setBusyAction(preferred);
     try {
       if (!file) throw new Error("Please wait for the PDF to finish loading.");
+      if (preferred === "whatsapp") {
+        if (!whatsappUrl) throw new Error("Update the student’s phone number with a valid country code before opening WhatsApp.");
+        downloadFile(file);
+        setChatReady(true);
+        setNotice(`PDF downloaded as ${file.name}. Open the chat for ${phone} below, then choose Attach → Document and select this PDF from Downloads. No contact needs to be saved.`);
+        return;
+      }
       // Call share directly from the click, before any fetch can consume user activation.
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file] });
@@ -61,9 +76,7 @@ export function ReceiptShareActions({
       }
       downloadFile(file);
       setCopied(true);
-      setNotice(preferred === "whatsapp"
-        ? "PDF downloaded. Open the student's WhatsApp chat, choose Attach → Document, and select this receipt from Downloads."
-        : "PDF downloaded. Attach this file in the app you want to share it with.");
+      setNotice("PDF downloaded. Attach this file in the app you want to share it with.");
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") return;
       setError(cause instanceof Error ? cause.message : "The receipt could not be shared.");
@@ -112,7 +125,8 @@ export function ReceiptShareActions({
         {email ? <button className="secondary-button" disabled={busyAction !== null} onClick={emailReceipt} type="button">{busyAction === "email" ? <LoaderCircle className="animate-spin" size={17} /> : emailSent ? <Check size={17} /> : <Mail size={17} />} {emailSent ? "PDF emailed" : "Email PDF"}</button> : null}
         <button className="secondary-button" disabled={busyAction !== null || !file} onClick={() => shareReceipt("whatsapp")} type="button">{busyAction === "whatsapp" ? <LoaderCircle className="animate-spin" size={17} /> : <MessageCircle size={17} />} WhatsApp PDF</button>
       </div>
-      <p className="mt-2" role="status">{notice || (file ? "Choose WhatsApp from the sharing menu, then select the student’s chat." : error ? "" : "Preparing receipt PDF…")}</p>
+      {chatReady && whatsappUrl ? <a className="primary-button no-underline mt-2" href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={17} /> Open WhatsApp chat · {phone}</a> : null}
+      <p className="mt-2" role="status">{notice || (file ? "WhatsApp PDF downloads the receipt, then lets you open the recorded number’s chat without saving a contact. Attach the PDF as a document. Share PDF opens the device sharing menu." : error ? "" : "Preparing receipt PDF…")}</p>
       {emailSent ? <p className="form-success mt-2">PDF receipt sent to {email}.</p> : null}
       {error ? <p className="form-error mt-2">{error}</p> : null}
     </div>
