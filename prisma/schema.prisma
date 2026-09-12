@@ -477,6 +477,8 @@ model Payment {
   @@unique([organizationId, receiptNumber])
   @@index([organizationId, paidAt])
   @@index([studentId, paidAt])
+  receiptLinks PaymentReceiptLink[]
+
 }
 
 model MpesaTransaction {
@@ -596,4 +598,15 @@ model Notification {
 
   @@index([organizationId, status, scheduledAt])
   @@index([studentId, createdAt])
+}
+
+model PaymentReceiptLink {
+  codeHash String @id
+  paymentId String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([expiresAt])
 }

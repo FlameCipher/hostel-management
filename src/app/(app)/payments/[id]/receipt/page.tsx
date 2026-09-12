@@ -37,22 +37,6 @@ export default async function PaymentReceiptPage({
   const balance = Math.max(0, Number(payment.charge.amount) - paid);
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
-  const paymentDate = payment.paidAt.toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
-  const message = [
-    `*${payment.organization.name}*`,
-    payment.reversedAt ? "*REVERSED RECEIPT — not proof of payment*" : "*Payment receipt*",
-    `Receipt: ${payment.receiptNumber}`,
-    `Student: ${payment.student.fullName}`,
-    `Room: ${roomNumber}`,
-    `Semester: ${semesterName}`,
-    `Date: ${paymentDate}`,
-    `Amount paid: ${money(Number(payment.amount))}`,
-    `Method: ${payment.method.replaceAll("_", " ")}`,
-    `Reference: ${payment.reference ?? "Not applicable"}`,
-    `Balance: ${money(balance)}`,
-    ...(payment.reversedAt ? [`Reversal reason: ${payment.reversalReason ?? "Reversed"}`] : []),
-    `${payment.organization.ownerName} · ${payment.organization.phone}`,
-  ].join("\n");
   const emailStatus = !payment.student.email ? "No email recorded."
     : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Receipt emailed."
     : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed."
@@ -64,7 +48,7 @@ export default async function PaymentReceiptPage({
         <Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17} /> Payments</Link>
         <div className="heading-actions">
           <PrintReceiptButton />
-          <ReceiptShareActions phone={payment.student.phone} message={message} />
+          <ReceiptShareActions paymentId={payment.id} />
         </div>
       </div>
 
