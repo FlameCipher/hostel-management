@@ -1,23 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Building2 } from "lucide-react";
 import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { ReceiptShareActions } from "@/components/receipt-share-actions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import "@/components/receipt-toolbar.css";
 
 const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 export default async function PaymentReceiptPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ delivery?: string }>;
 }) {
   const session = await requireSession();
   const { id } = await params;
-  const { delivery } = await searchParams;
   const payment = await db.payment.findFirst({
     where: { id, organizationId: session.organizationId },
     include: {
@@ -39,27 +37,38 @@ export default async function PaymentReceiptPage({
   const balance = Math.max(0, Number(payment.charge.amount) - paid);
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
-  const canReverse = ["OWNER", "ADMIN"].includes(session.role) && !payment.reversedAt;
+  const paymentDate = payment.paidAt.toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  const message = [
+    `*${payment.organization.name}*`,
+    payment.reversedAt ? "*REVERSED RECEIPT — not proof of payment*" : "*Payment receipt*",
+    `Receipt: ${payment.receiptNumber}`,
+    `Student: ${payment.student.fullName}`,
+    `Room: ${roomNumber}`,
+    `Semester: ${semesterName}`,
+    `Date: ${paymentDate}`,
+    `Amount paid: ${money(Number(payment.amount))}`,
+    `Method: ${payment.method.replaceAll("_", " ")}`,
+    `Reference: ${payment.reference ?? "Not applicable"}`,
+    `Balance: ${money(balance)}`,
+    ...(payment.reversedAt ? [`Reversal reason: ${payment.reversalReason ?? "Reversed"}`] : []),
+    `${payment.organization.ownerName} · ${payment.organization.phone}`,
+  ].join("\n");
+  const emailStatus = !payment.student.email ? "No email recorded."
+    : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Receipt emailed."
+    : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed."
+    : "Email not sent.";
 
   return (
     <div className="receipt-page">
       <div className="receipt-toolbar print-hidden">
         <Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17} /> Payments</Link>
         <div className="heading-actions">
-          <ReceiptShareActions
-            email={payment.student.email}
-            phone={payment.student.phone}
-            pdfUrl={`/payments/${payment.id}/receipt/pdf`}
-            receiptNumber={payment.receiptNumber}
-          />
-          {canReverse ? <Link className="danger-button no-underline" href={`/payments/${payment.id}/reverse`}><RotateCcw size={17} /> Reverse payment</Link> : null}
           <PrintReceiptButton />
+          <ReceiptShareActions phone={payment.student.phone} message={message} />
         </div>
       </div>
 
-      {delivery === "email" ? <div className="form-success print-hidden">PDF receipt emailed automatically to {payment.student.email}.</div> : null}
-      {delivery === "whatsapp" ? <div className="policy-banner print-hidden"><div><strong>No student email recorded</strong><p>Use WhatsApp PDF above to download the receipt, then open the student’s recorded number and attach the PDF as a document. You do not need to save the contact.</p></div></div> : null}
-      {delivery === "failed" ? <div className="form-error print-hidden">Automatic email delivery failed. You can still use Email, WhatsApp, Share, or Print above.</div> : null}
+      <p className="receipt-email-status print-hidden" role="status">{emailStatus}</p>
 
       <article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>
         {payment.reversedAt ? <div className="reversal-banner"><strong>REVERSED</strong><span>{payment.reversalType === "MPESA_CONFIRMED" ? "M-Pesa reversal confirmed" : "Internal correction"} · {payment.reversedAt.toLocaleDateString("en-KE")}</span><p>{payment.reversalReason}</p></div> : null}
@@ -84,7 +93,6 @@ export default async function PaymentReceiptPage({
           <div><span>Total charge</span><strong>{money(Number(payment.charge.amount))}</strong></div>
           <div><span>Balance remaining</span><strong>{money(balance)}</strong></div>
           {balance > 0 ? <div><span>Next balance due</span><strong>{payment.charge.dueDate.toLocaleDateString("en-KE", { timeZone: "UTC" })}</strong></div> : null}
-          <div><span>Receipt delivery</span><strong>{payment.receiptDeliveryStatus.replaceAll("_", " ")}</strong></div>
         </section>
         <footer className="receipt-footer">
           <p>Received by: <strong>{payment.recordedBy?.name ?? "Hostel management"}</strong></p>
