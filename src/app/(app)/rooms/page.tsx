@@ -1,3 +1,4 @@
+import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { BedDouble, Building2, DoorOpen, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { RoomStatus, type RoomStatus as RoomStatusType } from "@/generated/prisma/enums";
@@ -128,14 +129,14 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
             <Search size={17} />
             <input defaultValue={query} name="q" placeholder="Search room number" />
           </label>
-          <select aria-label="Filter by room type" defaultValue={roomTypeId ?? ""} name="type">
+          <FormSelect aria-label="Filter by room type" defaultValue={roomTypeId ?? ""} name="type">
             <option value="">All room types</option>
             {roomTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-          </select>
-          <select aria-label="Filter by room status" defaultValue={status ?? ""} name="status">
+          </FormSelect>
+          <FormSelect aria-label="Filter by room status" defaultValue={status ?? ""} name="status">
             <option value="">All statuses</option>
             {Object.values(RoomStatus).map((value) => <option key={value} value={value}>{roomStatusLabels[value]}</option>)}
-          </select>
+          </FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
           {(query || status || roomTypeId) ? <Link className="text-link" href="/rooms">Clear</Link> : null}
         </form>
@@ -160,7 +161,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                       <td>{room.occupancies.length || breakOnlyReservations.length ? <>{room.occupancies.map((occupancy) => occupancy.student.fullName).join(", ")}{room.occupancies.length && breakOnlyReservations.length ? "; " : ""}{breakOnlyReservations.map((reservation) => `${reservation.student.fullName} (break reserved)`).join(", ")}</> : <span className="muted-note">No occupants</span>}</td>
                       <td><strong>{formatCurrency(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
                       <td><span className={`status-pill ${roomStatusTone[effectiveStatus]}`}>{roomStatusLabels[effectiveStatus]}</span></td>
-                      {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`Edit room ${room.number}`} className="table-action" href={`/rooms/${room.id}/edit`}><Pencil size={15} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
+                      {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`Edit room ${room.number}`} className="table-action" href={`/rooms/${room.id}/edit`}><Pencil size={15} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number} · ${room.floor || "Floor unspecified"}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
                     </tr>
                   );
                 })}

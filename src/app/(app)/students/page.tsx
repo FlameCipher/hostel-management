@@ -1,3 +1,4 @@
+import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { BedDouble, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
@@ -78,7 +79,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
         <div className="panel-heading room-list-heading"><div><p className="panel-kicker">Student register</p><h2>{students.length} matching student{students.length === 1 ? "" : "s"}</h2></div></div>
         <form className="filter-bar student-filter-bar" method="get">
           <label className="filter-search"><Search size={17} /><input defaultValue={query} name="q" placeholder="Search name, phone, admission or guardian" /></label>
-          <select aria-label="Filter by student status" defaultValue={status ?? ""} name="status"><option value="">All statuses</option>{Object.values(StudentStatus).map((value) => <option key={value} value={value}>{studentStatusLabels[value]}</option>)}</select>
+          <FormSelect aria-label="Filter by student status" defaultValue={status ?? ""} name="status"><option value="">All statuses</option>{Object.values(StudentStatus).map((value) => <option key={value} value={value}>{studentStatusLabels[value]}</option>)}</FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
           {(query || status) ? <Link className="text-link" href="/students">Clear</Link> : null}
         </form>

@@ -1,0 +1,36 @@
+.allocation-room-field { position: relative; }
+.allocation-room-field .room-required-input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; padding: 0; pointer-events: none; }
+.room-picker-trigger { display: flex; align-items: center; gap: 12px; width: 100%; padding: 15px; background: #fff; border: 1px solid #d9e5f2; border-radius: 12px; color: #203a57; text-align: left; cursor: pointer; }
+.room-picker-trigger > span { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.room-picker-trigger strong { font-size: 14px; }
+.room-picker-trigger > svg { color: #397cb8; flex-shrink: 0; }
+.room-picker-trigger:hover { border-color: #7db3f3; background: #fbfdff; }
+.room-picker-trigger:focus-visible, .room-picker-option:focus-visible, .room-picker-content button:focus-visible { outline: 3px solid #8cbcf5; outline-offset: 2px; }
+.room-picker-trigger[data-invalid="true"] { border-color: #d44545; }
+.room-picker-dialog { width: min(560px, calc(100vw - 24px)); max-height: 88dvh; padding: 0; border: 1px solid #e1e9f2; border-radius: 20px; background: #fff; color: #203a57; box-shadow: 0 24px 80px #102c5140; }
+.room-picker-dialog::backdrop { background: #10243d80; backdrop-filter: blur(3px); }
+.room-picker-content { display: flex; flex-direction: column; max-height: 85dvh; }
+.room-picker-content header { display: flex; align-items: flex-start; justify-content: space-between; padding: 22px 22px 16px; }
+.room-picker-content header p { margin: 0 0 6px; font-size: 10px; font-weight: 700; color: #397cb8; letter-spacing: .12em; }
+.room-picker-content h2 { margin: 0 0 6px; font-size: 22px; }
+.room-picker-content header small { color: #6c7f92; font-size: 12px; }
+.room-picker-content header button { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid #e1e9f2; border-radius: 10px; background: #f8fafc; cursor: pointer; }
+.room-picker-search { display: flex; align-items: center; gap: 10px; margin: 0 22px; padding: 0 12px; border: 1px solid #d9e5f2; border-radius: 10px; color: #6c7f92; background: #f8fafc; }
+.room-picker-search input { border: 0; box-shadow: none; outline: none; background: transparent; font-size: 16px; padding: 12px 0; min-width: 0; width: 100%; }
+.room-picker-search:focus-within { outline: 2px solid #8cbcf5; }
+.room-picker-count { margin: 14px 22px 8px; font-size: 12px; color: #6c7f92; }
+.room-picker-list { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 16px; display: grid; gap: 8px; min-height: 0; }
+.room-picker-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 12px; border: 1px solid #e1e9f2; border-radius: 12px; background: white; text-align: left; color: #203a57; cursor: pointer; }
+.room-picker-option:hover, .room-picker-option.is-selected { background: #f0f7ff; border-color: #8cbcf5; }
+.room-picker-bed { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; background: #eef5fc; border-radius: 10px; color: #397cb8; }
+.room-picker-details { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.room-picker-details strong, .room-picker-price strong { font-size: 14px; }
+.room-picker-details > span { font-size: 12px; color: #6c7f92; line-height: 1.4; }
+.room-picker-details small { color: #21775a; font-size: 11px; }
+.room-picker-price { display: grid; justify-items: end; gap: 5px; flex-shrink: 0; }
+.room-picker-price small { font-size: 10px; color: #6c7f92; }
+.room-picker-price svg { color: #397cb8; }
+.room-picker-content footer { padding: 14px 22px; background: #f8fafc; border-top: 1px solid #e1e9f2; color: #6c7f92; font-size: 11px; }
+.room-picker-empty { display: grid; justify-items: center; padding: 30px 12px; color: #6c7f92; gap: 10px; text-align: center; font-size: 13px; }
+.room-picker-empty p { margin: 0; }
+@media (max-width: 420px) { .room-picker-content header { padding: 18px 16px 14px; } .room-picker-search { margin: 0 16px; } .room-picker-list { padding: 4px 12px 12px; } .room-picker-bed { display: none; } .room-picker-option { gap: 8px; } }

@@ -66,7 +66,7 @@ export default async function CheckInPage({
       ...room.breakReservations.map((item) => item.studentId),
     ]);
     if (held.size >= capacity && !held.has(intakePayment.studentId)) return [];
-    return [{ id: room.id, label: `Room ${room.number} · ${room.roomType.name} · ${held.size}/${capacity} · KES ${Number(room.roomType.semesterRate).toLocaleString("en-KE")}` }];
+    return [{ id: room.id, number: room.number, floor: room.floor, type: room.roomType.name, occupied: held.size, capacity, rate: Number(room.roomType.semesterRate) }];
   });
 
   if (!roomOptions.length) {

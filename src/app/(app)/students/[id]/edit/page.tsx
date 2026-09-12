@@ -49,7 +49,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
     if (!available) return [];
     return [{
       id: room.id,
-      label: `Room ${room.number} · ${room.roomType.name} · ${heldStudentIds.size}/${capacity} · KES ${Number(room.roomType.semesterRate).toLocaleString("en-KE")}`,
+      number: room.number, floor: room.floor, type: room.roomType.name,
+      occupied: heldStudentIds.size, capacity, rate: Number(room.roomType.semesterRate),
     }];
   });
 

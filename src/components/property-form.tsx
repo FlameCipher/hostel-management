@@ -1,5 +1,6 @@
 "use client";
 
+import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { useActionState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
@@ -17,11 +18,11 @@ export function PropertyForm({ occupancies, item, selectedOccupancyId }: { occup
   return <form action={formAction} className="panel entity-form">
     <div className="form-section-heading"><div><p className="panel-kicker">Student valuables</p><h2>{item ? "Edit property item" : "Add property item"}</h2></div></div>
     <div className="form-grid">
-      <label className="field-group form-span-2"><span>Student and room *</span><select defaultValue={item?.occupancyId ?? selectedOccupancyId ?? ""} name="occupancyId" required><option value="">Select active occupancy</option>{occupancies.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+      <label className="field-group form-span-2"><span>Student and room *</span><FormSelect defaultValue={item?.occupancyId ?? selectedOccupancyId ?? ""} name="occupancyId" required><option value="">Select active occupancy</option>{occupancies.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</FormSelect></label>
       <label className="field-group"><span>Item name *</span><input defaultValue={item?.name} name="name" required /></label>
-      <label className="field-group"><span>Category *</span><select defaultValue={item?.category ?? "OTHER"} name="category">{categories.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
-      <label className="field-group"><span>Check-in condition *</span><select defaultValue={item?.checkInCondition ?? "GOOD"} name="checkInCondition">{conditions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
-      <label className="field-group"><span>Checkout condition</span><select defaultValue={item?.checkoutCondition ?? ""} name="checkoutCondition"><option value="">Not checked out</option>{conditions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+      <label className="field-group"><span>Category *</span><FormSelect defaultValue={item?.category ?? "OTHER"} name="category">{categories.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</FormSelect></label>
+      <label className="field-group"><span>Check-in condition *</span><FormSelect defaultValue={item?.checkInCondition ?? "GOOD"} name="checkInCondition">{conditions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</FormSelect></label>
+      <label className="field-group"><span>Checkout condition</span><FormSelect defaultValue={item?.checkoutCondition ?? ""} name="checkoutCondition"><option value="">Not checked out</option>{conditions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</FormSelect></label>
       <label className="field-group form-span-2"><span>Description</span><input defaultValue={item?.description} name="description" /></label>
       <label className="field-group form-span-2"><span>Notes</span><textarea defaultValue={item?.notes} name="notes" rows={3} /></label>
     </div>

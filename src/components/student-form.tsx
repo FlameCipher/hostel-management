@@ -1,5 +1,6 @@
 "use client";
 
+import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { useActionState } from "react";
 import { ArrowLeft, LoaderCircle, Save } from "lucide-react";
@@ -40,7 +41,7 @@ export function StudentForm({
         <label className="field-group"><span>University *</span><input defaultValue={student?.university ?? "JKUAT"} maxLength={100} name="university" required /></label>
         <label className="field-group"><span>National ID</span><input defaultValue={student?.nationalId} maxLength={30} name="nationalId" placeholder="Optional" /></label>
         <label className="field-group"><span>Date admitted *</span><input defaultValue={student?.admittedAt ?? today} name="admittedAt" required type="date" /></label>
-        {student ? <label className="field-group"><span>Student status *</span><select defaultValue={student.status} name="status">{(["ACTIVE", "CHECKED_OUT", "SUSPENDED", "ARCHIVED"] as const).map((status) => <option key={status} value={status}>{studentStatusLabels[status]}</option>)}</select></label> : <input name="status" type="hidden" value="ACTIVE" />}
+        {student ? <label className="field-group"><span>Student status *</span><FormSelect defaultValue={student.status} name="status">{(["ACTIVE", "CHECKED_OUT", "SUSPENDED", "ARCHIVED"] as const).map((status) => <option key={status} value={status}>{studentStatusLabels[status]}</option>)}</FormSelect></label> : <input name="status" type="hidden" value="ACTIVE" />}
       </div>
 
       <div className="form-divider"><p className="panel-kicker">Parent or guardian · Optional</p><h3>Emergency contact</h3></div>
@@ -59,18 +60,18 @@ export function StudentForm({
           <div className="form-grid">
             <label className="field-group">
               <span>Room type *</span>
-              <select name="roomTypeId" required>
+              <FormSelect name="roomTypeId" required>
                 <option value="">Select accommodation type</option>
                 {roomTypes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
+              </FormSelect>
               <small>The specific room number is assigned after the initial payment.</small>
             </label>
             <label className="field-group">
               <span>Active semester *</span>
-              <select defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
+              <FormSelect defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
                 <option value="">Select semester</option>
                 {semesters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
+              </FormSelect>
             </label>
           </div>
         </>

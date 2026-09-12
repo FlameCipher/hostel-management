@@ -1,9 +1,12 @@
 "use client";
 
+import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { useActionState } from "react";
 import { ArrowLeft, ArrowRightLeft, LogIn, LogOut } from "lucide-react";
 import { checkInStudentAction, checkoutStudentAction, transferRoomAction, type StayFormState } from "@/app/(app)/occupancy/stay-actions";
+
+import { RoomSelector, type AllocationRoomOption } from "@/components/room-selector";
 
 const initialState: StayFormState = { error: "" };
 type Option = { id: string; label: string };
@@ -11,7 +14,7 @@ type Option = { id: string; label: string };
 type CheckInFormProps = {
   students: Option[];
   semesters: Option[];
-  rooms: Option[];
+  rooms: AllocationRoomOption[];
   selectedStudent?: Option;
   selectedSemester?: Option;
   paymentId?: string;
@@ -46,10 +49,10 @@ export function CheckInForm({
         ) : (
           <label className="field-group">
             <span>Student *</span>
-            <select name="studentId" required>
+            <FormSelect name="studentId" required>
               <option value="">Select student</option>
               {students.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            </FormSelect>
           </label>
         )}
         {selectedSemester ? (
@@ -61,20 +64,13 @@ export function CheckInForm({
         ) : (
           <label className="field-group">
             <span>Active semester *</span>
-            <select defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
+            <FormSelect defaultValue={semesters.length === 1 ? semesters[0].id : ""} name="semesterId" required>
               <option value="">Select semester</option>
               {semesters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            </FormSelect>
           </label>
         )}
-        <label className="field-group form-span-2">
-          <span>Available room *</span>
-          <select name="roomId" required>
-            <option value="">Select room</option>
-            {rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-          <small>The room must match the accommodation type selected during registration.</small>
-        </label>
+        <RoomSelector rooms={rooms} />
         <label className="field-group"><span>Check-in date *</span><input defaultValue={today} name="checkInAt" type="date" required /></label>
         <label className="field-group"><span>Rent due date *</span><input defaultValue={today} name="dueDate" type="date" required /></label>
         <label className="field-group"><span>Expected checkout</span><input name="expectedCheckoutAt" type="date" /></label>
@@ -91,7 +87,7 @@ export function CheckInForm({
 
 export function TransferForm({ occupancyId, rooms }: { occupancyId: string; rooms: Option[] }) {
   const [state, action, pending] = useActionState(transferRoomAction.bind(null, occupancyId), initialState);
-  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><select name="targetRoomId" required><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label className="field-group form-span-2"><span>Transfer reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending}><ArrowRightLeft size={17} /> Transfer room</button></div></form>;
+  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><FormSelect name="targetRoomId" required><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</FormSelect></label><label className="field-group form-span-2"><span>Transfer reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending}><ArrowRightLeft size={17} /> Transfer room</button></div></form>;
 }
 
 export function CheckoutForm({ occupancyId, allowOverride }: { occupancyId: string; allowOverride: boolean }) {
