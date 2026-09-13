@@ -7,6 +7,13 @@ import { compareRooms } from "@/lib/natural-sort";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 
 const money = (value: number) => `KES ${value.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 export default async function DashboardPage() {
   const session = await requireSession();
   const kenyaHour = (new Date().getUTCHours() + 3) % 24;
@@ -28,10 +35,43 @@ export default async function DashboardPage() {
   const overdueCharges = charges.filter((charge) => charge.dueDate < new Date() && Number(charge.amount) > charge.payments.reduce((sum, item) => sum + Number(item.amount), 0));
   const fullyPaid = charges.filter((charge) => Number(charge.amount) <= charge.payments.reduce((sum, item) => sum + Number(item.amount), 0)).length;
   const collectionPercent = expected ? Math.min(100, Math.round((collected / expected) * 100)) : 0;
+  const [roomTypes, allRooms] = await Promise.all([
+      db.roomType.findMany({
+        where: { organizationId: session.organizationId, active: true },
+        orderBy: [{ name: "asc" }],
+      }),
+      
+      db.room.findMany({
+        where: { organizationId: session.organizationId },
+        select: {
+          status: true,
+          capacityOverride: true,
+          roomType: { select: { defaultCapacity: true } },
+          occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } },
+          breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } },
+        },
+      }),
+    ]);
+  
+
   return <div><div className="page-heading-row"><div><p className="eyebrow">Live semester overview</p><DynamicGreeting firstName={session.name.split(" ")[0]} initialGreeting={initialGreeting} /><p>{semester?.name ?? "No active semester"} · updated from current records</p></div><Link className="secondary-button no-underline" href="/payments/new"><Banknote size={18} /> Record payment</Link></div>
     <section className="metric-grid"><article className="metric-card"><span className="metric-icon metric-blue"><BedDouble size={23} /></span><div><p>Total rooms</p><strong>{rooms.length}</strong></div></article><article className="metric-card"><span className="metric-icon metric-green"><Users size={23} /></span><div><p>Occupied rooms</p><strong>{occupied}</strong></div></article><article className="metric-card"><span className="metric-icon metric-sky"><DoorOpen size={23} /></span><div><p>Vacant rooms</p><strong>{vacant}</strong></div></article><article className="metric-card"><span className="metric-icon metric-violet"><Users size={23} /></span><div><p>Active students</p><strong>{students}</strong></div></article></section>
     <section className="finance-strip"><div><span className="metric-icon metric-blue"><Banknote size={23} /></span><div><p>Expected rent</p><strong>{money(expected)}</strong><small>{semester?.name ?? "All recorded charges"}</small></div></div><div><span className="metric-icon metric-green"><WalletCards size={23} /></span><div><p>Collected</p><strong>{money(collected)}</strong><small>{collectionPercent}% collected</small><div className="progress-track"><span className="bg-emerald-500" style={{ width: `${collectionPercent}%` }} /></div></div></div><div><span className="metric-icon metric-red"><AlertCircle size={23} /></span><div><p>Outstanding</p><strong>{money(outstanding)}</strong><small>{overdueCharges.length} overdue charge(s)</small></div></div><Link className="overdue-card" href="/reports"><span className="alert-icon"><AlertCircle size={20} /></span><span><strong>Overdue balances</strong><small>{overdueCharges.length} require follow-up</small></span><ArrowRight className="ml-auto" size={17} /></Link></section>
-    <div className="dashboard-grid mt-5"><section className="panel"><div className="panel-heading"><div><p className="panel-kicker">Live allocation</p><h2>Room occupancy</h2></div><Link href="/rooms">View rooms <ArrowRight size={15} /></Link></div><div className="room-grid">{roomData.slice(0, 9).map((room) => <article className="room-tile" key={room.id}><div className="flex items-center gap-2"><span className={room.effectiveStatus === "VACANT" ? "status-dot status-vacant" : "status-dot"} /><strong>Room {room.number}</strong></div><p>{room.effectiveStatus.replaceAll("_", " ")}</p><small>{room.held}/{room.capacity} spaces held</small></article>)}</div></section><section className="panel"><div className="panel-heading"><div><p className="panel-kicker">Attention needed</p><h2>Live alerts</h2></div></div><div className="alert-list"><Link href="/reports"><span className="alert-icon"><AlertCircle size={18} /></span><span><strong>Overdue</strong><small>Outstanding past due date</small></span><b>{overdueCharges.length}</b><ArrowRight size={15} /></Link><Link href="/payments"><span className="alert-icon alert-icon-green"><CircleCheck size={18} /></span><span><strong>Fully paid</strong><small>Charges cleared</small></span><b>{fullyPaid}</b><ArrowRight size={15} /></Link><Link href="/rooms"><span className="alert-icon alert-icon-blue"><DoorOpen size={18} /></span><span><strong>Vacant rooms</strong><small>Available accommodation</small></span><b>{vacant}</b><ArrowRight size={15} /></Link></div></section></div>
+    <section className="panel mt-5">
+        <div className="panel-heading">
+          <div><p className="panel-kicker">Configured pricing</p><h2>Accommodation rates</h2></div>
+          <span className="muted-note">4-month semester</span>
+        </div>
+        <div className="rate-grid">
+          {roomTypes.map((type) => (
+            <article className="rate-card" key={type.id}>
+              <div><strong>{type.name}</strong><span>{type.sharingMode === "PRIVATE" ? "Private" : "Shared"} · Capacity {type.defaultCapacity}</span></div>
+              <div className="rate-values"><span>{formatCurrency(Number(type.monthlyRate))}<small>/month</small></span><strong>{formatCurrency(Number(type.semesterRate))}<small>/semester</small></strong></div>
+            </article>
+          ))}
+        </div>
+      </section>
+      <div className="dashboard-grid mt-5"><section className="panel"><div className="panel-heading"><div><p className="panel-kicker">Live allocation</p><h2>Room occupancy</h2></div><Link href="/rooms">View rooms <ArrowRight size={15} /></Link></div><div className="room-grid">{roomData.slice(0, 9).map((room) => <article className="room-tile" key={room.id}><div className="flex items-center gap-2"><span className={room.effectiveStatus === "VACANT" ? "status-dot status-vacant" : "status-dot"} /><strong>Room {room.number}</strong></div><p>{room.effectiveStatus.replaceAll("_", " ")}</p><small>{room.held}/{room.capacity} spaces held</small></article>)}</div></section><section className="panel"><div className="panel-heading"><div><p className="panel-kicker">Attention needed</p><h2>Live alerts</h2></div></div><div className="alert-list"><Link href="/reports"><span className="alert-icon"><AlertCircle size={18} /></span><span><strong>Overdue</strong><small>Outstanding past due date</small></span><b>{overdueCharges.length}</b><ArrowRight size={15} /></Link><Link href="/payments"><span className="alert-icon alert-icon-green"><CircleCheck size={18} /></span><span><strong>Fully paid</strong><small>Charges cleared</small></span><b>{fullyPaid}</b><ArrowRight size={15} /></Link><Link href="/rooms"><span className="alert-icon alert-icon-blue"><DoorOpen size={18} /></span><span><strong>Vacant rooms</strong><small>Available accommodation</small></span><b>{vacant}</b><ArrowRight size={15} /></Link></div></section></div>
     <section className="panel mt-5 overflow-hidden"><div className="panel-heading"><div><p className="panel-kicker">Latest activity</p><h2>Recent payments</h2></div><Link href="/payments">View all <ArrowRight size={15} /></Link></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Student</th><th>Receipt</th><th>Amount</th><th>Charge</th><th>Date</th></tr></thead><tbody>{recentPayments.map((payment) => <tr key={payment.id}><td><strong>{payment.student.fullName}</strong></td><td>{payment.receiptNumber}</td><td>{money(Number(payment.amount))}</td><td>{payment.charge.description}</td><td>{payment.paidAt.toLocaleDateString("en-KE", { timeZone: "UTC" })}</td></tr>)}</tbody></table></div></section>
   </div>;
 }

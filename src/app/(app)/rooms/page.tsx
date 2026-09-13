@@ -107,20 +107,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <article className="compact-stat"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong></div></article>
       </section>
 
-      <section className="panel mt-5">
-        <div className="panel-heading">
-          <div><p className="panel-kicker">Configured pricing</p><h2>Accommodation rates</h2></div>
-          <span className="muted-note">4-month semester</span>
-        </div>
-        <div className="rate-grid">
-          {roomTypes.map((type) => (
-            <article className="rate-card" key={type.id}>
-              <div><strong>{type.name}</strong><span>{type.sharingMode === "PRIVATE" ? "Private" : "Shared"} · Capacity {type.defaultCapacity}</span></div>
-              <div className="rate-values"><span>{formatCurrency(Number(type.monthlyRate))}<small>/month</small></span><strong>{formatCurrency(Number(type.semesterRate))}<small>/semester</small></strong></div>
-            </article>
-          ))}
-        </div>
-      </section>
+      
 
       <section className="panel mt-5 overflow-hidden">
         <div className="panel-heading room-list-heading">
