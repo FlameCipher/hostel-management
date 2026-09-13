@@ -1,6 +1,6 @@
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
-import { BedDouble, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, UserCheck, UserRound } from "lucide-react";
+import { BedDouble, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -37,6 +37,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     ? (filters.status as StudentStatusType)
     : undefined;
   const canManageStudents = session.role !== "CARETAKER";
+  const canDeleteStudents = ["OWNER", "ADMIN"].includes(session.role);
   const phoneVariants = phoneSearchVariants(query);
 
   const [students, statusCounts] = await Promise.all([
@@ -122,7 +123,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
                     <td>{student.guardian ? <><strong>{student.guardian.name}</strong><a className="table-phone" href={`tel:${student.guardian.phone}`}><Phone size={11} />{student.guardian.phone}</a></> : <span className="muted-note">Not provided</span>}</td>
                     <td>{new Intl.DateTimeFormat("en-KE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(student.admittedAt)}</td>
                     <td><span className={`status-pill ${studentStatusTone[student.status]}`}>{studentStatusLabels[student.status]}</span></td>
-                    {canManageStudents ? <td><div className="row-actions">{!occupancy && !["SUSPENDED", "ARCHIVED"].includes(student.status) ? <Link aria-label={`Assign a room to ${student.fullName}`} className="table-action" href={`/students/${student.id}/edit#room-assignment`}><BedDouble size={15} /> Assign room</Link> : null}<Link aria-label={`Edit ${student.fullName}`} className="table-action" href={`/students/${student.id}/edit`}><Pencil size={15} /> Edit</Link></div></td> : null}
+                    {canManageStudents ? <td><div className="row-actions">{!occupancy && !["SUSPENDED", "ARCHIVED"].includes(student.status) ? <Link aria-label={`Assign a room to ${student.fullName}`} className="table-action" href={`/students/${student.id}/edit#room-assignment`}><BedDouble size={15} /> Assign room</Link> : null}<Link aria-label={`Edit ${student.fullName}`} className="table-action" href={`/students/${student.id}/edit`}><Pencil size={15} /> Edit</Link>{canDeleteStudents ? <Link aria-label={`Delete ${student.fullName}`} className="room-delete-button" href={`/students/${student.id}/delete`}><Trash2 size={14} /> Delete</Link> : null}</div></td> : null}
                   </tr>
                 );
               })}</tbody>

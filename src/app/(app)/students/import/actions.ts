@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { parseCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
+import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
 
 export type StudentImportState = { error: string; message: string; details: string[] };
 
@@ -45,6 +46,10 @@ function parseDate(value: string, fallback: Date) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function isPrismaError(error: unknown, code: string) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+
 export async function importStudentsAction(_state: StudentImportState, formData: FormData): Promise<StudentImportState> {
   const session = await requireImportAccess();
   const file = formData.get("students");
@@ -69,20 +74,21 @@ export async function importStudentsAction(_state: StudentImportState, formData:
     if (!admittedAt) { failed += 1; details.push(`Row ${rowNumber}: dates must use YYYY-MM-DD.`); continue; }
     if (item.roomNumber) { failed += 1; details.push(`Row ${rowNumber}: room allocation requires an initial payment. Import without roomNumber, then complete the payment-first intake.`); continue; }
     if (item.roomNumber && item.status !== "ACTIVE") { failed += 1; details.push(`Row ${rowNumber}: only ACTIVE students can be allocated a room.`); continue; }
-    const admissionNumber = item.admissionNumber ? item.admissionNumber.toUpperCase() : null;
-    const duplicate = await db.student.findFirst({ where: { organizationId: session.organizationId, OR: [...(admissionNumber ? [{ admissionNumber }] : []), { phone: item.phone }] }, select: { fullName: true } });
+    const identifiers = normalizeStudentIdentifiers(item);
+    const candidates = await db.student.findMany({ where: { organizationId: session.organizationId }, select: { fullName: true, phone: true, admissionNumber: true, nationalId: true } });
+    const duplicate = candidates.find((candidate) => matchingStudentIdentifier(identifiers, candidate));
     if (duplicate) { skipped += 1; details.push(`Row ${rowNumber}: skipped duplicate (${duplicate.fullName}).`); continue; }
 
     try {
       await db.$transaction(async (tx) => {
         const hasGuardian = Boolean(item.guardianName && item.guardianPhone);
-        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: item.phone, email: item.email || null, university: item.university, admissionNumber, nationalId: item.nationalId || null, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
-        await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_IMPORTED", entityType: "Student", entityId: student.id, metadata: { rowNumber, admissionNumber } } });
+        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: identifiers.phone, email: item.email || null, university: item.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
+        await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_IMPORTED", entityType: "Student", entityId: student.id, metadata: { rowNumber, admissionNumber: identifiers.admissionNumber } } });
       }, { isolationLevel: "Serializable" });
       imported += 1;
     } catch (error) {
       failed += 1;
-      details.push(`Row ${rowNumber}: ${error instanceof Error ? error.message : "could not be imported"}.`);
+      details.push(`Row ${rowNumber}: ${isPrismaError(error, "P2002") ? "skipped duplicate identifier" : error instanceof Error ? error.message : "could not be imported"}.`);
     }
   }
   revalidatePath("/students"); revalidatePath("/rooms"); revalidatePath("/payments"); revalidatePath("/dashboard");

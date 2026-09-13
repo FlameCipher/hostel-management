@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
 
 export type StudentFormState = { error: string };
 
@@ -60,10 +61,6 @@ function parseStudent(formData: FormData) {
   return studentSchema.safeParse(studentValues(formData));
 }
 
-function normalizeAdmissionNumber(value?: string) {
-  return value ? value.toUpperCase() : null;
-}
-
 function guardianData(data: {
   guardianName: string;
   guardianPhone: string;
@@ -79,12 +76,28 @@ function guardianData(data: {
   };
 }
 
-async function admissionNumberExists(organizationId: string, admissionNumber: string | null, exceptStudentId?: string) {
-  if (!admissionNumber) return false;
-  return Boolean(await db.student.findFirst({
-    where: { organizationId, admissionNumber, ...(exceptStudentId ? { NOT: { id: exceptStudentId } } : {}) },
-    select: { id: true },
-  }));
+async function findDuplicateStudent(
+  organizationId: string,
+  identifiers: { phone: string; admissionNumber: string | null; nationalId: string | null },
+  exceptStudentId?: string,
+) {
+  const candidates = await db.student.findMany({
+    where: { organizationId, ...(exceptStudentId ? { NOT: { id: exceptStudentId } } : {}) },
+    select: { id: true, fullName: true, phone: true, admissionNumber: true, nationalId: true },
+  });
+  for (const candidate of candidates) {
+    const field = matchingStudentIdentifier(identifiers, candidate);
+    if (field) return { ...candidate, field };
+  }
+  return null;
+}
+
+function duplicateStudentMessage(duplicate: { fullName: string; field: string }) {
+  return `A student named ${duplicate.fullName} is already registered with this ${duplicate.field}.`;
+}
+
+function isPrismaError(error: unknown, code: string) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 
 export async function createStudentAction(_state: StudentFormState, formData: FormData): Promise<StudentFormState> {
@@ -95,8 +108,9 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
     semesterId: formData.get("semesterId"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the student details." };
-  const admissionNumber = normalizeAdmissionNumber(parsed.data.admissionNumber);
-  if (await admissionNumberExists(session.organizationId, admissionNumber)) return { error: `Admission number ${admissionNumber} is already registered.` };
+  const identifiers = normalizeStudentIdentifiers(parsed.data);
+  const duplicate = await findDuplicateStudent(session.organizationId, identifiers);
+  if (duplicate) return { error: duplicateStudentMessage(duplicate) };
 
   const [roomType, semester] = await Promise.all([
     db.roomType.findFirst({ where: { id: parsed.data.roomTypeId, organizationId: session.organizationId, active: true } }),
@@ -107,11 +121,12 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
   const guardian = guardianData(parsed.data);
 
   let chargeId = "";
-  await db.$transaction(async (tx) => {
+  try {
+    await db.$transaction(async (tx) => {
     const student = await tx.student.create({
       data: {
-        organizationId: session.organizationId, fullName: parsed.data.fullName, phone: parsed.data.phone, email: parsed.data.email || null,
-        university: parsed.data.university, admissionNumber, nationalId: parsed.data.nationalId || null,
+        organizationId: session.organizationId, fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null,
+        university: parsed.data.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status,
         notes: parsed.data.notes || null,
         ...(guardian ? { guardian: { create: guardian } } : {}),
@@ -131,8 +146,12 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
       },
     });
     chargeId = charge.id;
-    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CREATED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName, admissionNumber, roomTypeId: roomType.id, initialChargeId: charge.id } } });
-  });
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CREATED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName, admissionNumber: identifiers.admissionNumber, roomTypeId: roomType.id, initialChargeId: charge.id } } });
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    if (isPrismaError(error, "P2002")) return { error: "A student with this phone number, admission number, or national ID already exists." };
+    throw error;
+  }
   revalidatePath("/students"); revalidatePath("/payments"); revalidatePath("/dashboard"); redirect(`/payments/new?chargeId=${chargeId}&intake=1`);
 }
 
@@ -140,18 +159,20 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
   const session = await requireStudentManager();
   const parsed = parseStudent(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the student details." };
-  const admissionNumber = normalizeAdmissionNumber(parsed.data.admissionNumber);
+  const identifiers = normalizeStudentIdentifiers(parsed.data);
   const student = await db.student.findFirst({ where: { id: studentId, organizationId: session.organizationId }, select: { id: true } });
   if (!student) return { error: "This student could not be found." };
-  if (await admissionNumberExists(session.organizationId, admissionNumber, studentId)) return { error: `Admission number ${admissionNumber} is already registered.` };
+  const duplicate = await findDuplicateStudent(session.organizationId, identifiers, studentId);
+  if (duplicate) return { error: duplicateStudentMessage(duplicate) };
 
   const guardian = guardianData(parsed.data);
-  await db.$transaction(async (tx) => {
+  try {
+    await db.$transaction(async (tx) => {
     await tx.student.update({
       where: { id: studentId },
       data: {
-        fullName: parsed.data.fullName, phone: parsed.data.phone, email: parsed.data.email || null, university: parsed.data.university,
-        admissionNumber, nationalId: parsed.data.nationalId || null,
+        fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null, university: parsed.data.university,
+        admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status, notes: parsed.data.notes || null,
       },
     });
@@ -160,7 +181,63 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
     } else {
       await tx.guardian.deleteMany({ where: { studentId } });
     }
-    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_UPDATED", entityType: "Student", entityId: studentId, metadata: { fullName: parsed.data.fullName, admissionNumber, status: parsed.data.status } } });
-  });
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_UPDATED", entityType: "Student", entityId: studentId, metadata: { fullName: parsed.data.fullName, admissionNumber: identifiers.admissionNumber, status: parsed.data.status } } });
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    if (isPrismaError(error, "P2002")) return { error: "A student with this phone number, admission number, or national ID already exists." };
+    throw error;
+  }
   revalidatePath("/students"); revalidatePath("/dashboard"); redirect("/students");
+}
+
+export type DeleteStudentState = { error: string };
+
+export async function deleteStudentAction(studentId: string, _state: DeleteStudentState, _formData: FormData): Promise<DeleteStudentState> {
+  void _state;
+  void _formData;
+  const session = await requireStudentManager();
+  if (!["OWNER", "ADMIN"].includes(session.role)) redirect("/students");
+
+  const student = await db.student.findFirst({
+    where: { id: studentId, organizationId: session.organizationId },
+    include: {
+      occupancies: { select: { id: true } },
+      breakReservations: { select: { id: true } },
+      payments: { select: { id: true } },
+      notifications: { select: { id: true } },
+      charges: {
+        select: {
+          id: true,
+          occupancyId: true,
+          breakReservationId: true,
+          payments: { select: { id: true }, take: 1 },
+        },
+      },
+    },
+  });
+  if (!student) return { error: "This student could not be found." };
+
+  const hasHistory = student.occupancies.length > 0
+    || student.breakReservations.length > 0
+    || student.payments.length > 0
+    || student.notifications.length > 0
+    || student.charges.some((charge) => charge.occupancyId || charge.breakReservationId || charge.payments.length);
+  if (hasHistory) return { error: "This student has accommodation, payment, reminder, or financial history and cannot be deleted. Archive the record instead." };
+
+  await db.$transaction(async (tx) => {
+    await tx.charge.deleteMany({ where: { studentId: student.id, organizationId: session.organizationId } });
+    await tx.student.delete({ where: { id: student.id } });
+    await tx.auditLog.create({
+      data: {
+        organizationId: session.organizationId,
+        actorUserId: session.userId,
+        action: "STUDENT_DELETED",
+        entityType: "Student",
+        entityId: student.id,
+        metadata: { fullName: student.fullName, phone: student.phone, admissionNumber: student.admissionNumber, nationalId: student.nationalId },
+      },
+    });
+  }, { isolationLevel: "Serializable" });
+
+  revalidatePath("/students"); revalidatePath("/payments"); revalidatePath("/dashboard"); redirect("/students");
 }
