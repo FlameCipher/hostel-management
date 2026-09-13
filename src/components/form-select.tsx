@@ -38,7 +38,7 @@ export function FormSelect({ children, name, defaultValue, required, disabled, "
   const initialValue = defaultValue ?? options[0]?.value ?? "";
   const currentValue = value ?? initialValue;
   const selected = options.find((option) => option.value === currentValue);
-  const searchable = ["roomId", "targetRoomId", "studentId", "occupancyId", "chargeId", "paymentId"].includes(name) || options.length > 8;
+  const searchable = ["roomId", "targetRoomId", "studentId", "targetStudentId", "occupancyId", "chargeId", "paymentId"].includes(name) || options.length > 8;
   const title = ariaLabel ?? ({ roomId: "Room", targetRoomId: "New room", studentId: "Student", occupancyId: "Student and room", chargeId: "Outstanding charge", paymentId: "Payment" }[name] ?? name.replace(/Id$/, "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase()));
   const visible = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
 

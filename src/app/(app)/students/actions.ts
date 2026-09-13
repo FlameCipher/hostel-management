@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
+import { refreshChargeStatus } from "@/lib/payment-balance";
 
 export type StudentFormState = { error: string };
 
@@ -191,6 +192,120 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
 }
 
 export type DeleteStudentState = { error: string };
+export type MergeStudentState = { error: string };
+
+export async function mergeStudentAction(sourceStudentId: string, _state: MergeStudentState, formData: FormData): Promise<MergeStudentState> {
+  void _state;
+  const session = await requireStudentManager();
+  if (!["OWNER", "ADMIN"].includes(session.role)) redirect("/students");
+  const targetStudentId = String(formData.get("targetStudentId") ?? "");
+  if (!targetStudentId || targetStudentId === sourceStudentId) return { error: "Select the student record that should be kept." };
+
+  try {
+    await db.$transaction(async (tx) => {
+      const [source, target] = await Promise.all([
+        tx.student.findFirst({
+          where: { id: sourceStudentId, organizationId: session.organizationId },
+          include: {
+            guardian: true,
+            occupancies: { select: { id: true } },
+            breakReservations: { select: { id: true } },
+            charges: { include: { payments: { select: { id: true, amount: true, reversedAt: true } } } },
+            _count: { select: { payments: true, notifications: true } },
+          },
+        }),
+        tx.student.findFirst({
+          where: { id: targetStudentId, organizationId: session.organizationId },
+          include: {
+            guardian: true,
+            charges: { include: { payments: { select: { id: true, amount: true, reversedAt: true } } } },
+          },
+        }),
+      ]);
+      if (!source || !target) throw new Error("STUDENT_NOT_FOUND");
+      if (!matchingStudentIdentifier(source, target)) throw new Error("NOT_DUPLICATES");
+      if (source.occupancies.length || source.breakReservations.length) throw new Error("SOURCE_HAS_ACCOMMODATION");
+
+      const equivalentChargeIds = new Map<string, string>();
+      for (const sourceCharge of source.charges) {
+        const equivalent = sourceCharge.type === "SEMESTER_RENT"
+          ? target.charges.find((candidate) => candidate.type === "SEMESTER_RENT"
+            && candidate.semesterId === sourceCharge.semesterId
+            && candidate.roomTypeId === sourceCharge.roomTypeId
+            && Number(candidate.amount) === Number(sourceCharge.amount))
+          : undefined;
+        if (!equivalent) continue;
+        const activePaid = [...sourceCharge.payments, ...equivalent.payments]
+          .filter((payment) => !payment.reversedAt)
+          .reduce((sum, payment) => sum + Number(payment.amount), 0);
+        if (activePaid > Number(equivalent.amount)) throw new Error("ACTIVE_PAYMENTS_EXCEED_CHARGE");
+        equivalentChargeIds.set(sourceCharge.id, equivalent.id);
+      }
+
+      // Release optional identifiers before filling missing details on the record being kept.
+      await tx.student.update({ where: { id: source.id }, data: { admissionNumber: null, nationalId: null } });
+      await tx.student.update({
+        where: { id: target.id },
+        data: {
+          email: target.email || source.email,
+          admissionNumber: target.admissionNumber || source.admissionNumber,
+          nationalId: target.nationalId || source.nationalId,
+          notes: target.notes || source.notes,
+        },
+      });
+
+      if (!target.guardian && source.guardian) {
+        await tx.guardian.update({ where: { id: source.guardian.id }, data: { studentId: target.id } });
+      }
+
+      const refreshedChargeIds = new Set<string>();
+      for (const sourceCharge of source.charges) {
+        const equivalentId = equivalentChargeIds.get(sourceCharge.id);
+        if (equivalentId) {
+          await tx.payment.updateMany({ where: { chargeId: sourceCharge.id }, data: { chargeId: equivalentId, studentId: target.id } });
+          await tx.charge.delete({ where: { id: sourceCharge.id } });
+          refreshedChargeIds.add(equivalentId);
+        } else {
+          await tx.charge.update({ where: { id: sourceCharge.id }, data: { studentId: target.id } });
+          await tx.payment.updateMany({ where: { chargeId: sourceCharge.id }, data: { studentId: target.id } });
+          refreshedChargeIds.add(sourceCharge.id);
+        }
+      }
+      await tx.payment.updateMany({ where: { studentId: source.id }, data: { studentId: target.id } });
+      await tx.notification.updateMany({ where: { studentId: source.id }, data: { studentId: target.id } });
+      await tx.student.delete({ where: { id: source.id } });
+      for (const chargeId of refreshedChargeIds) await refreshChargeStatus(tx, chargeId);
+      await tx.auditLog.create({
+        data: {
+          organizationId: session.organizationId,
+          actorUserId: session.userId,
+          action: "STUDENT_MERGED",
+          entityType: "Student",
+          entityId: target.id,
+          metadata: {
+            sourceStudentId: source.id,
+            sourceName: source.fullName,
+            targetStudentId: target.id,
+            targetName: target.fullName,
+            paymentsMoved: source._count.payments,
+            notificationsMoved: source._count.notifications,
+            chargesConsolidated: equivalentChargeIds.size,
+          },
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "STUDENT_NOT_FOUND") return { error: "One of the selected student records no longer exists." };
+    if (message === "NOT_DUPLICATES") return { error: "These records do not share a phone number, admission number, or national ID." };
+    if (message === "SOURCE_HAS_ACCOMMODATION") return { error: "Merge from the unallocated duplicate into the allocated student record." };
+    if (message === "ACTIVE_PAYMENTS_EXCEED_CHARGE") return { error: "The combined active payments exceed the rent charge. Reverse the duplicated active payment before merging." };
+    if (isPrismaError(error, "P2002")) return { error: "The records conflict with another student identifier and cannot be merged." };
+    throw error;
+  }
+
+  revalidatePath("/students"); revalidatePath("/payments"); revalidatePath("/reports"); revalidatePath("/dashboard"); redirect("/students");
+}
 
 export async function deleteStudentAction(studentId: string, _state: DeleteStudentState, _formData: FormData): Promise<DeleteStudentState> {
   void _state;

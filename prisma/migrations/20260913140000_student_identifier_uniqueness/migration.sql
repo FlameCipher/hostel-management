@@ -1,4 +1,4 @@
--- Run after unused duplicate student records have been removed through the UI.
+-- Run after existing duplicate student records have been merged or removed through the UI.
 -- These expression indexes enforce tenant-scoped uniqueness after normalization.
 CREATE UNIQUE INDEX "Student_org_phone_normalized_key"
 ON "Student" (
