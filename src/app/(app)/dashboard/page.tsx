@@ -3,6 +3,7 @@ import { AlertCircle, ArrowRight, Banknote, BedDouble, CircleCheck, DoorOpen, Us
 import { DynamicGreeting } from "@/components/dynamic-greeting";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { compareRooms } from "@/lib/natural-sort";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 
 const money = (value: number) => `KES ${value.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
@@ -17,6 +18,7 @@ export default async function DashboardPage() {
     db.charge.findMany({ where: { organizationId: session.organizationId, ...(semester ? { semesterId: semester.id } : {}) }, include: { payments: { where: { reversedAt: null } } } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, reversedAt: null }, include: { student: true, charge: true }, orderBy: { paidAt: "desc" }, take: 6 }),
   ]);
+  rooms.sort(compareRooms);
   const roomData = rooms.map((room) => { const capacity = room.capacityOverride ?? room.roomType.defaultCapacity; const heldIds = new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]); return { ...room, capacity, held: heldIds.size, effectiveStatus: getEffectiveRoomStatus(room.status, heldIds.size, capacity) }; });
   const vacant = roomData.filter((room) => room.effectiveStatus === "VACANT").length;
   const occupied = roomData.filter((room) => ["FULL", "PARTIALLY_OCCUPIED"].includes(room.effectiveStatus)).length;

@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { BedDouble, Check, ChevronDown, Search, X } from "lucide-react";
 import "./room-selector.css";
+import { compareRooms } from "@/lib/natural-sort";
 
 export type AllocationRoomOption = {
   id: string;
@@ -24,7 +25,7 @@ export function RoomSelector({ rooms }: { rooms: AllocationRoomOption[] }) {
   const [invalid, setInvalid] = useState(false);
   const selected = rooms.find((room) => room.id === value);
   const visible = rooms.filter((room) => `Room ${room.number} ${room.floor ?? ""} ${room.type}`.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }) || (a.floor ?? "").localeCompare(b.floor ?? ""));
+    .sort(compareRooms);
   const money = (rate: number) => `KES ${rate.toLocaleString("en-KE")}`;
 
   function open() {

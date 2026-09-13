@@ -5,6 +5,7 @@ import { CheckInForm } from "@/components/occupancy-forms";
 import { StudentForm } from "@/components/student-form";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { compareRooms } from "@/lib/natural-sort";
 
 export default async function EditStudentPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
@@ -37,6 +38,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
     }),
   ]);
   if (!student) notFound();
+
+  rooms.sort(compareRooms);
 
   const roomOptions = rooms.flatMap((room) => {
     if (eligiblePayment?.charge.roomTypeId && room.roomTypeId !== eligiblePayment.charge.roomTypeId) return [];

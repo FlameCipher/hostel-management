@@ -12,6 +12,23 @@ type StudentsPageProps = {
 
 const validStatuses = new Set<string>(Object.values(StudentStatus));
 
+function phoneSearchVariants(query: string) {
+  const digits = query.replace(/\D/g, "");
+  if (digits.length < 6) return [query];
+
+  const local = digits.startsWith("254") ? `0${digits.slice(3)}` : digits;
+  const international = local.startsWith("0") ? `254${local.slice(1)}` : local;
+  return [...new Set([
+    query,
+    digits,
+    local,
+    international,
+    `+${international}`,
+    local.length === 10 ? `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}` : "",
+    international.length === 12 ? `+${international.slice(0, 3)} ${international.slice(3, 6)} ${international.slice(6, 9)} ${international.slice(9)}` : "",
+  ].filter(Boolean))];
+}
+
 export default async function StudentsPage({ searchParams }: StudentsPageProps) {
   const session = await requireSession();
   const filters = await searchParams;
@@ -20,6 +37,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     ? (filters.status as StudentStatusType)
     : undefined;
   const canManageStudents = session.role !== "CARETAKER";
+  const phoneVariants = phoneSearchVariants(query);
 
   const [students, statusCounts] = await Promise.all([
     db.student.findMany({
@@ -29,10 +47,16 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
         ...(query ? {
           OR: [
             { fullName: { contains: query, mode: "insensitive" } },
-            { phone: { contains: query } },
-            { email: { contains: query, mode: "insensitive" } },
+            ...phoneVariants.map((phone) => ({ phone: { contains: phone } })),
             { admissionNumber: { contains: query, mode: "insensitive" } },
-            { guardian: { is: { name: { contains: query, mode: "insensitive" } } } },
+            {
+              occupancies: {
+                some: {
+                  status: "ACTIVE",
+                  room: { number: { contains: query, mode: "insensitive" } },
+                },
+              },
+            },
           ],
         } : {}),
       },
@@ -78,7 +102,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
       <section className="panel mt-5 overflow-hidden">
         <div className="panel-heading room-list-heading"><div><p className="panel-kicker">Student register</p><h2>{students.length} matching student{students.length === 1 ? "" : "s"}</h2></div></div>
         <form className="filter-bar student-filter-bar" method="get">
-          <label className="filter-search"><Search size={17} /><input defaultValue={query} name="q" placeholder="Search name, phone, admission or guardian" /></label>
+          <label className="filter-search"><Search size={17} /><input aria-label="Search students by name, phone, room or admission number" defaultValue={query} name="q" placeholder="Search name, phone, room or admission number" /></label>
           <FormSelect aria-label="Filter by student status" defaultValue={status ?? ""} name="status"><option value="">All statuses</option>{Object.values(StudentStatus).map((value) => <option key={value} value={value}>{studentStatusLabels[value]}</option>)}</FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
           {(query || status) ? <Link className="text-link" href="/students">Clear</Link> : null}

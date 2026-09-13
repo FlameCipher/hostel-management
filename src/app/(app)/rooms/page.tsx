@@ -5,6 +5,7 @@ import { RoomStatus, type RoomStatus as RoomStatusType } from "@/generated/prism
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getEffectiveRoomStatus, roomStatusLabels, roomStatusTone } from "@/lib/rooms";
+import { compareRooms } from "@/lib/natural-sort";
 
 type RoomsPageProps = {
   searchParams: Promise<{ q?: string; status?: string; type?: string }>;
@@ -67,6 +68,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       },
     }),
   ]);
+
+  rooms.sort(compareRooms);
 
   const summary = allRooms.reduce(
     (totals, room) => {

@@ -4,6 +4,7 @@ import { ArrowRight, Banknote } from "lucide-react";
 import { CheckInForm } from "@/components/occupancy-forms";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { compareRooms } from "@/lib/natural-sort";
 
 export default async function CheckInPage({
   searchParams,
@@ -58,6 +59,8 @@ export default async function CheckInPage({
     },
     orderBy: { number: "asc" },
   });
+
+  rooms.sort(compareRooms);
 
   const roomOptions = rooms.flatMap((room) => {
     const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
