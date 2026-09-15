@@ -3,191 +3,101 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-
+import type { PropertyCategory } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-export type BatchPropertyState = {
-  error: string;
+export type BatchPropertyState = { error: string };
+
+const commonItems: Record<string, { name: string; category: PropertyCategory }> = {
+  phone: { name: "Mobile phone", category: "ELECTRONICS" },
+  laptop: { name: "Laptop", category: "LAPTOP" },
+  tablet: { name: "Tablet", category: "ELECTRONICS" },
+  television: { name: "Television", category: "ELECTRONICS" },
+  speaker: { name: "Speaker", category: "ELECTRONICS" },
+  iron: { name: "Electric iron", category: "ELECTRONICS" },
+  cooker: { name: "Electric cooker", category: "ELECTRONICS" },
+  suitcase: { name: "Suitcase", category: "SUITCASE" },
+  mattress: { name: "Mattress", category: "MATTRESS" },
+  bicycle: { name: "Bicycle", category: "BICYCLE" },
 };
 
-const propertyItemSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  category: z.enum([
-    "LAPTOP",
-    "SUITCASE",
-    "MATTRESS",
-    "ELECTRONICS",
-    "BICYCLE",
-    "OTHER",
-  ]),
-  checkInCondition: z.enum([
-    "NEW",
-    "GOOD",
-    "FAIR",
-    "DAMAGED",
-    "MISSING",
-    "NOT_APPLICABLE",
-  ]),
-  description: z.string().trim().max(250).optional().default(""),
+const schema = z.object({
+  occupancyId: z.string().min(1),
+  condition: z.enum(["NEW", "GOOD", "FAIR", "DAMAGED", "MISSING", "NOT_APPLICABLE"]),
+  notes: z.string().trim().max(500).optional(),
 });
 
-const propertyBatchSchema = z.object({
-  occupancyId: z.string().min(1, "Select a student and room."),
-  items: z
-    .array(propertyItemSchema)
-    .min(1, "Select or add at least one property item.")
-    .max(50, "A maximum of 50 items can be recorded at once."),
-});
-
-function normalizedItemName(name: string) {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
+function normalizedName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
 }
 
-export async function createStudentPropertyBatchAction(
-  _previousState: BatchPropertyState,
+export async function createBatchPropertyAction(
+  _state: BatchPropertyState,
   formData: FormData,
 ): Promise<BatchPropertyState> {
   const session = await requireSession();
+  if (session.role === "CARETAKER") redirect("/student-property");
 
-  const occupancyId = String(formData.get("occupancyId") ?? "");
-  const itemsJson = String(formData.get("itemsJson") ?? "");
-
-  let submittedItems: unknown;
-
-  try {
-    submittedItems = JSON.parse(itemsJson);
-  } catch {
-    return { error: "The submitted property list is invalid." };
-  }
-
-  const parsed = propertyBatchSchema.safeParse({
-    occupancyId,
-    items: submittedItems,
+  const parsed = schema.safeParse({
+    occupancyId: formData.get("occupancyId"),
+    condition: formData.get("condition"),
+    notes: formData.get("notes") || undefined,
   });
-
-  if (!parsed.success) {
-    return {
-      error:
-        parsed.error.issues[0]?.message ??
-        "Check the submitted property information.",
-    };
-  }
-
-  const submittedNames = new Set<string>();
-
-  for (const item of parsed.data.items) {
-    const normalizedName = normalizedItemName(item.name);
-
-    if (submittedNames.has(normalizedName)) {
-      return {
-        error: `${item.name} appears more than once in the property list.`,
-      };
-    }
-
-    submittedNames.add(normalizedName);
-  }
+  if (!parsed.success) return { error: "Select a student and the condition of the items." };
 
   const occupancy = await db.occupancy.findFirst({
-    where: {
-      id: parsed.data.occupancyId,
-      organizationId: session.organizationId,
-      status: "ACTIVE",
-    },
-    select: {
-      id: true,
-      studentId: true,
-      student: {
-        select: {
-          fullName: true,
-        },
-      },
-      room: {
-        select: {
-          number: true,
-        },
-      },
-    },
+    where: { id: parsed.data.occupancyId, organizationId: session.organizationId, status: "ACTIVE" },
   });
+  if (!occupancy) return { error: "Select an active student occupancy." };
 
-  if (!occupancy) {
-    return {
-      error: "The selected student does not have an active room allocation.",
-    };
-  }
+  const selected = formData.getAll("commonItems").flatMap((value) => {
+    const item = commonItems[String(value)];
+    return item ? [item] : [];
+  });
+  const otherItems = String(formData.get("otherItems") ?? "")
+    .split(/[\n,]/)
+    .map(normalizedName)
+    .filter(Boolean)
+    .map((name) => ({ name, category: "OTHER" as const }));
 
-  try {
-    await db.$transaction(
-      async (tx) => {
-        const existingItems = await tx.studentPropertyItem.findMany({
-        where: {
-            occupancyId: occupancy.id,
-        },
-        select: {
-            name: true,
-        },
-        });
+  const unique = new Map<string, { name: string; category: PropertyCategory }>();
+  for (const item of [...selected, ...otherItems]) unique.set(item.name.toLocaleLowerCase(), item);
+  const items = [...unique.values()];
+  if (!items.length) return { error: "Select at least one common item or enter another item." };
+  if (items.length > 30) return { error: "Add no more than 30 items at once." };
 
-        const existingNames = new Set(
-          existingItems.map((item) => normalizedItemName(item.name)),
-        );
+  const existing = await db.studentPropertyItem.findMany({
+    where: { occupancyId: occupancy.id },
+    select: { name: true },
+  });
+  const existingNames = new Set(existing.map((item) => normalizedName(item.name).toLocaleLowerCase()));
+  const newItems = items.filter((item) => !existingNames.has(item.name.toLocaleLowerCase()));
+  if (!newItems.length) return { error: "All selected items are already recorded for this student." };
 
-        const duplicateItem = parsed.data.items.find((item) =>
-          existingNames.has(normalizedItemName(item.name)),
-        );
-
-        if (duplicateItem) {
-          throw new Error(`DUPLICATE_ITEM:${duplicateItem.name}`);
-        }
-
-        
-        await tx.studentPropertyItem.createMany({
-            data: parsed.data.items.map((item) => ({
-                occupancyId: occupancy.id,
-                name: item.name,
-                category: item.category,
-                checkInCondition: item.checkInCondition,
-                description: item.description || null,
-            })),
-        });
-
-        await tx.auditLog.create({
-          data: {
-            organizationId: session.organizationId,
-            actorUserId: session.userId,
-            action: "STUDENT_PROPERTY_BATCH_CREATED",
-            entityType: "Occupancy",
-            entityId: occupancy.id,
-            metadata: {
-              studentId: occupancy.studentId,
-              studentName: occupancy.student.fullName,
-              roomNumber: occupancy.room.number,
-              itemCount: parsed.data.items.length,
-              items: parsed.data.items.map((item) => item.name),
-            },
-          },
-        });
+  await db.$transaction(async (tx) => {
+    await tx.studentPropertyItem.createMany({
+      data: newItems.map((item) => ({
+        occupancyId: occupancy.id,
+        name: item.name,
+        category: item.category,
+        checkInCondition: parsed.data.condition,
+        notes: parsed.data.notes || null,
+      })),
+    });
+    await tx.auditLog.create({
+      data: {
+        organizationId: session.organizationId,
+        actorUserId: session.userId,
+        action: "STUDENT_PROPERTY_BATCH_ADDED",
+        entityType: "Occupancy",
+        entityId: occupancy.id,
+        metadata: { count: newItems.length, items: newItems.map((item) => item.name) },
       },
-      {
-        isolationLevel: "Serializable",
-      },
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-
-    if (message.startsWith("DUPLICATE_ITEM:")) {
-      const itemName = message.slice("DUPLICATE_ITEM:".length);
-
-      return {
-        error: `${itemName} is already registered for this student’s current occupancy.`,
-      };
-    }
-
-    throw error;
-  }
+    });
+  });
 
   revalidatePath("/student-property");
   revalidatePath(`/occupancy/${occupancy.id}`);
-
   redirect("/student-property");
 }

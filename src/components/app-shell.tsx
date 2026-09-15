@@ -10,7 +10,6 @@ import {
   Bell,
   CalendarDays,
   Building2,
-  ChevronDown,
   ClipboardCheck,
   CreditCard,
   LayoutDashboard,
@@ -96,17 +95,16 @@ export function AppShell({ children, organizationName, userName, userRole }: { c
       <div className="app-main">
         <header className="topbar">
           <button className="icon-button lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21} /></button>
-          <label className="topbar-search">
+          <form action="/search" className="topbar-search" method="get" role="search">
             <Search aria-hidden="true" size={18} />
-            <input aria-label="Search" placeholder="Search students, rooms, payments..." />
-          </label>
+            <input aria-label="Search" name="q" placeholder="Search students, rooms, payments..." />
+          </form>
           <div className="ml-auto flex items-center gap-2">
-            <button className="icon-button notification-button" aria-label="Notifications"><Bell size={20} /><span /></button>
-            <button className="profile-button" type="button">
+            <Link className="icon-button notification-button" href="/notifications" aria-label="Open reminders"><Bell size={20} /></Link>
+            <div className="profile-button">
               <span className="profile-avatar">{initials}</span>
               <span className="hidden text-left sm:block"><strong>{userName}</strong><small>{userRole.charAt(0) + userRole.slice(1).toLowerCase()}</small></span>
-              <ChevronDown size={16} />
-            </button>
+            </div>
           </div>
         </header>
         <main className="content-area">{children}</main>

@@ -55,7 +55,7 @@ export default async function CheckInPage({
     include: {
       roomType: true,
       occupancies: { where: { status: "ACTIVE" } },
-      breakReservations: { where: { status: "RESERVED_FREE" } },
+      breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null } },
     },
     orderBy: { number: "asc" },
   });

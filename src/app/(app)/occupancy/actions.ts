@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { refreshRoomStatus } from "@/lib/room-status";
 
 export type BreakFormState = { error: string };
 
@@ -57,20 +58,32 @@ export async function saveBreakDecisionAction(_state: BreakFormState, formData: 
     db.occupancy.findFirst({ where: { id: parsed.data.occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { room: { include: { roomType: true } } } }),
   ]);
   if (!period || !occupancy) return { error: "The selected break period or active student allocation is unavailable." };
-  const potentialCharge = Number(occupancy.room.roomType.monthlyRate) * period.months;
-  await db.breakReservation.upsert({
+  const previous = await db.breakReservation.findUnique({
     where: { breakPeriodId_studentId: { breakPeriodId: period.id, studentId: occupancy.studentId } },
-    create: {
-      organizationId: session.organizationId, breakPeriodId: period.id, studentId: occupancy.studentId, roomId: occupancy.roomId,
-      intent: parsed.data.intent, status: parsed.data.intent === "RETURNING" ? "RESERVED_FREE" : "CLEARANCE_REQUIRED",
-      belongingsStored: parsed.data.belongingsStored, monthlyRateSnapshot: occupancy.room.roomType.monthlyRate,
-      potentialCharge, declaredAt: new Date(), notes: parsed.data.notes || null,
-    },
-    update: {
-      roomId: occupancy.roomId, intent: parsed.data.intent, status: parsed.data.intent === "RETURNING" ? "RESERVED_FREE" : "CLEARANCE_REQUIRED",
-      belongingsStored: parsed.data.belongingsStored, monthlyRateSnapshot: occupancy.room.roomType.monthlyRate,
-      potentialCharge, declaredAt: new Date(), notes: parsed.data.notes || null,
-    },
+    include: { charge: { include: { payments: true } } },
+  });
+  const potentialCharge = Number(occupancy.room.roomType.monthlyRate) * period.months;
+  const shouldCharge = parsed.data.intent === "RETURNING" && parsed.data.belongingsStored;
+  const status = parsed.data.intent === "NOT_RETURNING" ? "CLEARANCE_REQUIRED" : shouldCharge ? "CHARGED" : "RESERVED_FREE";
+  if (!shouldCharge && previous?.charge?.payments.length) return { error: "This break charge already has payment history and cannot be removed. Keep the charged decision or reverse the payment first." };
+  if (shouldCharge && previous?.charge?.payments.length && Number(previous.charge.amount) !== potentialCharge) return { error: "This break charge has payment history, so its amount cannot be changed." };
+  await db.$transaction(async (tx) => {
+    const reservation = await tx.breakReservation.upsert({
+      where: { breakPeriodId_studentId: { breakPeriodId: period.id, studentId: occupancy.studentId } },
+      create: { organizationId: session.organizationId, breakPeriodId: period.id, studentId: occupancy.studentId, roomId: occupancy.roomId, intent: parsed.data.intent, status, belongingsStored: parsed.data.belongingsStored, monthlyRateSnapshot: occupancy.room.roomType.monthlyRate, potentialCharge, declaredAt: new Date(), notes: parsed.data.notes || null },
+      update: { roomId: occupancy.roomId, intent: parsed.data.intent, status, belongingsStored: parsed.data.belongingsStored, monthlyRateSnapshot: occupancy.room.roomType.monthlyRate, potentialCharge, declaredAt: new Date(), notes: parsed.data.notes || null, clearedAt: null, returnConfirmedAt: null },
+    });
+    if (shouldCharge) {
+      await tx.charge.upsert({
+        where: { breakReservationId: reservation.id },
+        create: { organizationId: session.organizationId, studentId: occupancy.studentId, breakReservationId: reservation.id, type: "BREAK_ACCOMMODATION", description: `${period.name} belongings accommodation`, amount: potentialCharge, dueDate: period.startDate, status: "UNPAID" },
+        update: { amount: potentialCharge, dueDate: period.startDate, description: `${period.name} belongings accommodation` },
+      });
+    } else if (previous?.charge) {
+      await tx.charge.delete({ where: { id: previous.charge.id } });
+    }
+    await refreshRoomStatus(tx, occupancy.roomId);
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "BREAK_DECISION_SAVED", entityType: "BreakReservation", entityId: reservation.id, metadata: { intent: parsed.data.intent, belongingsStored: parsed.data.belongingsStored, charged: shouldCharge } } });
   });
   revalidatePath("/occupancy"); revalidatePath("/rooms");
   return { error: "" };
@@ -84,11 +97,12 @@ export async function confirmBreakReturnAction(formData: FormData) {
   const session = await requireManager();
   const id = String(formData.get("reservationId") ?? "");
   const reservation = await getReservation(id, session.organizationId);
-  if (!reservation || reservation.status !== "RESERVED_FREE") return;
+  if (!reservation || !["RESERVED_FREE", "CHARGED"].includes(reservation.status)) return;
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
   if (!semester) return;
   const existing = await db.occupancy.findFirst({ where: { semesterId: semester.id, studentId: reservation.studentId } });
   await db.$transaction(async (tx) => {
+    const oldOccupancies = await tx.occupancy.findMany({ where: { organizationId: session.organizationId, studentId: reservation.studentId, status: "ACTIVE", semesterId: { not: semester.id } }, select: { roomId: true } });
     await tx.occupancy.updateMany({ where: { organizationId: session.organizationId, studentId: reservation.studentId, status: "ACTIVE", semesterId: { not: semester.id } }, data: { status: "CHECKED_OUT", checkedOutAt: semester.startDate } });
     if (!existing) {
       const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: reservation.studentId, roomId: reservation.roomId, checkInAt: semester.startDate, expectedCheckoutAt: semester.endDate, status: "ACTIVE", checkInCondition: "Continued from free break reservation" } });
@@ -96,40 +110,8 @@ export async function confirmBreakReturnAction(formData: FormData) {
     }
     await tx.breakReservation.update({ where: { id }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
     await tx.student.update({ where: { id: reservation.studentId }, data: { status: "ACTIVE" } });
+    for (const roomId of new Set([...oldOccupancies.map((item) => item.roomId), reservation.roomId])) await refreshRoomStatus(tx, roomId);
     await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "BREAK_RETURN_CONFIRMED", entityType: "BreakReservation", entityId: id, metadata: { semesterId: semester.id, roomId: reservation.roomId } } });
   });
   revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/payments"); revalidatePath("/dashboard");
-}
-
-export async function clearBreakReservationAction(formData: FormData) {
-  const session = await requireManager();
-  const id = String(formData.get("reservationId") ?? "");
-  const reservation = await getReservation(id, session.organizationId);
-  if (!reservation || reservation.status !== "CLEARANCE_REQUIRED") return;
-  await db.breakReservation.update({ where: { id }, data: { status: "VACATED_CLEARED", clearedAt: new Date() } });
-  revalidatePath("/occupancy"); revalidatePath("/rooms");
-}
-
-export async function cancelBreakReturnAction(formData: FormData) {
-  const session = await requireManager();
-  const id = String(formData.get("reservationId") ?? "");
-  const reservation = await getReservation(id, session.organizationId);
-  if (!reservation || reservation.status !== "RESERVED_FREE") return;
-  const shouldCharge = reservation.belongingsStored;
-  await db.$transaction(async (tx) => {
-    await tx.breakReservation.update({ where: { id }, data: { status: shouldCharge ? "CHARGED" : "VACATED_CLEARED", clearedAt: new Date() } });
-    if (shouldCharge) {
-      await tx.charge.upsert({
-        where: { breakReservationId: id },
-        create: {
-          organizationId: session.organizationId, studentId: reservation.studentId, breakReservationId: id,
-          type: "BREAK_ACCOMMODATION", description: `${reservation.breakPeriod.name} belongings accommodation`,
-          amount: reservation.potentialCharge, dueDate: new Date(), status: "UNPAID",
-        },
-        update: { amount: reservation.potentialCharge, dueDate: new Date(), status: "UNPAID" },
-      });
-    }
-    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: shouldCharge ? "BREAK_RESERVATION_CHARGED" : "BREAK_RESERVATION_RELEASED_NO_CHARGE", entityType: "BreakReservation", entityId: id, metadata: { belongingsStored: reservation.belongingsStored, amount: shouldCharge ? Number(reservation.potentialCharge) : 0 } } });
-  });
-  revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/payments");
 }

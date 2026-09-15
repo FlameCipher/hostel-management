@@ -32,7 +32,7 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
       include: {
         roomType: true,
         occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } },
-        breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } },
+        breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, select: { studentId: true } },
       },
       orderBy: { number: "asc" },
     }),

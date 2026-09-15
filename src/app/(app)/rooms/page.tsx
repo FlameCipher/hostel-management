@@ -51,7 +51,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           orderBy: { checkInAt: "asc" },
         },
         breakReservations: {
-          where: { status: "RESERVED_FREE" },
+          where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null },
           select: { id: true, studentId: true, student: { select: { fullName: true } } },
         },
       },
@@ -64,7 +64,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         capacityOverride: true,
         roomType: { select: { defaultCapacity: true } },
         occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } },
-        breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } },
+        breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, select: { studentId: true } },
       },
     }),
   ]);
@@ -107,7 +107,20 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <article className="compact-stat"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong></div></article>
       </section>
 
-      
+      <section className="panel mt-5">
+        <div className="panel-heading">
+          <div><p className="panel-kicker">Configured pricing</p><h2>Accommodation rates</h2></div>
+          <span className="muted-note">4-month semester</span>
+        </div>
+        <div className="rate-grid">
+          {roomTypes.map((type) => (
+            <article className="rate-card" key={type.id}>
+              <div><strong>{type.name}</strong><span>{type.sharingMode === "PRIVATE" ? "Private" : "Shared"} · Capacity {type.defaultCapacity}</span></div>
+              <div className="rate-values"><span>{formatCurrency(Number(type.monthlyRate))}<small>/month</small></span><strong>{formatCurrency(Number(type.semesterRate))}<small>/semester</small></strong></div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="panel mt-5 overflow-hidden">
         <div className="panel-heading room-list-heading">

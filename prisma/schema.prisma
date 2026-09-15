@@ -141,6 +141,12 @@ enum ReceiptDeliveryStatus {
   FAILED
 }
 
+enum StudentDetailsUpdateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PropertyCategory {
   LAPTOP
   SUITCASE
@@ -195,21 +201,23 @@ model Organization {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  users             User[]
-  semesters         Semester[]
-  roomTypes         RoomType[]
-  rooms             Room[]
-  students          Student[]
-  occupancies       Occupancy[]
-  charges           Charge[]
-  payments          Payment[]
-  assets            HostelAsset[]
-  auditLogs         AuditLog[]
-  breakPeriods      BreakPeriod[]
-  breakReservations BreakReservation[]
-  receiptSequences  ReceiptSequence[]
-  notifications     Notification[]
-  mpesaTransactions MpesaTransaction[]
+  users                 User[]
+  semesters             Semester[]
+  roomTypes             RoomType[]
+  rooms                 Room[]
+  students              Student[]
+  occupancies           Occupancy[]
+  charges               Charge[]
+  payments              Payment[]
+  assets                HostelAsset[]
+  auditLogs             AuditLog[]
+  breakPeriods          BreakPeriod[]
+  breakReservations     BreakReservation[]
+  receiptSequences      ReceiptSequence[]
+  notifications         Notification[]
+  mpesaTransactions     MpesaTransaction[]
+  studentUpdateRequests StudentDetailsUpdateRequest[]
+  publicLookupAttempts  PublicStudentLookupAttempt[]
 }
 
 model User {
@@ -224,11 +232,12 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  paymentsRecorded     Payment[]      @relation("PaymentRecordedBy")
-  paymentsReversed     Payment[]      @relation("PaymentReversedBy")
-  auditLogs            AuditLog[]
-  notificationsCreated Notification[]
+  organization                  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentsRecorded              Payment[]                     @relation("PaymentRecordedBy")
+  paymentsReversed              Payment[]                     @relation("PaymentReversedBy")
+  auditLogs                     AuditLog[]
+  notificationsCreated          Notification[]
+  reviewedStudentUpdateRequests StudentDetailsUpdateRequest[] @relation("StudentUpdateReviewedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
@@ -312,13 +321,14 @@ model Student {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  guardian          Guardian?
-  occupancies       Occupancy[]
-  charges           Charge[]
-  breakReservations BreakReservation[]
-  payments          Payment[]
-  notifications     Notification[]
+  organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  guardian              Guardian?
+  occupancies           Occupancy[]
+  charges               Charge[]
+  breakReservations     BreakReservation[]
+  payments              Payment[]
+  notifications         Notification[]
+  detailsUpdateRequests StudentDetailsUpdateRequest[]
 
   @@unique([organizationId, admissionNumber])
   @@index([organizationId, status])
@@ -336,6 +346,48 @@ model Guardian {
   updatedAt    DateTime @updatedAt
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model StudentDetailsUpdateRequest {
+  id                   String                     @id @default(cuid())
+  organizationId       String
+  studentId            String
+  submittedName        String
+  submittedPhone       String
+  email                String?
+  admissionNumber      String?
+  nationalId           String?
+  guardianName         String
+  guardianPhone        String
+  guardianRelationship String
+  guardianEmail        String?
+  status               StudentDetailsUpdateStatus @default(PENDING)
+  reviewedById         String?
+  reviewedAt           DateTime?
+  reviewNotes          String?
+  consentConfirmedAt   DateTime
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("StudentUpdateReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([studentId, createdAt])
+}
+
+model PublicStudentLookupAttempt {
+  id              String   @id @default(cuid())
+  organizationId  String
+  fingerprintHash String
+  matched         Boolean  @default(false)
+  attemptedAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([fingerprintHash, attemptedAt])
+  @@index([organizationId, attemptedAt])
 }
 
 model Occupancy {
@@ -467,18 +519,17 @@ model Payment {
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  charge           Charge            @relation(fields: [chargeId], references: [id], onDelete: Restrict)
-  recordedBy       User?             @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
-  reversedBy       User?             @relation("PaymentReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student          Student              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  charge           Charge               @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  recordedBy       User?                @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  reversedBy       User?                @relation("PaymentReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
   mpesaTransaction MpesaTransaction?
+  receiptLinks     PaymentReceiptLink[]
 
   @@unique([organizationId, receiptNumber])
   @@index([organizationId, paidAt])
   @@index([studentId, paidAt])
-  receiptLinks PaymentReceiptLink[]
-
 }
 
 model MpesaTransaction {
@@ -601,11 +652,11 @@ model Notification {
 }
 
 model PaymentReceiptLink {
-  codeHash String @id
+  codeHash  String   @id
   paymentId String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
   @@index([expiresAt])

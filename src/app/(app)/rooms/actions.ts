@@ -123,7 +123,10 @@ export async function updateRoomAction(
   const [room, roomType, duplicate] = await Promise.all([
     db.room.findFirst({
       where: { id: roomId, organizationId: session.organizationId },
-      include: { _count: { select: { occupancies: { where: { status: "ACTIVE" } } } } },
+      include: {
+        occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } },
+        breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, select: { studentId: true } },
+      },
     }),
     db.roomType.findFirst({ where: { id: parsed.data.roomTypeId, organizationId: session.organizationId, active: true } }),
     db.room.findFirst({
@@ -139,7 +142,10 @@ export async function updateRoomAction(
   if (!roomType) return { error: "The selected accommodation type is unavailable." };
   if (duplicate) return { error: `Room ${parsed.data.number} already exists on ${parsed.data.floor}.` };
 
-  const activeOccupants = room._count.occupancies;
+  const activeOccupants = new Set([
+    ...room.occupancies.map((item) => item.studentId),
+    ...room.breakReservations.map((item) => item.studentId),
+  ]).size;
   const capacity = parsed.data.capacityOverride ?? roomType.defaultCapacity;
   if (capacity < activeOccupants) return { error: `Capacity cannot be lower than the ${activeOccupants} current occupant(s).` };
   if (activeOccupants > 0 && (parsed.data.status === "MAINTENANCE" || parsed.data.status === "INACTIVE")) {

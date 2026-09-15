@@ -1,6 +1,6 @@
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
-import { BedDouble, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound } from "lucide-react";
+import { BedDouble, ClipboardList, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -40,7 +40,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
   const canDeleteStudents = ["OWNER", "ADMIN"].includes(session.role);
   const phoneVariants = phoneSearchVariants(query);
 
-  const [students, statusCounts] = await Promise.all([
+  const [students, statusCounts, pendingUpdates] = await Promise.all([
     db.student.findMany({
       where: {
         organizationId: session.organizationId,
@@ -81,6 +81,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
       where: { organizationId: session.organizationId },
       _count: { _all: true },
     }),
+    canDeleteStudents ? db.studentDetailsUpdateRequest.count({ where: { organizationId: session.organizationId, status: "PENDING" } }) : Promise.resolve(0),
   ]);
 
   const count = (value: StudentStatusType) => statusCounts.find((item) => item.status === value)?._count._all ?? 0;
@@ -90,7 +91,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     <div>
       <div className="page-heading-row">
         <div><p className="eyebrow">Tenant management</p><h1>Students</h1><p>Manage student records, JKUAT details, guardians and current accommodation.</p></div>
-        {canManageStudents ? <div className="heading-actions"><Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
+        {canManageStudents ? <div className="heading-actions">{canDeleteStudents ? <Link className="secondary-button no-underline" href="/students/update-requests"><ClipboardList size={18} /> Update requests{pendingUpdates ? ` (${pendingUpdates})` : ""}</Link> : null}<Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
       </div>
 
       <section className="room-summary-grid" aria-label="Student summary">

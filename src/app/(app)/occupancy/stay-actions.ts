@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
+import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
 
@@ -27,7 +28,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       const [student, semester, room, existing, initialPayment] = await Promise.all([
         tx.student.findFirst({ where: { id: parsed.data.studentId, organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } } }),
         tx.semester.findFirst({ where: { id: parsed.data.semesterId, organizationId: session.organizationId, status: "ACTIVE" } }),
-        tx.room.findFirst({ where: { id: parsed.data.roomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } } } }),
+        tx.room.findFirst({ where: { id: parsed.data.roomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
         tx.occupancy.findFirst({ where: { organizationId: session.organizationId, studentId: parsed.data.studentId, status: "ACTIVE" } }),
         tx.payment.findFirst({
           where: {
@@ -57,9 +58,8 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       receiptPaymentId = initialPayment.id;
       await tx.charge.update({ where: { id: initialPayment.charge.id }, data: { occupancyId: occupancy.id, roomTypeId: room.roomTypeId, description: `${semester.name} rent · Room ${room.number}`, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`) } });
       await tx.student.update({ where: { id: student.id }, data: { status: "ACTIVE" } });
-      await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, roomId: room.id, status: "RESERVED_FREE" }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
-      const nextHeld = studentHasHold ? held.size : held.size + 1;
-      await tx.room.update({ where: { id: room.id }, data: { status: nextHeld >= capacity ? "FULL" : "PARTIALLY_OCCUPIED" } });
+      await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, roomId: room.id, ...activeBreakHoldWhere }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
+      await refreshRoomStatus(tx, room.id);
       await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, initialPaymentId: initialPayment.id, chargeId: initialPayment.charge.id } } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
@@ -80,21 +80,20 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
   const parsed = transferSchema.safeParse({ targetRoomId: formData.get("targetRoomId"), reason: formData.get("reason") });
   if (!parsed.success) return { error: "Select a room and provide a transfer reason." };
   const occupancy = await db.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" } });
-  const target = await db.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: { status: "RESERVED_FREE" }, select: { studentId: true } } } });
+  const target = await db.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } });
   if (!occupancy || !target) return { error: "The occupancy or target room is unavailable." };
   if (occupancy.roomId === target.id) return { error: "Select a different room." };
   if (["MAINTENANCE", "INACTIVE"].includes(target.status)) return { error: "The selected room is unavailable." };
   const capacity = target.capacityOverride ?? target.roomType.defaultCapacity;
   const held = new Set([...target.occupancies.map((item) => item.studentId), ...target.breakReservations.map((item) => item.studentId)]);
   if (held.size >= capacity && !held.has(occupancy.studentId)) return { error: "The selected room is full." };
-  await db.$transaction([
-    db.occupancy.update({ where: { id: occupancy.id }, data: { roomId: target.id } }),
-    db.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, roomId: occupancy.roomId, status: "RESERVED_FREE" }, data: { roomId: target.id } }),
-    db.room.update({ where: { id: target.id }, data: { status: held.size + (held.has(occupancy.studentId) ? 0 : 1) >= capacity ? "FULL" : "PARTIALLY_OCCUPIED" } }),
-    db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ROOM_TRANSFERRED", entityType: "Occupancy", entityId: occupancy.id, metadata: { fromRoomId: occupancy.roomId, toRoomId: target.id, reason: parsed.data.reason } } }),
-  ]);
-  const oldRemaining = await db.occupancy.count({ where: { roomId: occupancy.roomId, status: "ACTIVE" } });
-  await db.room.update({ where: { id: occupancy.roomId }, data: { status: oldRemaining ? "PARTIALLY_OCCUPIED" : "VACANT" } });
+  await db.$transaction(async (tx) => {
+    await tx.occupancy.update({ where: { id: occupancy.id }, data: { roomId: target.id } });
+    await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, roomId: occupancy.roomId, ...activeBreakHoldWhere }, data: { roomId: target.id } });
+    await refreshRoomStatus(tx, occupancy.roomId);
+    await refreshRoomStatus(tx, target.id);
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ROOM_TRANSFERRED", entityType: "Occupancy", entityId: occupancy.id, metadata: { fromRoomId: occupancy.roomId, toRoomId: target.id, reason: parsed.data.reason } } });
+  }, { isolationLevel: "Serializable" });
   revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath(`/occupancy/${occupancy.id}`); redirect(`/occupancy/${occupancy.id}`);
 }
 
@@ -105,8 +104,6 @@ export async function checkoutStudentAction(occupancyId: string, _state: StayFor
   if (!parsed.success) return { error: "Enter the checkout date and room condition." };
   const occupancy = await db.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { student: true, propertyItems: true, room: { include: { assets: { where: { active: true } } } } } });
   if (!occupancy) return { error: "This active occupancy could not be found." };
-  const activeBreakHold = await db.breakReservation.findFirst({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, status: "RESERVED_FREE" } });
-  if (activeBreakHold) return { error: "Resolve the student’s active break reservation before checkout." };
   const charges = await db.charge.findMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, status: { not: "WAIVED" } }, include: { payments: { where: { reversedAt: null } } } });
   const balance = charges.reduce((sum, charge) => sum + Math.max(0, Number(charge.amount) - charge.payments.reduce((paid, item) => paid + Number(item.amount), 0)), 0);
   if (balance > 0 && !parsed.data.overrideBalance) return { error: `Outstanding balance is KES ${balance.toLocaleString("en-KE")}. Record payment or use an authorised override.` };
@@ -116,14 +113,14 @@ export async function checkoutStudentAction(occupancyId: string, _state: StayFor
   const propertyConditions = occupancy.propertyItems.map((item) => ({ id: item.id, condition: String(formData.get(`propertyCondition:${item.id}`) ?? "") }));
   const assetConditions = occupancy.room.assets.map((item) => ({ id: item.id, condition: String(formData.get(`assetCondition:${item.id}`) ?? "") }));
   if ([...propertyConditions, ...assetConditions].some((item) => !conditions.has(item.condition))) return { error: "Record the checkout condition for every student item and hostel asset." };
-  await db.$transaction([
-    db.occupancy.update({ where: { id: occupancy.id }, data: { status: "CHECKED_OUT", checkedOutAt: new Date(`${parsed.data.checkedOutAt}T12:00:00.000Z`), checkoutCondition: parsed.data.checkoutCondition, finalBalance: balance, clearanceStatus: "CLEARED" } }),
-    db.student.update({ where: { id: occupancy.studentId }, data: { status: "CHECKED_OUT" } }),
-    ...propertyConditions.map((item) => db.studentPropertyItem.update({ where: { id: item.id }, data: { checkoutCondition: item.condition as "NEW" | "GOOD" | "FAIR" | "DAMAGED" | "MISSING" | "NOT_APPLICABLE" } })),
-    ...assetConditions.map((item) => db.hostelAsset.update({ where: { id: item.id }, data: { condition: item.condition as "NEW" | "GOOD" | "FAIR" | "DAMAGED" | "MISSING" | "NOT_APPLICABLE" } })),
-    db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: balance > 0 ? "CHECKOUT_CLEARED_WITH_OVERRIDE" : "STUDENT_CHECKED_OUT", entityType: "Occupancy", entityId: occupancy.id, metadata: { balance, overrideReason: parsed.data.overrideReason || null } } }),
-  ]);
-  const remaining = await db.occupancy.count({ where: { roomId: occupancy.roomId, status: "ACTIVE" } });
-  await db.room.update({ where: { id: occupancy.roomId }, data: { status: remaining ? "PARTIALLY_OCCUPIED" : "VACANT" } });
+  await db.$transaction(async (tx) => {
+    await tx.occupancy.update({ where: { id: occupancy.id }, data: { status: "CHECKED_OUT", checkedOutAt: new Date(`${parsed.data.checkedOutAt}T12:00:00.000Z`), checkoutCondition: parsed.data.checkoutCondition, finalBalance: balance, clearanceStatus: "CLEARED" } });
+    await tx.student.update({ where: { id: occupancy.studentId }, data: { status: "CHECKED_OUT" } });
+    await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, status: { in: ["RESERVED_FREE", "CHARGED", "CLEARANCE_REQUIRED"] }, clearedAt: null }, data: { status: "VACATED_CLEARED", clearedAt: new Date() } });
+    for (const item of propertyConditions) await tx.studentPropertyItem.update({ where: { id: item.id }, data: { checkoutCondition: item.condition as "NEW" | "GOOD" | "FAIR" | "DAMAGED" | "MISSING" | "NOT_APPLICABLE" } });
+    for (const item of assetConditions) await tx.hostelAsset.update({ where: { id: item.id }, data: { condition: item.condition as "NEW" | "GOOD" | "FAIR" | "DAMAGED" | "MISSING" | "NOT_APPLICABLE" } });
+    await refreshRoomStatus(tx, occupancy.roomId);
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: balance > 0 ? "CHECKOUT_CLEARED_WITH_OVERRIDE" : "STUDENT_CHECKED_OUT", entityType: "Occupancy", entityId: occupancy.id, metadata: { balance, overrideReason: parsed.data.overrideReason || null } } });
+  }, { isolationLevel: "Serializable" });
   revalidatePath("/occupancy"); revalidatePath("/rooms"); revalidatePath("/students"); revalidatePath("/student-property"); revalidatePath("/assets"); revalidatePath("/dashboard"); redirect(`/occupancy/${occupancy.id}/clearance`);
 }
