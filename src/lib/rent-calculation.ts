@@ -67,7 +67,7 @@ type AdjustmentInput = {
   organizationId: string;
   chargeId: string;
   createdById: string;
-  reason: "ROOM_TRANSFER" | "EARLY_CHECKOUT" | "RATE_CORRECTION" | "DISCOUNT" | "BREAK_STORAGE" | "MANUAL";
+  reason: "LATE_CHECK_IN" | "ROOM_TRANSFER" | "EARLY_CHECKOUT" | "RATE_CORRECTION" | "DISCOUNT" | "BREAK_STORAGE" | "MANUAL";
   calculationMethod: RentMethod;
   newAmount: number;
   effectiveDate: Date;

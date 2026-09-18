@@ -197,6 +197,7 @@ enum RentCalculationMethod {
 }
 
 enum ChargeAdjustmentReason {
+  LATE_CHECK_IN
   ROOM_TRANSFER
   EARLY_CHECKOUT
   RATE_CORRECTION

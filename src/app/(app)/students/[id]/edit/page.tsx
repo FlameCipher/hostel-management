@@ -94,11 +94,15 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
           <section className="policy-banner"><BedDouble size={21} /><div><strong>No rooms available</strong><p>Add a room or free space in an existing room before assigning this student.</p></div></section>
         ) : (
           <CheckInForm
+            allowCustomRent={["OWNER", "ADMIN"].includes(session.role)}
             cancelHref="/students"
+            currentRent={Number(eligiblePayment.charge.amount)}
             paymentId={eligiblePayment.id}
             rooms={roomOptions}
             selectedSemester={eligiblePayment.charge.semester ? { id: eligiblePayment.charge.semester.id, label: eligiblePayment.charge.semester.name } : undefined}
             selectedStudent={{ id: student.id, label: student.fullName }}
+            semesterEnd={eligiblePayment.charge.semester?.endDate.toISOString().slice(0, 10)}
+            semesterStart={eligiblePayment.charge.semester?.startDate.toISOString().slice(0, 10)}
             semesters={semesters.map((item) => ({ id: item.id, label: item.name }))}
             students={[]}
           />

@@ -19,6 +19,10 @@ type CheckInFormProps = {
   selectedSemester?: Option;
   paymentId?: string;
   cancelHref?: string;
+  semesterStart?: string;
+  semesterEnd?: string;
+  currentRent?: number;
+  allowCustomRent?: boolean;
 };
 
 export function CheckInForm({
@@ -29,9 +33,30 @@ export function CheckInForm({
   selectedSemester,
   paymentId,
   cancelHref = "/occupancy",
+  semesterStart,
+  semesterEnd,
+  currentRent,
+  allowCustomRent = false,
 }: CheckInFormProps) {
   const [state, action, pending] = useActionState(checkInStudentAction, initialState);
   const today = new Date().toISOString().slice(0, 10);
+  const initialCheckIn = semesterStart && today < semesterStart ? semesterStart : semesterEnd && today > semesterEnd ? semesterEnd : today;
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [checkInAt, setCheckInAt] = useState(initialCheckIn);
+  const [rentMethod, setRentMethod] = useState("KEEP_FULL");
+  const [customRent, setCustomRent] = useState("");
+  const pricingAvailable = semesterStart !== undefined && semesterEnd !== undefined && currentRent !== undefined;
+  const rentPreview = useMemo(() => {
+    if (!pricingAvailable) return null;
+    if (rentMethod === "KEEP_FULL") return currentRent;
+    if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
+    const room = rooms.find((item) => item.id === selectedRoomId);
+    if (!room || !checkInAt) return null;
+    const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
+    const totalDays = Math.max(1, Math.round((day(semesterEnd) - day(semesterStart)) / 86_400_000) + 1);
+    const occupiedDays = Math.max(0, Math.round((day(semesterEnd) - day(checkInAt)) / 86_400_000) + 1);
+    return Math.round((room.rate * occupiedDays / totalDays) * 100) / 100;
+  }, [checkInAt, currentRent, customRent, pricingAvailable, rentMethod, rooms, selectedRoomId, semesterEnd, semesterStart]);
   return (
     <form action={action} className="panel entity-form">
       <div className="form-section-heading">
@@ -70,10 +95,11 @@ export function CheckInForm({
             </FormSelect>
           </label>
         )}
-        <RoomSelector rooms={rooms} />
-        <label className="field-group"><span>Check-in date *</span><input defaultValue={today} name="checkInAt" type="date" required /></label>
+        <RoomSelector onValueChange={setSelectedRoomId} rooms={rooms} />
+        <label className="field-group"><span>Check-in date *</span><input max={semesterEnd} min={semesterStart} name="checkInAt" onChange={(event) => setCheckInAt(event.target.value)} type="date" value={checkInAt} required /></label>
         <label className="field-group"><span>Rent due date *</span><input defaultValue={today} name="dueDate" type="date" required /></label>
         <label className="field-group"><span>Expected checkout</span><input name="expectedCheckoutAt" type="date" /></label>
+        {pricingAvailable ? <><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep full semester rent</option><option value="ACTUAL_DAYS">Recalculate from check-in date</option>{allowCustomRent ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect></label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent (KES) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step="0.01" type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Original semester charge</span><strong>KES {currentRent.toLocaleString("en-KE")}</strong><span>Proposed semester rent</span><strong>{rentPreview === null || Number.isNaN(rentPreview) ? "Select a room and check-in date" : `KES ${rentPreview.toLocaleString("en-KE")}`}</strong>{rentPreview !== null && !Number.isNaN(rentPreview) ? <small>{rentPreview >= currentRent ? `Additional charge: KES ${(rentPreview - currentRent).toLocaleString("en-KE")}` : `Credit: KES ${(currentRent - rentPreview).toLocaleString("en-KE")}`}</small> : null}</div>{rentMethod !== "KEEP_FULL" ? <label className="field-group form-span-2"><span>Rent recalculation reason *</span><textarea minLength={5} name="rentAdjustmentReason" placeholder="For example: Student joined after the semester began" rows={3} required /></label> : <input name="rentAdjustmentReason" type="hidden" value="" />}</> : <><input name="rentMethod" type="hidden" value="KEEP_FULL" /><input name="customRent" type="hidden" value="" /><input name="rentAdjustmentReason" type="hidden" value="" /></>}
         <label className="field-group form-span-2"><span>Room condition at check-in</span><textarea maxLength={500} name="checkInCondition" placeholder="Describe the room condition and any existing damage" rows={4} /></label>
       </div>
       {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}

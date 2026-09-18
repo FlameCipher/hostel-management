@@ -15,7 +15,7 @@ export type AllocationRoomOption = {
   rate: number;
 };
 
-export function RoomSelector({ rooms }: { rooms: AllocationRoomOption[] }) {
+export function RoomSelector({ rooms, onValueChange }: { rooms: AllocationRoomOption[]; onValueChange?: (roomId: string) => void }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -50,7 +50,7 @@ export function RoomSelector({ rooms }: { rooms: AllocationRoomOption[] }) {
         <div className="room-picker-search"><Search size={18} /><input autoFocus type="search" aria-label="Search by room number, floor or type" placeholder="Search room number or floor…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
         <p className="room-picker-count" role="status">{visible.length} {visible.length === 1 ? "room" : "rooms"} available</p>
         <div className="room-picker-list">
-          {visible.map((room) => <button type="button" key={room.id} className={`room-picker-option ${value === room.id ? "is-selected" : ""}`} aria-pressed={value === room.id} onClick={() => { setValue(room.id); setInvalid(false); validation.current?.setCustomValidity(""); dialog.current?.close(); }}>
+          {visible.map((room) => <button type="button" key={room.id} className={`room-picker-option ${value === room.id ? "is-selected" : ""}`} aria-pressed={value === room.id} onClick={() => { setValue(room.id); onValueChange?.(room.id); setInvalid(false); validation.current?.setCustomValidity(""); dialog.current?.close(); }}>
             <span className="room-picker-bed"><BedDouble size={20} /></span>
             <span className="room-picker-details"><strong>Room {room.number}</strong><span>{room.floor || "Floor unspecified"} · {room.type}</span><small>{Math.max(0, room.capacity - room.occupied)} of {room.capacity} beds available</small></span>
             <span className="room-picker-price"><strong>{money(room.rate)}</strong><small>per semester</small>{value === room.id ? <Check size={18} aria-label="Selected" /> : null}</span>

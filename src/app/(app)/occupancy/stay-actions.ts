@@ -17,12 +17,17 @@ async function requireManager() {
   return session;
 }
 
-const checkInSchema = z.object({ paymentId: z.string().optional(), studentId: z.string().min(1), semesterId: z.string().min(1), roomId: z.string().min(1), checkInAt: z.string().date(), dueDate: z.string().date(), expectedCheckoutAt: z.string().optional(), checkInCondition: z.string().trim().max(500).optional() });
+const checkInSchema = z.object({ paymentId: z.string().optional(), studentId: z.string().min(1), semesterId: z.string().min(1), roomId: z.string().min(1), checkInAt: z.string().date(), dueDate: z.string().date(), expectedCheckoutAt: z.string().optional(), checkInCondition: z.string().trim().max(500).optional(), rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "CUSTOM"]), customRent: z.coerce.number().min(0).max(4_000_000).optional(), rentAdjustmentReason: z.string().trim().max(300).optional() });
 
 export async function checkInStudentAction(_state: StayFormState, formData: FormData): Promise<StayFormState> {
   const session = await requireManager();
-  const parsed = checkInSchema.safeParse({ paymentId: formData.get("paymentId") || undefined, studentId: formData.get("studentId"), semesterId: formData.get("semesterId"), roomId: formData.get("roomId"), checkInAt: formData.get("checkInAt"), dueDate: formData.get("dueDate"), expectedCheckoutAt: formData.get("expectedCheckoutAt") || undefined, checkInCondition: formData.get("checkInCondition") || undefined });
+  const customValue = formData.get("customRent");
+  const parsed = checkInSchema.safeParse({ paymentId: formData.get("paymentId") || undefined, studentId: formData.get("studentId"), semesterId: formData.get("semesterId"), roomId: formData.get("roomId"), checkInAt: formData.get("checkInAt"), dueDate: formData.get("dueDate"), expectedCheckoutAt: formData.get("expectedCheckoutAt") || undefined, checkInCondition: formData.get("checkInCondition") || undefined, rentMethod: formData.get("rentMethod"), customRent: customValue === "" || customValue === null ? undefined : customValue, rentAdjustmentReason: formData.get("rentAdjustmentReason") || undefined });
   if (!parsed.success) return { error: "Select a student, active semester, available room and valid dates." };
+  if (parsed.data.rentMethod === "CUSTOM" && parsed.data.customRent === undefined) return { error: "Enter the agreed final semester rent." };
+  if (parsed.data.rentMethod === "CUSTOM" && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can enter custom final rent." };
+  if (parsed.data.rentMethod !== "KEEP_FULL" && (!parsed.data.rentAdjustmentReason || parsed.data.rentAdjustmentReason.length < 5)) return { error: "Provide a reason for recalculating the student’s rent." };
+  const checkInDate = new Date(`${parsed.data.checkInAt}T12:00:00.000Z`);
   let receiptPaymentId = "";
   try {
     await db.$transaction(async (tx) => {
@@ -44,6 +49,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
         }),
       ]);
       if (!student || !semester || !room) throw new Error("INVALID_SELECTION");
+      if (checkInDate < semester.startDate || checkInDate > semester.endDate) throw new Error("INVALID_CHECK_IN_DATE");
       if (!initialPayment) throw new Error("INITIAL_PAYMENT_REQUIRED");
       if (existing) throw new Error("ALREADY_CHECKED_IN");
       if (room.status === "MAINTENANCE" || room.status === "INACTIVE") throw new Error("ROOM_UNAVAILABLE");
@@ -55,18 +61,24 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       const existingSemesterRecord = await tx.occupancy.findFirst({ where: { semesterId: semester.id, studentId: student.id } });
       if (existingSemesterRecord) throw new Error("SEMESTER_DUPLICATE");
 
-      const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: student.id, roomId: room.id, checkInAt: new Date(`${parsed.data.checkInAt}T12:00:00.000Z`), expectedCheckoutAt: parsed.data.expectedCheckoutAt ? new Date(`${parsed.data.expectedCheckoutAt}T12:00:00.000Z`) : semester.endDate, status: "ACTIVE", checkInCondition: parsed.data.checkInCondition || null } });
+      const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: student.id, roomId: room.id, checkInAt: checkInDate, expectedCheckoutAt: parsed.data.expectedCheckoutAt ? new Date(`${parsed.data.expectedCheckoutAt}T12:00:00.000Z`) : semester.endDate, status: "ACTIVE", checkInCondition: parsed.data.checkInCondition || null } });
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: room.id, roomTypeId: room.roomTypeId, startDate: occupancy.checkInAt, monthlyRateSnapshot: room.roomType.monthlyRate, semesterRateSnapshot: room.roomType.semesterRate } });
       receiptPaymentId = initialPayment.id;
       await tx.charge.update({ where: { id: initialPayment.charge.id }, data: { occupancyId: occupancy.id, roomTypeId: room.roomTypeId, baseAmount: initialPayment.charge.baseAmount ?? initialPayment.charge.amount, description: `${semester.name} rent · Room ${room.number}`, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`) } });
+      let rentAdjustment: Awaited<ReturnType<typeof applyChargeAmount>> | null = null;
+      if (parsed.data.rentMethod !== "KEEP_FULL") {
+        const calculation = parsed.data.rentMethod === "ACTUAL_DAYS" ? calculateActualDaysRent({ semesterStart: semester.startDate, semesterEnd: semester.endDate, segments: [{ roomId: room.id, roomTypeId: room.roomTypeId, startDate: checkInDate, endDate: addUtcDays(semester.endDate, 1), semesterRate: Number(room.roomType.semesterRate) }] }) : null;
+        const newAmount = calculation?.amount ?? parsed.data.customRent ?? Number(initialPayment.charge.amount);
+        rentAdjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: initialPayment.charge.id, createdById: session.userId, reason: "LATE_CHECK_IN", calculationMethod: parsed.data.rentMethod, newAmount, effectiveDate: checkInDate, explanation: parsed.data.rentAdjustmentReason ?? "Approved late check-in rent recalculation", calculationData: calculation ? { totalDays: calculation.totalDays, checkInDate: checkInDate.toISOString(), semesterRate: Number(room.roomType.semesterRate), occupiedDays: calculation.lines[0]?.days ?? 0 } : { customRent: parsed.data.customRent ?? null } });
+      }
       await tx.student.update({ where: { id: student.id }, data: { status: "ACTIVE" } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, roomId: room.id, ...activeBreakHoldWhere }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
       await refreshRoomStatus(tx, room.id);
-      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, initialPaymentId: initialPayment.id, chargeId: initialPayment.charge.id } } });
+      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, initialPaymentId: initialPayment.id, chargeId: initialPayment.charge.id, rentMethod: parsed.data.rentMethod, previousRent: rentAdjustment?.previousAmount ?? Number(initialPayment.charge.amount), finalRent: rentAdjustment?.newAmount ?? Number(initialPayment.charge.amount), credit: rentAdjustment?.credit ?? 0, rentAdjustmentReason: parsed.data.rentAdjustmentReason ?? null } } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", INITIAL_PAYMENT_REQUIRED: "Record an initial payment before allocating a room.", ALREADY_CHECKED_IN: "This student already has an active room.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_TYPE_MISMATCH: "Select a room matching the accommodation type chosen during registration.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
+    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", INVALID_CHECK_IN_DATE: "The check-in date must fall within the active semester.", INITIAL_PAYMENT_REQUIRED: "Record an initial payment before allocating a room.", ALREADY_CHECKED_IN: "This student already has an active room.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_TYPE_MISMATCH: "Select a room matching the accommodation type chosen during registration.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
