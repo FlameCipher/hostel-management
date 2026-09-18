@@ -13,6 +13,9 @@ type Props = {
   children: ReactNode;
   name: string;
   defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  onChange?: (event: { target: { value: string } }) => void;
   required?: boolean;
   disabled?: boolean;
   "aria-label"?: string;
@@ -22,7 +25,7 @@ function optionText(node: ReactNode): string {
   return Children.toArray(node).map((child) => isValidElement<{ children?: ReactNode }>(child) ? optionText(child.props.children) : String(child)).join("");
 }
 
-export function FormSelect({ children, name, defaultValue, required, disabled, "aria-label": ariaLabel }: Props) {
+export function FormSelect({ children, name, defaultValue, value: controlledValue, onValueChange, onChange, required, disabled, "aria-label": ariaLabel }: Props) {
   const id = useId();
   const native = useRef<HTMLSelectElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -36,7 +39,7 @@ export function FormSelect({ children, name, defaultValue, required, disabled, "
     return [{ value: child.props.value ?? optionText(child.props.children), label: optionText(child.props.children), disabled: child.props.disabled }];
   });
   const initialValue = defaultValue ?? options[0]?.value ?? "";
-  const currentValue = value ?? initialValue;
+  const currentValue = controlledValue ?? value ?? initialValue;
   const selected = options.find((option) => option.value === currentValue);
   const searchable = ["roomId", "targetRoomId", "studentId", "targetStudentId", "occupancyId", "chargeId", "paymentId"].includes(name) || options.length > 8;
   const title = ariaLabel ?? ({ roomId: "Room", targetRoomId: "New room", studentId: "Student", occupancyId: "Student and room", chargeId: "Outstanding charge", paymentId: "Payment" }[name] ?? name.replace(/Id$/, "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase()));
@@ -50,7 +53,7 @@ export function FormSelect({ children, name, defaultValue, required, disabled, "
   }, []);
 
   return <span className="form-select-container">
-    <select ref={native} className={mounted ? "form-select-native" : undefined} name={name} value={currentValue} required={required} disabled={disabled} tabIndex={mounted ? -1 : undefined} aria-hidden={mounted || undefined} aria-label={title} onChange={(event) => { setValue(event.target.value); setInvalid(false); }} onInvalid={(event) => { event.preventDefault(); setInvalid(true); trigger.current?.focus(); }}>
+    <select ref={native} className={mounted ? "form-select-native" : undefined} name={name} value={currentValue} required={required} disabled={disabled} tabIndex={mounted ? -1 : undefined} aria-hidden={mounted || undefined} aria-label={title} onChange={(event) => { setValue(event.target.value); onValueChange?.(event.target.value); onChange?.(event); setInvalid(false); }} onInvalid={(event) => { event.preventDefault(); setInvalid(true); trigger.current?.focus(); }}>
       {children}
     </select>
     {mounted ? <button ref={trigger} className="form-select-trigger" type="button" disabled={disabled} aria-haspopup="dialog" aria-label={`${title}: ${selected?.label ?? "Choose an option"}`} data-invalid={invalid} onClick={() => { setQuery(""); dialog.current?.showModal(); }}><span>{selected?.label ?? "Choose an option"}</span><ChevronDown size={17} /></button> : null}
@@ -60,7 +63,7 @@ export function FormSelect({ children, name, defaultValue, required, disabled, "
         <header><div><p>SELECT AN OPTION</p><h2 id={`${id}-title`}>{title}</h2></div><button autoFocus={!searchable} type="button" aria-label="Close selection" onClick={() => dialog.current?.close()}><X size={20} /></button></header>
         {searchable ? <div className="form-select-search"><Search size={18} /><input autoFocus type="search" aria-label={`Search ${title.toLowerCase()}`} placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); dialog.current?.querySelector<HTMLButtonElement>('.form-select-option:not(:disabled)')?.focus(); } }} /></div> : null}
         <p className="form-select-count" role="status">{visible.length} {visible.length === 1 ? "option" : "options"}</p>
-        <div className="form-select-list">{visible.map((option) => <button key={option.value} type="button" disabled={option.disabled} className={`form-select-option ${currentValue === option.value ? "is-selected" : ""}`} aria-pressed={currentValue === option.value} onClick={() => { setValue(option.value); setInvalid(Boolean(required && !option.value)); dialog.current?.close(); trigger.current?.focus(); }}><span>{option.label}</span>{currentValue === option.value ? <Check size={18} /> : null}</button>)}
+        <div className="form-select-list">{visible.map((option) => <button key={option.value} type="button" disabled={option.disabled} className={`form-select-option ${currentValue === option.value ? "is-selected" : ""}`} aria-pressed={currentValue === option.value} onClick={() => { setValue(option.value); onValueChange?.(option.value); onChange?.({ target: { value: option.value } }); setInvalid(Boolean(required && !option.value)); dialog.current?.close(); trigger.current?.focus(); }}><span>{option.label}</span>{currentValue === option.value ? <Check size={18} /> : null}</button>)}
           {!visible.length ? <div className="form-select-empty"><Search size={24} /><strong>No matches found</strong><p>Try a different name or room number.</p></div> : null}
         </div>
       </div>

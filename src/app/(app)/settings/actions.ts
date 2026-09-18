@@ -44,16 +44,31 @@ export async function updateAccommodationRatesAction(_state: SettingsFormState, 
   if (invalid && !invalid.success) return { error: invalid.error.issues[0]?.message ?? "Check the accommodation rates.", message: "" };
   const values = entries.flatMap((entry) => entry.success ? [entry.data] : []);
   if (!values.length) return { error: "No accommodation types were submitted.", message: "" };
+  const effectiveAtValue = String(formData.get("effectiveAt") ?? "");
+  const reason = String(formData.get("rateChangeReason") ?? "").trim();
+  const effectiveAt = new Date(`${effectiveAtValue}T12:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveAtValue) || Number.isNaN(effectiveAt.getTime())) return { error: "Enter a valid effective date for the rates.", message: "" };
+  if (reason.length < 5 || reason.length > 240) return { error: "Provide a rate-change reason of 5–240 characters.", message: "" };
   const types = await db.roomType.findMany({ where: { organizationId: session.organizationId, id: { in: ids } }, include: { rooms: { where: { capacityOverride: null }, include: { _count: { select: { occupancies: { where: { status: "ACTIVE" } } } } } } } });
   if (types.length !== values.length) return { error: "One or more accommodation types are unavailable.", message: "" };
   for (const value of values) {
     const conflict = types.find((item) => item.id === value.id)?.rooms.find((room) => room._count.occupancies > value.defaultCapacity);
     if (conflict) return { error: `Room ${conflict.number} has ${conflict._count.occupancies} occupants. Capacity cannot be reduced to ${value.defaultCapacity}.`, message: "" };
   }
-  await db.$transaction([
-    ...values.map((value) => db.roomType.update({ where: { id: value.id }, data: { monthlyRate: value.monthlyRate, semesterRate: value.semesterRate, defaultCapacity: value.defaultCapacity } })),
-    db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ACCOMMODATION_RATES_UPDATED", entityType: "RoomType", metadata: { roomTypeIds: ids } } }),
-  ]);
+  await db.$transaction(async (tx) => {
+    const changedRateIds: string[] = [];
+    for (const value of values) {
+      const current = types.find((item) => item.id === value.id);
+      if (!current) continue;
+      const rateChanged = Number(current.monthlyRate) !== value.monthlyRate || Number(current.semesterRate) !== value.semesterRate;
+      await tx.roomType.update({ where: { id: value.id }, data: { monthlyRate: value.monthlyRate, semesterRate: value.semesterRate, defaultCapacity: value.defaultCapacity } });
+      if (rateChanged) {
+        changedRateIds.push(value.id);
+        await tx.roomRateHistory.create({ data: { organizationId: session.organizationId, roomTypeId: value.id, monthlyRate: value.monthlyRate, semesterRate: value.semesterRate, effectiveAt, changedById: session.userId, reason } });
+      }
+    }
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ACCOMMODATION_RATES_UPDATED", entityType: "RoomType", metadata: { roomTypeIds: ids, changedRateIds, effectiveAt: effectiveAt.toISOString(), reason } } });
+  });
   revalidatePath("/settings"); revalidatePath("/rooms"); revalidatePath("/occupancy");
   return { error: "", message: "Accommodation rates and capacities saved successfully." };
 }

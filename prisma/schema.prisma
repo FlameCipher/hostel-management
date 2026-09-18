@@ -183,6 +183,28 @@ enum ClearanceStatus {
   BLOCKED
 }
 
+enum StorageChargeMode {
+  MONTHLY_RATE_MONTHS
+  FLAT_AMOUNT
+  PERCENTAGE_MONTHLY_RATE
+}
+
+enum RentCalculationMethod {
+  KEEP_FULL
+  STANDARD_RATE
+  ACTUAL_DAYS
+  CUSTOM
+}
+
+enum ChargeAdjustmentReason {
+  ROOM_TRANSFER
+  EARLY_CHECKOUT
+  RATE_CORRECTION
+  DISCOUNT
+  BREAK_STORAGE
+  MANUAL
+}
+
 model Organization {
   id                    String   @id @default(cuid())
   name                  String
@@ -218,6 +240,9 @@ model Organization {
   mpesaTransactions     MpesaTransaction[]
   studentUpdateRequests StudentDetailsUpdateRequest[]
   publicLookupAttempts  PublicStudentLookupAttempt[]
+  roomRateHistory       RoomRateHistory[]
+  roomStays             OccupancyRoomStay[]
+  chargeAdjustments     ChargeAdjustment[]
 }
 
 model User {
@@ -238,6 +263,7 @@ model User {
   auditLogs                     AuditLog[]
   notificationsCreated          Notification[]
   reviewedStudentUpdateRequests StudentDetailsUpdateRequest[] @relation("StudentUpdateReviewedBy")
+  chargeAdjustmentsCreated       ChargeAdjustment[]            @relation("ChargeAdjustmentCreatedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
@@ -277,6 +303,8 @@ model RoomType {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rooms        Room[]
   charges      Charge[]
+  rateHistory  RoomRateHistory[]
+  roomStays    OccupancyRoomStay[]
 
   @@unique([organizationId, name])
 }
@@ -300,6 +328,7 @@ model Room {
   occupancies       Occupancy[]
   breakReservations BreakReservation[]
   assets            HostelAsset[]
+  roomStays         OccupancyRoomStay[]
 
   @@unique([organizationId, floorKey, numberKey])
   @@index([organizationId, status])
@@ -413,6 +442,7 @@ model Occupancy {
   room          Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
   charges       Charge[]
   propertyItems StudentPropertyItem[]
+  roomStays     OccupancyRoomStay[]
 
   @@unique([semesterId, studentId])
   @@index([organizationId, status])
@@ -426,6 +456,8 @@ model BreakPeriod {
   startDate      DateTime
   endDate        DateTime
   months         Int               @default(3)
+  storageChargeMode  StorageChargeMode @default(MONTHLY_RATE_MONTHS)
+  storageChargeValue Decimal?          @db.Decimal(12, 2)
   status         BreakPeriodStatus @default(UPCOMING)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -448,6 +480,8 @@ model BreakReservation {
   belongingsStored    Boolean                @default(false)
   monthlyRateSnapshot Decimal                @db.Decimal(12, 2)
   potentialCharge     Decimal                @db.Decimal(12, 2)
+  finalCharge         Decimal?               @db.Decimal(12, 2)
+  chargeOverrideReason String?
   declaredAt          DateTime?
   clearedAt           DateTime?
   returnConfirmedAt   DateTime?
@@ -477,6 +511,7 @@ model Charge {
   type               ChargeType   @default(SEMESTER_RENT)
   description        String
   amount             Decimal      @db.Decimal(12, 2)
+  baseAmount         Decimal?     @db.Decimal(12, 2)
   dueDate            DateTime
   status             ChargeStatus @default(UNPAID)
   createdAt          DateTime     @default(now())
@@ -489,11 +524,76 @@ model Charge {
   occupancy        Occupancy?        @relation(fields: [occupancyId], references: [id], onDelete: Restrict)
   breakReservation BreakReservation? @relation(fields: [breakReservationId], references: [id], onDelete: Restrict)
   payments         Payment[]
+  adjustments      ChargeAdjustment[]
 
   @@index([organizationId, status, dueDate])
   @@index([studentId, createdAt])
   @@index([roomTypeId])
   @@map("SemesterCharge")
+}
+
+model RoomRateHistory {
+  id             String   @id @default(cuid())
+  organizationId String
+  roomTypeId     String
+  monthlyRate    Decimal  @db.Decimal(12, 2)
+  semesterRate   Decimal  @db.Decimal(12, 2)
+  effectiveAt    DateTime
+  changedById    String?
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roomType     RoomType     @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, effectiveAt])
+  @@index([roomTypeId, effectiveAt])
+}
+
+model OccupancyRoomStay {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  occupancyId          String
+  roomId               String
+  roomTypeId           String
+  startDate            DateTime
+  endDate              DateTime?
+  monthlyRateSnapshot  Decimal   @db.Decimal(12, 2)
+  semesterRateSnapshot Decimal   @db.Decimal(12, 2)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  occupancy    Occupancy    @relation(fields: [occupancyId], references: [id], onDelete: Cascade)
+  room         Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  roomType     RoomType     @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, startDate])
+  @@index([occupancyId, startDate])
+  @@index([roomId, endDate])
+}
+
+model ChargeAdjustment {
+  id                String                 @id @default(cuid())
+  organizationId    String
+  chargeId          String
+  createdById       String?
+  reason            ChargeAdjustmentReason
+  calculationMethod RentCalculationMethod
+  previousAmount    Decimal                @db.Decimal(12, 2)
+  newAmount         Decimal                @db.Decimal(12, 2)
+  adjustmentAmount  Decimal                @db.Decimal(12, 2)
+  effectiveDate     DateTime
+  explanation       String
+  calculationData   Json?
+  createdAt         DateTime               @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  charge       Charge       @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  createdBy    User?        @relation("ChargeAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([chargeId, createdAt])
 }
 
 model Payment {

@@ -2,7 +2,7 @@
 
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRightLeft, LogIn, LogOut } from "lucide-react";
 import { checkInStudentAction, checkoutStudentAction, transferRoomAction, type StayFormState } from "@/app/(app)/occupancy/stay-actions";
 
@@ -85,9 +85,34 @@ export function CheckInForm({
   );
 }
 
-export function TransferForm({ occupancyId, rooms }: { occupancyId: string; rooms: Option[] }) {
+type TransferRoomOption = Option & { semesterRate: number };
+type TransferStay = { startDate: string; endDate: string | null; semesterRate: number };
+
+export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, currentRent, stays, allowCustom }: { occupancyId: string; rooms: TransferRoomOption[]; semesterStart: string; semesterEnd: string; currentRent: number; stays: TransferStay[]; allowCustom: boolean }) {
   const [state, action, pending] = useActionState(transferRoomAction.bind(null, occupancyId), initialState);
-  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><FormSelect name="targetRoomId" required><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</FormSelect></label><label className="field-group form-span-2"><span>Transfer reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending}><ArrowRightLeft size={17} /> Transfer room</button></div></form>;
+  const today = new Date().toISOString().slice(0, 10);
+  const [targetRoomId, setTargetRoomId] = useState("");
+  const [transferDate, setTransferDate] = useState(today);
+  const [rentMethod, setRentMethod] = useState("KEEP_FULL");
+  const [customRent, setCustomRent] = useState("");
+  const preview = useMemo(() => {
+    if (rentMethod === "KEEP_FULL") return currentRent;
+    if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
+    const target = rooms.find((room) => room.id === targetRoomId);
+    if (!target || !transferDate) return null;
+    const day = (value: string) => Date.parse(`${value.slice(0, 10)}T00:00:00.000Z`);
+    const days = (start: string, end: string) => Math.max(0, Math.round((day(end) - day(start)) / 86_400_000));
+    const semesterEndExclusive = new Date(day(semesterEnd) + 86_400_000).toISOString().slice(0, 10);
+    const totalDays = Math.max(1, days(semesterStart, semesterEndExclusive));
+    let amount = 0;
+    for (const stay of stays) {
+      const end = stay.endDate?.slice(0, 10) ?? transferDate;
+      amount += stay.semesterRate * days(stay.startDate.slice(0, 10), end) / totalDays;
+    }
+    amount += target.semesterRate * days(transferDate, semesterEndExclusive) / totalDays;
+    return Math.round(amount * 100) / 100;
+  }, [currentRent, customRent, rentMethod, rooms, semesterEnd, semesterStart, stays, targetRoomId, transferDate]);
+  return <form action={action} className="panel entity-form"><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div><p>Choose whether to keep the current rent, calculate the semester by actual days, or enter an approved custom total.</p></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><FormSelect name="targetRoomId" onChange={(event) => setTargetRoomId(event.target.value)} required value={targetRoomId}><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</FormSelect></label><label className="field-group"><span>Transfer date *</span><input max={semesterEnd} min={semesterStart} name="transferDate" onChange={(event) => setTransferDate(event.target.value)} type="date" value={transferDate} required /></label><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep current semester rent</option><option value="ACTUAL_DAYS">Recalculate using actual days</option>{allowCustom ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect></label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent (KES) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step="0.01" type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Current semester rent</span><strong>KES {currentRent.toLocaleString("en-KE")}</strong><span>Proposed semester rent</span><strong>{preview === null || Number.isNaN(preview) ? "Select the room and date" : `KES ${preview.toLocaleString("en-KE")}`}</strong>{preview !== null && !Number.isNaN(preview) ? <small>{preview >= currentRent ? `Additional charge: KES ${(preview - currentRent).toLocaleString("en-KE")}` : `Credit: KES ${(currentRent - preview).toLocaleString("en-KE")}`}</small> : null}</div><label className="field-group form-span-2"><span>Transfer and rent-adjustment reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending}><ArrowRightLeft size={17} /> Transfer and apply rent</button></div></form>;
 }
 
 export function CheckoutForm({ occupancyId, allowOverride }: { occupancyId: string; allowOverride: boolean }) {

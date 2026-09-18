@@ -40,7 +40,7 @@ export async function createChargeAction(_state: FinanceFormState, formData: For
     if (duplicate) return { error: "This student already has a rent charge for the selected semester." };
   }
   await db.$transaction(async (tx) => {
-    const charge = await tx.charge.create({ data: { organizationId: session.organizationId, studentId: student.id, semesterId: semester?.id, roomTypeId: roomType?.id, type: parsed.data.type, description: parsed.data.description, amount: parsed.data.amount, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`), status: "UNPAID" } });
+    const charge = await tx.charge.create({ data: { organizationId: session.organizationId, studentId: student.id, semesterId: semester?.id, roomTypeId: roomType?.id, type: parsed.data.type, description: parsed.data.description, amount: parsed.data.amount, baseAmount: parsed.data.amount, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`), status: "UNPAID" } });
     await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "CHARGE_CREATED", entityType: "Charge", entityId: charge.id, metadata: { type: charge.type, amount: Number(charge.amount), studentId: student.id } } });
   });
   revalidatePath("/payments"); revalidatePath("/dashboard"); redirect("/payments");

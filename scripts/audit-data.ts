@@ -27,9 +27,9 @@ async function main() {
   for (const organization of organizations) {
     const [students, occupancies, rooms, charges, payments, breakReservations, activeSemesters] = await Promise.all([
       db.student.findMany({ where: { organizationId: organization.id }, select: { phone: true, admissionNumber: true, nationalId: true } }),
-      db.occupancy.findMany({ where: { organizationId: organization.id, status: "ACTIVE" }, select: { studentId: true, roomId: true, student: { select: { status: true } } } }),
+      db.occupancy.findMany({ where: { organizationId: organization.id, status: "ACTIVE" }, select: { studentId: true, roomId: true, student: { select: { status: true } }, roomStays: { where: { endDate: null }, select: { roomId: true } } } }),
       db.room.findMany({ where: { organizationId: organization.id }, include: { roomType: { select: { defaultCapacity: true } }, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, select: { studentId: true } } } }),
-      db.charge.findMany({ where: { organizationId: organization.id, status: { not: "WAIVED" } }, include: { payments: { where: { reversedAt: null }, select: { amount: true } } } }),
+      db.charge.findMany({ where: { organizationId: organization.id, status: { not: "WAIVED" } }, include: { payments: { where: { reversedAt: null }, select: { amount: true } }, adjustments: { select: { adjustmentAmount: true } } } }),
       db.payment.findMany({ where: { organizationId: organization.id }, select: { studentId: true, charge: { select: { studentId: true } } } }),
       db.breakReservation.findMany({ where: { organizationId: organization.id }, select: { status: true, belongingsStored: true, charge: { select: { id: true } } } }),
       db.semester.count({ where: { organizationId: organization.id, status: "ACTIVE" } }),
@@ -47,6 +47,8 @@ async function main() {
     for (const occupancy of occupancies) {
       occupancyCounts.set(occupancy.studentId, (occupancyCounts.get(occupancy.studentId) ?? 0) + 1);
       if (occupancy.student.status !== "ACTIVE") findings.push(`${prefix}: an active occupancy belongs to a non-active student`);
+      if (occupancy.roomStays.length !== 1) findings.push(`${prefix}: an active occupancy does not have exactly one open room-stay segment`);
+      else if (occupancy.roomStays[0].roomId !== occupancy.roomId) findings.push(`${prefix}: an active occupancy room differs from its open room-stay segment`);
     }
     const multipleActive = [...occupancyCounts.values()].filter((count) => count > 1).length;
     if (multipleActive) findings.push(`${prefix}: ${multipleActive} student(s) have multiple active occupancies`);
@@ -60,7 +62,8 @@ async function main() {
     }
     for (const charge of charges) {
       const paid = charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      if (paid > Number(charge.amount) + 0.001) findings.push(`${prefix}: a charge is overpaid`);
+      const hasCreditAdjustment = charge.adjustments.some((adjustment) => Number(adjustment.adjustmentAmount) < 0);
+      if (paid > Number(charge.amount) + 0.001 && !hasCreditAdjustment) findings.push(`${prefix}: a charge is overpaid without an approved credit adjustment`);
     }
     const mismatchedPayments = payments.filter((payment) => payment.studentId !== payment.charge.studentId).length;
     if (mismatchedPayments) findings.push(`${prefix}: ${mismatchedPayments} payment(s) belong to a different student than their charge`);

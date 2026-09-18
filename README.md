@@ -9,9 +9,9 @@ A mobile-friendly hostel operations and rent-management application for Mama Mbu
 - Dashboard with room, tenant, rent, payment, balance, and alert summaries
 - PostgreSQL/Prisma models for rooms, students, guardians, occupancy, rent charges, payments, property, assets, users, semesters, and audit logs
 - Seed data for the four approved accommodation types and 24 starter rooms
-- Prepared routes for rooms, students, payments, check-in/check-out, student property, hostel assets, reports, users, and settings
-
-Dashboard figures are currently presentation data. They will be replaced with live database queries as each operational module is implemented.
+- Database-backed room register with search, filters, rate visibility, capacity, occupants, status, and audited add/edit workflows
+- Prepared routes for students, payments, check-in/check-out, student property, hostel assets, reports, users, and settings
+  Dashboard figures are currently presentation data. They will be replaced with live database queries as each operational module is implemented.
 
 ## Technology
 
@@ -28,36 +28,35 @@ Prerequisites: Node.js 20.9 or newer and a running PostgreSQL database.
 
 1. Install dependencies:
 
-   ```bash
-   npm install
-   ```
+```
+npm install
+```
 
 2. Create the local environment file:
 
-   ```bash
-   cp .env.example .env
-   ```
+```
+cp .env.example .env
+```
 
 3. Set `DATABASE_URL` and a strong, randomly generated `SESSION_SECRET` in `.env`.
-
 4. Generate the Prisma client and create the database tables:
 
-   ```bash
-   npm run db:generate
-   npm run db:migrate -- --name init
-   ```
+```
+npm run db:generate
+npm run db:migrate -- --name init
+```
 
 5. Add the starter organization, owner, rates, semester, and rooms:
 
-   ```bash
-   npm run db:seed
-   ```
+```
+npm run db:seed
+```
 
 6. Start the development server:
 
-   ```bash
-   npm run dev
-   ```
+```
+npm run dev
+```
 
 Open `http://localhost:3000` in a browser.
 
@@ -65,21 +64,11 @@ Open `http://localhost:3000` in a browser.
 
 - Email: `owner@mamambugua.co.ke`
 - Password: `ChangeMe123!`
-
-Change this password before any demonstration involving real data and before deployment.
+  Change this password before any demonstration involving real data and before deployment.
 
 ## Useful commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the local development server |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Check TypeScript types |
-| `npm run build` | Create a production build |
-| `npm run db:validate` | Validate the Prisma schema |
-| `npm run db:generate` | Regenerate the Prisma client |
-| `npm run db:migrate -- --name <name>` | Create and apply a development migration |
-| `npm run db:seed` | Load starter hostel data |
+CommandPurpose`npm run dev`Start the local development server`npm run lint`Run ESLint`npm run typecheck`Check TypeScript types`npm run build`Create a production build`npm run db:validate`Validate the Prisma schema`npm run db:generate`Regenerate the Prisma client`npm run db:migrate -- --name <name>`Create and apply a development migration`npm run db:seed`Load starter hostel data
 
 ## Project structure
 
@@ -91,12 +80,11 @@ Change this password before any demonstration involving real data and before dep
 
 ## Recommended implementation order
 
-1. Rooms and accommodation rates
-2. Students and guardian records
-3. Check-in and room allocation
-4. Semester charges, payments, balances, and receipts
-5. Property and hostel asset inspections
-6. Live reports, exports, and reminder integrations
+1. Students and guardian records
+2. Check-in and room allocation
+3. Semester charges, payments, balances, and receipts
+4. Property and hostel asset inspections
+5. Live reports, exports, and reminder integrations
 
 ## Production notes
 

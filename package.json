@@ -15,7 +15,8 @@
     "db:deploy": "prisma migrate deploy --config prisma.config.ts",
     "db:seed": "prisma db seed --config prisma.config.ts",
     "db:seed:production": "tsx prisma/seed-production.ts",
-    "db:audit": "tsx scripts/audit-data.ts"
+    "db:audit": "tsx scripts/audit-data.ts",
+    "test:rent": "node --import tsx scripts/test-rent-calculation.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
