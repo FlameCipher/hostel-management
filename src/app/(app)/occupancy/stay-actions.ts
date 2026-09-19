@@ -35,7 +35,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
         tx.student.findFirst({ where: { id: parsed.data.studentId, organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } } }),
         tx.semester.findFirst({ where: { id: parsed.data.semesterId, organizationId: session.organizationId, status: "ACTIVE" } }),
         tx.room.findFirst({ where: { id: parsed.data.roomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
-        tx.occupancy.findFirst({ where: { organizationId: session.organizationId, studentId: parsed.data.studentId, status: "ACTIVE" } }),
+        tx.occupancy.findFirst({ where: { organizationId: session.organizationId, studentId: parsed.data.studentId, status: "ACTIVE" }, include: { semester: { select: { id: true, status: true, name: true } }, roomStays: { where: { endDate: null }, select: { id: true } }, charges: { where: { status: { not: "WAIVED" } }, include: { payments: { where: { reversedAt: null }, select: { amount: true } } } } } }),
         tx.payment.findFirst({
           where: {
             ...(parsed.data.paymentId ? { id: parsed.data.paymentId } : {}),
@@ -51,7 +51,8 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       if (!student || !semester || !room) throw new Error("INVALID_SELECTION");
       if (checkInDate < semester.startDate || checkInDate > semester.endDate) throw new Error("INVALID_CHECK_IN_DATE");
       if (!initialPayment) throw new Error("INITIAL_PAYMENT_REQUIRED");
-      if (existing) throw new Error("ALREADY_CHECKED_IN");
+      if (existing?.semesterId === semester.id) throw new Error("ALREADY_CHECKED_IN");
+      if (existing && existing.semester.status !== "CLOSED") throw new Error("ACTIVE_OCCUPANCY_CONFLICT");
       if (room.status === "MAINTENANCE" || room.status === "INACTIVE") throw new Error("ROOM_UNAVAILABLE");
       if (initialPayment.charge.roomTypeId && initialPayment.charge.roomTypeId !== room.roomTypeId) throw new Error("ROOM_TYPE_MISMATCH");
       const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
@@ -60,6 +61,13 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       if (held.size >= capacity && !studentHasHold) throw new Error("ROOM_FULL");
       const existingSemesterRecord = await tx.occupancy.findFirst({ where: { semesterId: semester.id, studentId: student.id } });
       if (existingSemesterRecord) throw new Error("SEMESTER_DUPLICATE");
+
+      if (existing) {
+        const previousNetPosition = existing.charges.reduce((sum, charge) => sum + Number(charge.amount) - charge.payments.reduce((paid, payment) => paid + Number(payment.amount), 0), 0);
+        await tx.occupancy.update({ where: { id: existing.id }, data: { status: "CHECKED_OUT", checkedOutAt: checkInDate, checkoutCondition: `Semester rollover from ${existing.semester.name}`, finalBalance: previousNetPosition, clearanceStatus: "CLEARED" } });
+        await tx.occupancyRoomStay.updateMany({ where: { occupancyId: existing.id, endDate: null }, data: { endDate: checkInDate } });
+        await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "SEMESTER_OCCUPANCY_ROLLED_OVER", entityType: "Occupancy", entityId: existing.id, metadata: { previousSemesterId: existing.semesterId, newSemesterId: semester.id, previousRoomId: existing.roomId, newRoomId: room.id, carriedBalance: Math.max(0, previousNetPosition), carriedCredit: Math.max(0, -previousNetPosition) } } });
+      }
 
       const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: student.id, roomId: room.id, checkInAt: checkInDate, expectedCheckoutAt: parsed.data.expectedCheckoutAt ? new Date(`${parsed.data.expectedCheckoutAt}T12:00:00.000Z`) : semester.endDate, status: "ACTIVE", checkInCondition: parsed.data.checkInCondition || null } });
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: room.id, roomTypeId: room.roomTypeId, startDate: occupancy.checkInAt, monthlyRateSnapshot: room.roomType.monthlyRate, semesterRateSnapshot: room.roomType.semesterRate } });
@@ -74,11 +82,12 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       await tx.student.update({ where: { id: student.id }, data: { status: "ACTIVE" } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, roomId: room.id, ...activeBreakHoldWhere }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
       await refreshRoomStatus(tx, room.id);
+      if (existing && existing.roomId !== room.id) await refreshRoomStatus(tx, existing.roomId);
       await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_CHECKED_IN", entityType: "Occupancy", entityId: occupancy.id, metadata: { studentId: student.id, roomId: room.id, semesterId: semester.id, initialPaymentId: initialPayment.id, chargeId: initialPayment.charge.id, rentMethod: parsed.data.rentMethod, previousRent: rentAdjustment?.previousAmount ?? Number(initialPayment.charge.amount), finalRent: rentAdjustment?.newAmount ?? Number(initialPayment.charge.amount), credit: rentAdjustment?.credit ?? 0, rentAdjustmentReason: parsed.data.rentAdjustmentReason ?? null } } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", INVALID_CHECK_IN_DATE: "The check-in date must fall within the active semester.", INITIAL_PAYMENT_REQUIRED: "Record an initial payment before allocating a room.", ALREADY_CHECKED_IN: "This student already has an active room.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_TYPE_MISMATCH: "Select a room matching the accommodation type chosen during registration.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
+    const messages: Record<string, string> = { INVALID_SELECTION: "The student, semester or room is unavailable.", INVALID_CHECK_IN_DATE: "The check-in date must fall within the active semester.", INITIAL_PAYMENT_REQUIRED: "Record an initial payment before allocating a room.", ALREADY_CHECKED_IN: "This student already has an active room in this semester.", ACTIVE_OCCUPANCY_CONFLICT: "Close the student’s current active semester before allocating the next semester.", ROOM_UNAVAILABLE: "This room is unavailable.", ROOM_TYPE_MISMATCH: "Select a room matching the accommodation type chosen during registration.", ROOM_FULL: "This room has reached capacity.", SEMESTER_DUPLICATE: "This student already has an occupancy record for the active semester." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }

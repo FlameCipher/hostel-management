@@ -3,19 +3,19 @@ import { ChargeForm, PaymentForm } from "@/components/payment-forms";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ mode?: string; chargeId?: string; intake?: string }> }) {
+export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ mode?: string; chargeId?: string; intake?: string; semesterId?: string }> }) {
   const session = await requireSession();
   if (session.role === "CARETAKER") redirect("/payments");
   const params = await searchParams;
   const [students, semesters, roomTypes, charges] = await Promise.all([
-    db.student.findMany({ where: { organizationId: session.organizationId, status: "ACTIVE" }, orderBy: { fullName: "asc" } }),
+    db.student.findMany({ where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } }, orderBy: { fullName: "asc" } }),
     db.semester.findMany({ where: { organizationId: session.organizationId }, orderBy: { startDate: "desc" } }),
     db.roomType.findMany({ where: { organizationId: session.organizationId, active: true }, orderBy: { name: "asc" } }),
-    db.charge.findMany({ where: { organizationId: session.organizationId, status: { notIn: ["FULLY_PAID", "WAIVED"] } }, include: { student: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
+    db.charge.findMany({ where: { organizationId: session.organizationId, status: { notIn: ["FULLY_PAID", "WAIVED"] } }, include: { student: true, semester: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
   ]);
-  const chargeOptions = charges.map((charge) => ({ id: charge.id, label: `${charge.student.fullName} · ${charge.description}`, balance: Math.max(0, Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0)) })).filter((item) => item.balance > 0);
+  const chargeOptions = charges.map((charge) => ({ id: charge.id, label: `${charge.student.fullName} · ${charge.semester?.name ?? "Other charge"} · ${charge.description}`, balance: Math.max(0, Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0)) })).filter((item) => item.balance > 0);
   const options = students.map((student) => ({ id: student.id, label: student.fullName }));
-  const semesterOptions = semesters.map((semester) => ({ id: semester.id, label: semester.name }));
+  const semesterOptions = semesters.map((semester) => ({ id: semester.id, label: `${semester.name} · ${semester.status}` }));
   const intake = params.intake === "1";
-  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Create charge" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Add semester rent or another amount owed by a student." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to an outstanding student charge."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · KES ${Number(type.semesterRate).toLocaleString("en-KE")}` }))} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} intake={intake} selectedChargeId={params.chargeId} />}</div>;
+  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Add student to semester" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Use the student’s existing record and create the appropriate semester charge." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to any outstanding charge, including balances from previous semesters."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · KES ${Number(type.semesterRate).toLocaleString("en-KE")}` }))} selectedSemesterId={params.semesterId} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} intake={intake} selectedChargeId={params.chargeId} />}</div>;
 }

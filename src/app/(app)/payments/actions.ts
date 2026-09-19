@@ -62,7 +62,7 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
   let requiresRoomAllocation = false;
   try {
     await db.$transaction(async (tx) => {
-      const charge = await tx.charge.findFirst({ where: { id: parsed.data.chargeId, organizationId: session.organizationId }, include: { payments: { where: { reversedAt: null }, select: { amount: true } } } });
+      const charge = await tx.charge.findFirst({ where: { id: parsed.data.chargeId, organizationId: session.organizationId }, include: { semester: { select: { status: true } }, payments: { where: { reversedAt: null }, select: { amount: true } } } });
       if (!charge) throw new Error("CHARGE_NOT_FOUND");
       if (parsed.data.method === "MPESA" && parsed.data.reference) {
         const duplicateReference = await tx.payment.findFirst({ where: { organizationId: session.organizationId, method: "MPESA", reference: { equals: parsed.data.reference, mode: "insensitive" }, reversedAt: null } });
@@ -85,7 +85,7 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
       const normalizedReference = parsed.data.method === "MPESA" ? parsed.data.reference?.toUpperCase() : parsed.data.reference;
       const payment = await tx.payment.create({ data: { organizationId: session.organizationId, studentId: charge.studentId, chargeId: charge.id, recordedById: session.userId, amount: parsed.data.amount, paidAt: new Date(`${parsed.data.paidAt}T12:00:00.000Z`), method: parsed.data.method, reference: normalizedReference || null, receiptNumber, notes: parsed.data.notes || null } });
       paymentId = payment.id;
-      requiresRoomAllocation = charge.type === "SEMESTER_RENT" && !charge.occupancyId;
+      requiresRoomAllocation = charge.type === "SEMESTER_RENT" && !charge.occupancyId && charge.semester?.status === "ACTIVE";
       if (parsed.data.method === "MPESA" && normalizedReference) {
         const imported = await tx.mpesaTransaction.findUnique({ where: { organizationId_transactionCode: { organizationId: session.organizationId, transactionCode: normalizedReference } } });
         if (imported && !imported.paymentId) {
