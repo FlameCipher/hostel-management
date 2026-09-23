@@ -1,6 +1,6 @@
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
-import { BedDouble, Building2, DoorOpen, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { BedDouble, Building2, DoorOpen, Eye, Pencil, Plus, Search, Trash2, Users, Wrench } from "lucide-react";
 import { RoomStatus, type RoomStatus as RoomStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -107,7 +107,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <article className="compact-stat"><span className="metric-icon metric-sky"><DoorOpen size={22} /></span><div><p>Vacant</p><strong>{summary.vacant}</strong></div></article>
         <article className="compact-stat"><span className="metric-icon metric-violet"><Users size={22} /></span><div><p>Part occupied</p><strong>{summary.partial}</strong></div></article>
         <article className="compact-stat"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong></div></article>
-        <article className="compact-stat"><span className="metric-icon metric-red"><Building2 size={22} /></span><div><p>Maintenance</p><strong>{summary.maintenance}</strong></div></article>
+        <article className="compact-stat"><span className="metric-icon metric-red"><Wrench size={22} /></span><div><p>Maintenance</p><strong>{summary.maintenance}</strong></div></article>
         {summary.inactive > 0 ? <article className="compact-stat"><span className="metric-icon"><Building2 size={22} /></span><div><p>Inactive</p><strong>{summary.inactive}</strong></div></article> : null}
       </section>
 
@@ -134,7 +134,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <form className="filter-bar" method="get">
           <label className="filter-search">
             <Search size={17} />
-            <input defaultValue={query} name="q" placeholder="Search room number" />
+            <input defaultValue={query} name="q" placeholder="Search by room number or type..." />
           </label>
           <FormSelect aria-label="Filter by room type" defaultValue={roomTypeId ?? ""} name="type">
             <option value="">All room types</option>
@@ -151,7 +151,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         {rooms.length ? (
           <div className="table-scroll room-table-wrap">
             <table className="data-table room-table">
-              <thead><tr><th>Room</th><th>Accommodation</th><th>Capacity</th><th>Current occupants</th><th>Semester rent</th><th>Status</th>{canManageRooms ? <th aria-label="Actions" /> : null}</tr></thead>
+              <thead><tr><th>Room</th><th>Type & accommodation</th><th>Floor</th><th>Capacity</th><th>Current occupants</th><th>Monthly rent</th><th>Semester rent</th><th>Status</th>{canManageRooms ? <th>Actions</th> : null}</tr></thead>
               <tbody>
                 {rooms.map((room) => {
                   const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
@@ -166,9 +166,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                       <td><strong>{room.roomType.name}</strong><small className="table-subtext">{room.roomType.sharingMode === "PRIVATE" ? "Private" : "Shared"}</small></td>
                       <td>{occupantCount} / {capacity}</td>
                       <td>{room.occupancies.length || breakOnlyReservations.length ? <>{room.occupancies.map((occupancy) => occupancy.student.fullName).join(", ")}{room.occupancies.length && breakOnlyReservations.length ? "; " : ""}{breakOnlyReservations.map((reservation) => `${reservation.student.fullName} (break reserved)`).join(", ")}</> : <span className="muted-note">No occupants</span>}</td>
-                      <td><strong>{formatCurrency(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
+                      <td><strong>{formatCurrency(Number(room.roomType.monthlyRate))}</strong><small className="table-subtext">per person</small></td>\n                      <td><strong>{formatCurrency(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
                       <td><span className={`status-pill ${roomStatusTone[effectiveStatus]}`}>{roomStatusLabels[effectiveStatus]}</span></td>
-                      {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`Edit room ${room.number}`} className="table-action" href={`/rooms/${room.id}/edit`}><Pencil size={15} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number} · ${room.floor || "Floor unspecified"}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
+                      {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`View room ${room.number}`} className="room-view-button" href={`/rooms/${room.id}/edit`}><Eye size={14} /> View</Link><Link aria-label={`Edit room ${room.number}`} className="room-edit-button" href={`/rooms/${room.id}/edit`}><Pencil size={14} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number} · ${room.floor || "Floor unspecified"}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
                     </tr>
                   );
                 })}
