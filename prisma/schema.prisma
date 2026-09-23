@@ -609,6 +609,10 @@ model Payment {
   method                 PaymentMethod
   reference              String?
   receiptNumber          String
+  securityReference      String?                 @unique
+  integrityHash          String?
+  issuedAt               DateTime                @default(now())
+  reprintCount           Int                     @default(0)
   notes                  String?
   reversedAt             DateTime?
   reversalReason         String?
