@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 export type ReceiptPdfData = {
   organizationName: string;
@@ -101,7 +101,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   const contentWidth = width - margin * 2;
 
   page.drawRectangle({ x: 0, y: 0, width, height: page.getHeight(), color: rgb(1, 1, 1) });
-  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.94, 0.96, 0.98), rotate: { type: "degrees", angle: 35 } });
+  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.94, 0.96, 0.98), rotate: degrees(35) });
   page.drawRectangle({ x: margin, y: 736, width: contentWidth, height: 68, color: paleBlue, borderColor: border, borderWidth: 1 });
   page.drawRectangle({ x: margin + 16, y: 754, width: 34, height: 34, color: blue });
   page.drawText("MMH", { x: margin + 21, y: 766, size: 9, font: bold, color: rgb(1, 1, 1) });
