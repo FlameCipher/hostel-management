@@ -6,7 +6,7 @@ import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 const ORGANIZATION_ID = "mama-mbugua-hostel";
-const REQUIRED_CONFIRMATION = "MAMA_MBUGUA_HOSTEL";
+const REQUIRED_CONFIRMATION = "MMAMBUGUA_HOSTEL";
 
 function requiredEnvironmentVariable(name: string) {
   const value = process.env[name]?.trim();
@@ -74,7 +74,7 @@ async function main() {
       await tx.organization.upsert({
         where: { id: ORGANIZATION_ID },
         update: {
-          name: "Mama Mbugua Hostel",
+          name: "MMAMBUGUA HOSTEL",
           ownerName: input.ownerName,
           phone: input.ownerPhone,
           ...(input.organizationEmail ? { email: input.organizationEmail } : {}),
@@ -88,7 +88,7 @@ async function main() {
         },
         create: {
           id: ORGANIZATION_ID,
-          name: "Mama Mbugua Hostel",
+          name: "MMAMBUGUA HOSTEL",
           ownerName: input.ownerName,
           phone: input.ownerPhone,
           email: input.organizationEmail,
@@ -202,7 +202,7 @@ async function main() {
     });
 
     console.log("Production setup completed successfully.");
-    console.log(`Organization: Mama Mbugua Hostel (${ORGANIZATION_ID})`);
+    console.log(`Organization: MMAMBUGUA HOSTEL (${ORGANIZATION_ID})`);
     console.log(`Owner login: ${input.ownerEmail}`);
     console.log("Accommodation types: 4 configured");
   } finally {
