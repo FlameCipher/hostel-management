@@ -31,7 +31,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const roomTypeId = filters.type?.trim() || undefined;
   const canManageRooms = session.role !== "CARETAKER";
 
-  const [roomTypes, rooms, allRooms] = await Promise.all([
+  const [roomTypes, rawRooms, allRooms] = await Promise.all([
     db.roomType.findMany({
       where: { organizationId: session.organizationId, active: true },
       orderBy: [{ name: "asc" }],
@@ -40,7 +40,6 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       where: {
         organizationId: session.organizationId,
         ...(query ? { number: { contains: query, mode: "insensitive" } } : {}),
-        ...(status ? { status } : {}),
         ...(roomTypeId ? { roomTypeId } : {}),
       },
       include: {
@@ -69,6 +68,14 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
     }),
   ]);
 
+  let rooms = rawRooms;
+  if (status) {
+    rooms = rawRooms.filter((room) => {
+      const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
+      const heldSpaces = new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]).size;
+      return getEffectiveRoomStatus(room.status, heldSpaces, capacity) === status;
+    });
+  }
   rooms.sort(compareRooms);
 
   const summary = allRooms.reduce(
@@ -103,12 +110,12 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       </div>
 
       <section className="room-summary-grid" aria-label="Room summary">
-        <article className="compact-stat"><span className="metric-icon metric-blue"><Building2 size={22} /></span><div><p>Total rooms</p><strong>{summary.total}</strong></div></article>
-        <article className="compact-stat"><span className="metric-icon metric-sky"><DoorOpen size={22} /></span><div><p>Vacant</p><strong>{summary.vacant}</strong></div></article>
-        <article className="compact-stat"><span className="metric-icon metric-violet"><Users size={22} /></span><div><p>Part occupied</p><strong>{summary.partial}</strong></div></article>
-        <article className="compact-stat"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong></div></article>
-        <article className="compact-stat"><span className="metric-icon metric-red"><Wrench size={22} /></span><div><p>Maintenance</p><strong>{summary.maintenance}</strong></div></article>
-        {summary.inactive > 0 ? <article className="compact-stat"><span className="metric-icon"><Building2 size={22} /></span><div><p>Inactive</p><strong>{summary.inactive}</strong></div></article> : null}
+        <Link className="compact-stat summary-stat-link" href="/rooms"><span className="metric-icon metric-blue"><Building2 size={22} /></span><div><p>Total rooms</p><strong>{summary.total}</strong><small>View all rooms</small></div></Link>
+        <Link className="compact-stat summary-stat-link" href="/rooms?status=VACANT"><span className="metric-icon metric-sky"><DoorOpen size={22} /></span><div><p>Vacant</p><strong>{summary.vacant}</strong><small>View vacant rooms</small></div></Link>
+        <Link className="compact-stat summary-stat-link" href="/rooms?status=PARTIALLY_OCCUPIED"><span className="metric-icon metric-violet"><Users size={22} /></span><div><p>Part occupied</p><strong>{summary.partial}</strong><small>View part occupied</small></div></Link>
+        <Link className="compact-stat summary-stat-link" href="/rooms?status=FULL"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong><small>View full rooms</small></div></Link>
+        <Link className="compact-stat summary-stat-link" href="/rooms?status=MAINTENANCE"><span className="metric-icon metric-red"><Wrench size={22} /></span><div><p>Maintenance</p><strong>{summary.maintenance}</strong><small>View maintenance rooms</small></div></Link>
+        {summary.inactive > 0 ? <Link className="compact-stat summary-stat-link" href="/rooms?status=INACTIVE"><span className="metric-icon"><Building2 size={22} /></span><div><p>Inactive</p><strong>{summary.inactive}</strong><small>View inactive rooms</small></div></Link> : null}
       </section>
 
       <section className="panel mt-5">
