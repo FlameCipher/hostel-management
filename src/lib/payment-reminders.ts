@@ -43,9 +43,17 @@ export async function queueDuePaymentReminders() {
         ? `Hello ${charge.student.fullName}, this is a payment reminder from ${organization.name}. Your outstanding accommodation balance is ${money(balance)} and was due on ${due}. Please arrange payment or contact the hostel office for assistance. Thank you.`
         : `Hello ${charge.student.fullName}, this is a payment reminder from ${organization.name}. Your accommodation balance of ${money(balance)} is due on ${due}. Please arrange payment by the due date. Thank you.`;
 
-      const marker = `AUTO_DUE:${charge.id}:${dayKey(now)}`;
+      const startOfDay = new Date(`${dayKey(now)}T00:00:00.000Z`);
+      const endOfDay = new Date(`${dayKey(now)}T23:59:59.999Z`);
       const alreadyQueued = await db.notification.findFirst({
-        where: { organizationId: organization.id, studentId: charge.studentId, channel: "WHATSAPP", message: { contains: marker } },
+        where: {
+          organizationId: organization.id,
+          studentId: charge.studentId,
+          channel: "WHATSAPP",
+          recipientType: "STUDENT",
+          scheduledAt: { gte: startOfDay, lte: endOfDay },
+          message,
+        },
         select: { id: true },
       });
       if (alreadyQueued) continue;
@@ -58,7 +66,7 @@ export async function queueDuePaymentReminders() {
           recipientType: "STUDENT",
           recipientName: charge.student.fullName,
           recipientPhone: charge.student.phone,
-          message: `${message}\n\n[${marker}]`,
+          message,
           status: "QUEUED",
           scheduledAt: now,
         },
