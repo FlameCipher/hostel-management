@@ -93,7 +93,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <div>
           <p className="eyebrow">Accommodation management</p>
           <h1>Rooms</h1>
-          <p>Manage room types, capacity, rent rates and live occupancy.</p>
+          <p>Manage all hostel rooms, availability, rent and occupancy.</p>
         </div>
         {canManageRooms ? (
           <Link className="primary-button no-underline" href="/rooms/new">
