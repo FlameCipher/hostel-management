@@ -80,9 +80,11 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       if (effectiveStatus === "VACANT") totals.vacant += 1;
       if (effectiveStatus === "FULL") totals.full += 1;
       if (effectiveStatus === "PARTIALLY_OCCUPIED") totals.partial += 1;
+      if (effectiveStatus === "MAINTENANCE") totals.maintenance += 1;
+      if (effectiveStatus === "INACTIVE") totals.inactive += 1;
       return totals;
     },
-    { total: 0, vacant: 0, full: 0, partial: 0 },
+    { total: 0, vacant: 0, full: 0, partial: 0, maintenance: 0, inactive: 0 },
   );
 
   return (
@@ -105,6 +107,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <article className="compact-stat"><span className="metric-icon metric-sky"><DoorOpen size={22} /></span><div><p>Vacant</p><strong>{summary.vacant}</strong></div></article>
         <article className="compact-stat"><span className="metric-icon metric-violet"><Users size={22} /></span><div><p>Part occupied</p><strong>{summary.partial}</strong></div></article>
         <article className="compact-stat"><span className="metric-icon metric-green"><BedDouble size={22} /></span><div><p>Full</p><strong>{summary.full}</strong></div></article>
+        <article className="compact-stat"><span className="metric-icon metric-red"><Building2 size={22} /></span><div><p>Maintenance</p><strong>{summary.maintenance}</strong></div></article>
+        {summary.inactive > 0 ? <article className="compact-stat"><span className="metric-icon"><Building2 size={22} /></span><div><p>Inactive</p><strong>{summary.inactive}</strong></div></article> : null}
       </section>
 
       <section className="panel mt-5">
