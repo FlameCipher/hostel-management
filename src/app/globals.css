@@ -509,3 +509,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .vacancy-card-footer{padding:14px 22px;background:#fff}
 @media(max-width:800px){.vacancy-share-card{aspect-ratio:auto;max-width:100%}.vacancy-card-head{padding:25px}.vacancy-card-head h2{font-size:27px}.vacancy-rate-cards{grid-template-columns:1fr 1fr}.vacancy-card-footer{flex-direction:row;align-items:center}}
 @media(max-width:520px){.vacancy-rate-cards{grid-template-columns:1fr}.vacancy-card-footer{flex-direction:column;align-items:flex-start}}
+
+/* Keep vacancy business-card contacts prominent and readable */
+.vacancy-card-footer{min-height:92px;gap:20px}
+.vacancy-contact-block{display:grid!important;grid-template-columns:1fr;gap:3px;min-width:0;flex:1}
+.vacancy-contact-block strong{font-size:17px;color:#2d414e}
+.vacancy-contact-phones{display:block!important;font-size:17px;font-weight:800;color:#2d414e!important;line-height:1.35}
+.vacancy-contact-email{display:block!important;font-size:14px;color:#657781!important;line-height:1.35;overflow-wrap:anywhere}
+.vacancy-card-footer>a{flex:0 0 auto}
+@media(max-width:800px){.vacancy-card-footer{align-items:flex-start;gap:14px;min-height:108px}.vacancy-contact-phones{font-size:15px}.vacancy-contact-email{font-size:13px}}
