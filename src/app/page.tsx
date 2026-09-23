@@ -7,7 +7,6 @@ const rooms=[
  {name:"Bedsitter (Private)",monthly:"KES 7,000",semester:"KES 28,000",detail:"Private bedsitter · 1 student"},
  {name:"Bedsitter (Shared)",monthly:"KES 5,000",semester:"KES 20,000",detail:"Shared bedsitter · per student"},
 ];
-const compoundPhotos=["https://c92jet0quvby6f3o.public.blob.vercel-storage.com/file_0000000043888210ab37e1e168b57875.jpg","https://c92jet0quvby6f3o.public.blob.vercel-storage.com/file_000000004a1c81f489061b2f8ceb6512.jpg","https://c92jet0quvby6f3o.public.blob.vercel-storage.com/file_00000000867881f4a1ea8f59925ae2dd.jpg","https://c92jet0quvby6f3o.public.blob.vercel-storage.com/file_000000000ca488208b2a548d32a72b6f7.jpg"];
 const facilities=[
  [Wifi,"Wi-Fi service"],[ShieldCheck,"Managed environment"],[Droplets,"Water supply"],[Zap,"Electricity"],
  [BookOpen,"Study friendly"],[Users,"Student community"],[ShoppingBag,"Nearby services"],[Smartphone,"Digital records"]
@@ -23,7 +22,7 @@ export default function Home(){
 
   <section className="approved-hero" id="home">
    <div className="approved-hero-copy"><span>STUDENT ACCOMMODATION IN JUJA</span><h1>MMAMBUGUA<br/>HOSTEL</h1><p>Affordable private and shared student accommodation approximately 500 metres from JKUAT Gate B, with straightforward rates and professional hostel management.</p><div className="marketing-actions"><a className="primary-button no-underline" href="#rooms"><BedDouble size={17}/> View Rooms</a><a className="secondary-button no-underline" href="#location">Plan a Visit <ArrowRight size={16}/></a></div></div>
-   <div className="compound-showcase"><img className="compound-hero-image" src={compoundPhotos[0]} alt="MMAMBUGUA HOSTEL compound exterior in Juja" /></div>
+   <div className="compound-showcase"><div className="compound-placeholder"><strong>MMAMBUGUA HOSTEL</strong><span>Professional property photography coming soon.</span></div></div>
   </section>
 
   <section className="public-benefits"><span><GraduationCap/>Close to JKUAT<small>Approx. 500 metres</small></span><span><ShieldCheck/>Professionally managed<small>Clear tenant records</small></span><span><Wifi/>Student focused<small>Connected living</small></span><span><Droplets/>Practical accommodation<small>Built for student life</small></span><span><Users/>Friendly community<small>Private & shared choices</small></span></section>
@@ -34,7 +33,7 @@ export default function Home(){
 
   <section className="facility-strip" id="facilities"><div className="marketing-section-head"><span>OUR FACILITIES</span><h2>Everything you need for student life.</h2></div><div className="facility-icons">{facilities.map(([Icon,label])=><div key={label}><Icon/><strong>{label}</strong></div>)}</div></section>
 
-  <section className="marketing-section" id="gallery"><div className="marketing-section-head"><span>GALLERY</span><h2>Our hostel compound & rooms.</h2><p>The public gallery is designed for genuine MMAMBUGUA property photography. Verified compound images are never mixed with another property's exterior.</p></div><div className="public-gallery real-gallery">{compoundPhotos.map((src,i)=><figure className={i===0?"gallery-photo wide":"gallery-photo"} key={src}><img src={src} alt={"MMAMBUGUA HOSTEL compound view "+(i+1)} loading={i===0?"eager":"lazy"}/></figure>)}</div></section>
+  <section className="marketing-section" id="gallery"><div className="marketing-section-head"><span>GALLERY</span><h2>Our hostel compound & rooms.</h2><p>The public gallery is designed for genuine MMAMBUGUA property photography. Verified compound images are never mixed with another property's exterior.</p></div><div className="gallery-coming-soon"><strong>Professional photography coming soon</strong><span>We are preparing a new set of high-quality photographs of the hostel, rooms and facilities.</span></div></section>
 
   <section className="public-split" id="location"><div><span className="marketing-chip"><MapPin size={16}/> OUR LOCATION</span><h2>Approximately 500 metres from JKUAT Gate B.</h2><p>Conveniently positioned in Juja for students who want to stay close to university. Confirm current room availability and arrange a viewing before making a booking.</p><div className="location-points"><span>✓ Close to JKUAT Gate B</span><span>✓ Access to Juja shops and services</span><span>✓ Private and shared accommodation</span><span>✓ Professionally managed records</span></div></div><div className="marketing-map-placeholder"><MapPin size={42}/><strong>MMAMBUGUA HOSTEL · JUJA</strong><span>Exact public directions will be activated after the hostel map pin is verified.</span></div></section>
 
