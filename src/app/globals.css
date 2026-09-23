@@ -459,3 +459,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .summary-stat-link{text-decoration:none;color:inherit;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}.summary-stat-link:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(40,60,75,.12);border-color:#aebdc6}.summary-stat-link:focus-visible{outline:3px solid rgba(66,133,244,.28);outline-offset:2px}.summary-stat-link small{display:block;margin-top:4px;color:#73838e;font-size:.72rem;font-weight:600}
 
 .dashboard-metric-link{text-decoration:none;color:inherit;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}.dashboard-metric-link:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(40,60,75,.12);border-color:#aebdc6}.dashboard-metric-link:focus-visible{outline:3px solid rgba(66,133,244,.28);outline-offset:2px}.dashboard-metric-link small{display:block;margin-top:4px;color:#73838e;font-size:.72rem;font-weight:600}
+
+
+/* MMAMBUGUA HOSTEL official receipt — building palette */
+.receipt-sheet{position:relative;overflow:hidden;border:1px solid #c9d3d9;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(45,65,78,.10)}
+.receipt-sheet::after{content:"MMAMBUGUA HOSTEL · OFFICIAL RECEIPT";position:absolute;left:8%;top:47%;transform:rotate(-24deg);font-size:clamp(24px,4vw,48px);font-weight:800;letter-spacing:.03em;color:#344753;opacity:.045;pointer-events:none;white-space:nowrap}
+.receipt-header{background:linear-gradient(135deg,#f5f7f8,#e7ecef);border-bottom:3px solid #4d606e;padding:22px}
+.receipt-header .brand-mark{background:#4d606e}
+.receipt-header h1{color:#2d414e;letter-spacing:-.02em}
+.receipt-number{border:1px solid #aebbc3;border-radius:12px;background:#dfe6ea;padding:10px 14px}
+.receipt-number span{color:#5e707b}.receipt-number strong{color:#2d414e}
+.receipt-rule{background:#667987!important}
+.receipt-meta,.receipt-details{position:relative;z-index:1}
+.receipt-meta>div,.receipt-details>div{border-color:#d8e0e5}
+.receipt-meta span,.receipt-details span,.receipt-payment span{color:#657781}
+.receipt-meta strong,.receipt-details strong{color:#2d414e}
+.receipt-payment{position:relative;z-index:1;border:1px solid #cbd6dc!important;background:#eef2f4!important}
+.receipt-payment strong{color:#2d414e!important}
+.receipt-footer{position:relative;z-index:1;border-top:2px solid #667987!important;background:linear-gradient(180deg,#fff,#f0f3f5);color:#344753}
+@media print{.receipt-sheet{box-shadow:none;border-radius:0}.receipt-sheet::after{opacity:.05}}
