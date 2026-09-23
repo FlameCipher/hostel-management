@@ -25,6 +25,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const session = await requireSession();
   const filters = await searchParams;
   const query = filters.q?.trim() ?? "";
+  const occupiedFilter = filters.status === "OCCUPIED";
   const status = validStatuses.has(filters.status ?? "")
     ? (filters.status as RoomStatusType)
     : undefined;
@@ -69,11 +70,12 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   ]);
 
   let rooms = rawRooms;
-  if (status) {
+  if (status || occupiedFilter) {
     rooms = rawRooms.filter((room) => {
       const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
       const heldSpaces = new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]).size;
-      return getEffectiveRoomStatus(room.status, heldSpaces, capacity) === status;
+      const effectiveStatus = getEffectiveRoomStatus(room.status, heldSpaces, capacity);
+      return occupiedFilter ? ["FULL", "PARTIALLY_OCCUPIED"].includes(effectiveStatus) : effectiveStatus === status;
     });
   }
   rooms.sort(compareRooms);
@@ -147,12 +149,12 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
             <option value="">All room types</option>
             {roomTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
           </FormSelect>
-          <FormSelect aria-label="Filter by room status" defaultValue={status ?? ""} name="status">
-            <option value="">All statuses</option>
+          <FormSelect aria-label="Filter by room status" defaultValue={occupiedFilter ? "OCCUPIED" : status ?? ""} name="status">
+            <option value="">All statuses</option><option value="OCCUPIED">Occupied (full + part occupied)</option>
             {Object.values(RoomStatus).map((value) => <option key={value} value={value}>{roomStatusLabels[value]}</option>)}
           </FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
-          {(query || status || roomTypeId) ? <Link className="text-link" href="/rooms">Clear</Link> : null}
+          {(query || status || occupiedFilter || roomTypeId) ? <Link className="text-link" href="/rooms">Clear</Link> : null}
         </form>
 
         {rooms.length ? (
