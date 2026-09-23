@@ -1,54 +1,44 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, BedDouble, Building2, GraduationCap, MapPin, ShieldCheck, Smartphone, Wifi } from "lucide-react";
+import { ArrowRight, BedDouble, BookOpen, Droplets, GraduationCap, MapPin, ShieldCheck, ShoppingBag, Smartphone, Users, Wifi, Zap } from "lucide-react";
 
-const rooms = [
-  { name: "Single Room Private", monthly: "KES 4,500", semester: "KES 18,000", detail: "Private room · 1 student" },
-  { name: "Single Room Shared", monthly: "KES 3,500", semester: "KES 14,000", detail: "Shared room · per student" },
-  { name: "Bedsitter Private", monthly: "KES 7,000", semester: "KES 28,000", detail: "Private bedsitter · 1 student" },
-  { name: "Bedsitter Shared", monthly: "KES 5,000", semester: "KES 20,000", detail: "Shared bedsitter · per student" },
+const rooms=[
+ {name:"Single Room (Private)",monthly:"KES 4,500",semester:"KES 18,000",detail:"Private room · 1 student"},
+ {name:"Single Room (Shared)",monthly:"KES 3,500",semester:"KES 14,000",detail:"Shared room · per student"},
+ {name:"Bedsitter (Private)",monthly:"KES 7,000",semester:"KES 28,000",detail:"Private bedsitter · 1 student"},
+ {name:"Bedsitter (Shared)",monthly:"KES 5,000",semester:"KES 20,000",detail:"Shared bedsitter · per student"},
 ];
+const facilities=[
+ [Wifi,"Wi-Fi service"],[ShieldCheck,"Managed environment"],[Droplets,"Water supply"],[Zap,"Electricity"],
+ [BookOpen,"Study friendly"],[Users,"Student community"],[ShoppingBag,"Nearby services"],[Smartphone,"Digital records"]
+] as const;
 
-export default function Home() {
-  return (
-    <main className="marketing-site">
-      <nav className="marketing-nav">
-        <Link className="marketing-brand" href="/"><strong>MMAMBUGUA HOSTEL</strong><span>JKUAT · JUJA</span></Link>
-        <div className="marketing-links"><a href="#rooms">Rooms & rates</a><a href="#why">Why stay here</a><a href="#location">Location</a><Link className="marketing-login" href="/login">Management login</Link></div>
-      </nav>
+export default function Home(){
+ return <main className="marketing-site approved-home">
+  <div className="public-topbar"><span><MapPin size={14}/> Approx. 500 metres from JKUAT Gate B, Juja</span><span>Student accommodation · Private & shared rooms</span></div>
+  <nav className="marketing-nav">
+   <Link className="marketing-brand" href="/"><strong>MMAMBUGUA HOSTEL</strong><span>JKUAT · JUJA</span></Link>
+   <div className="marketing-links"><a href="#home">Home</a><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><a href="#about">About</a><Link className="marketing-login" href="/login">Management Login</Link></div>
+  </nav>
 
-      <section className="marketing-hero">
-        <div className="marketing-hero-copy">
-          <span className="marketing-chip"><GraduationCap size={16}/> Student accommodation near JKUAT</span>
-          <h1>A practical place to live, study and feel at home in Juja.</h1>
-          <p>MMAMBUGUA HOSTEL provides affordable private and shared student accommodation approximately 500 metres from JKUAT Gate B, with clear pricing and a professionally managed room system.</p>
-          <div className="marketing-actions"><a className="primary-button no-underline" href="#rooms">View rooms & rates <ArrowRight size={17}/></a><a className="secondary-button no-underline" href="#location">Plan a visit</a></div>
-          <div className="marketing-trust"><span><BadgeCheck size={17}/> Clear room rates</span><span><Smartphone size={17}/> Mobile-friendly service</span><span><ShieldCheck size={17}/> Managed tenant records</span></div>
-        </div>
-        <div className="marketing-visual">
-          <div className="marketing-photo-placeholder"><Building2 size={56}/><strong>Real MMAMBUGUA HOSTEL photos coming here</strong><span>Only verified property photos will be published.</span></div>
-          <div className="marketing-location-card"><MapPin size={20}/><div><strong>Near JKUAT Gate B</strong><span>Juja, Kiambu County</span></div></div>
-        </div>
-      </section>
+  <section className="approved-hero" id="home">
+   <div className="approved-hero-copy"><span>STUDENT ACCOMMODATION IN JUJA</span><h1>MMAMBUGUA<br/>HOSTEL</h1><p>Affordable private and shared student accommodation approximately 500 metres from JKUAT Gate B, with straightforward rates and professional hostel management.</p><div className="marketing-actions"><a className="primary-button no-underline" href="#rooms"><BedDouble size={17}/> View Rooms</a><a className="secondary-button no-underline" href="#location">Plan a Visit <ArrowRight size={16}/></a></div></div>
+   <div className="compound-showcase"><div className="compound-placeholder"><MapPin size={38}/><strong>MMAMBUGUA HOSTEL COMPOUND</strong><span>Your verified compound photograph will occupy this hero area when permanent media storage is connected.</span></div></div>
+  </section>
 
-      <section className="marketing-section" id="rooms">
-        <div className="marketing-section-head"><span>Accommodation</span><h2>Choose the room that fits your budget and study life.</h2><p>Simple rates with private and shared options. Semester pricing below is based on the hostel's current four-month semester structure.</p></div>
-        <div className="marketing-room-grid">{rooms.map((room)=><article className="marketing-room-card" key={room.name}><div className="marketing-room-photo"><BedDouble size={34}/><span>Room photo</span></div><h3>{room.name}</h3><p>{room.detail}</p><div className="marketing-prices"><span><small>Monthly</small><strong>{room.monthly}</strong></span><span><small>Semester</small><strong>{room.semester}</strong></span></div><span className="marketing-availability">Contact hostel for current availability</span></article>)}</div>
-      </section>
+  <section className="public-benefits"><span><GraduationCap/>Close to JKUAT<small>Approx. 500 metres</small></span><span><ShieldCheck/>Professionally managed<small>Clear tenant records</small></span><span><Wifi/>Student focused<small>Connected living</small></span><span><Droplets/>Practical accommodation<small>Built for student life</small></span><span><Users/>Friendly community<small>Private & shared choices</small></span></section>
 
-      <section className="marketing-section marketing-why" id="why">
-        <div className="marketing-section-head"><span>Why MMAMBUGUA</span><h2>Student accommodation with straightforward management.</h2></div>
-        <div className="marketing-feature-grid">
-          <article><MapPin/><h3>Convenient for JKUAT</h3><p>Located approximately 500 metres from JKUAT Gate B, making the hostel practical for daily student life.</p></article>
-          <article><BedDouble/><h3>Choice of rooms</h3><p>Private and shared single rooms and bedsitters give students different price and privacy options.</p></article>
-          <article><Smartphone/><h3>Digital records</h3><p>Bookings, payments, receipts and tenant records are being brought into one professionally managed system.</p></article>
-          <article><Wifi/><h3>Student-focused</h3><p>A long-established JKUAT student hostel being modernised for today's students and parents.</p></article>
-        </div>
-      </section>
+  <section className="marketing-section" id="rooms"><div className="marketing-section-head"><span>OUR ROOMS</span><h2>Comfortable options for every student.</h2><p>Choose private or shared accommodation with transparent monthly and semester rates.</p></div>
+   <div className="marketing-room-grid">{rooms.map((r,i)=><article className="marketing-room-card" key={r.name}><div className={"marketing-room-photo room-visual-"+(i+1)}><BedDouble size={38}/><span>Interior presentation</span></div><h3>{r.name}</h3><p>{r.detail}</p><div className="marketing-prices"><span><small>Monthly</small><strong>{r.monthly}</strong></span><span><small>Semester</small><strong>{r.semester}</strong></span></div><a className="room-enquiry" href="#location">Check availability</a></article>)}</div>
+  </section>
 
-      <section className="marketing-location" id="location"><div><span className="marketing-chip"><MapPin size={16}/> Juja, Kenya</span><h2>Close to university life.</h2><p>MMAMBUGUA HOSTEL is approximately 500 metres from JKUAT Gate B. Students and parents can contact the hostel to confirm availability and arrange a viewing before payment.</p><a className="primary-button no-underline" href="#rooms">Explore accommodation</a></div><div className="marketing-map-placeholder"><MapPin size={42}/><strong>JKUAT Gate B area</strong><span>Interactive directions will be added after the exact public map pin is verified.</span></div></section>
+  <section className="facility-strip" id="facilities"><div className="marketing-section-head"><span>OUR FACILITIES</span><h2>Everything you need for student life.</h2></div><div className="facility-icons">{facilities.map(([Icon,label])=><div key={label}><Icon/><strong>{label}</strong></div>)}</div></section>
 
-      <section className="marketing-cta"><div><h2>Looking for accommodation near JKUAT?</h2><p>Review the room options and rates, then contact MMAMBUGUA HOSTEL to confirm current availability and arrange your stay.</p></div><a className="secondary-button no-underline" href="#rooms">See room options</a></section>
-      <footer className="marketing-footer"><div><strong>MMAMBUGUA HOSTEL</strong><span>Student accommodation · Juja, Kenya</span></div><div><a href="#rooms">Rooms</a><a href="#location">Location</a><Link href="/login">Staff login</Link></div><p>© {new Date().getFullYear()} MMAMBUGUA HOSTEL. All rights reserved.</p></footer>
-    </main>
-  );
+  <section className="marketing-section" id="gallery"><div className="marketing-section-head"><span>GALLERY</span><h2>Our hostel compound & rooms.</h2><p>The public gallery is designed for genuine MMAMBUGUA property photography. Verified compound images are never mixed with another property's exterior.</p></div><div className="public-gallery"><div className="gallery-slot wide"><span>Verified compound photo</span></div><div className="gallery-slot"><span>Compound</span></div><div className="gallery-slot"><span>Compound</span></div><div className="gallery-slot interior"><BedDouble/><span>Room interior</span></div><div className="gallery-slot interior"><BedDouble/><span>Room interior</span></div></div></section>
+
+  <section className="public-split" id="location"><div><span className="marketing-chip"><MapPin size={16}/> OUR LOCATION</span><h2>Approximately 500 metres from JKUAT Gate B.</h2><p>Conveniently positioned in Juja for students who want to stay close to university. Confirm current room availability and arrange a viewing before making a booking.</p><div className="location-points"><span>✓ Close to JKUAT Gate B</span><span>✓ Access to Juja shops and services</span><span>✓ Private and shared accommodation</span><span>✓ Professionally managed records</span></div></div><div className="marketing-map-placeholder"><MapPin size={42}/><strong>MMAMBUGUA HOSTEL · JUJA</strong><span>Exact public directions will be activated after the hostel map pin is verified.</span></div></section>
+
+  <section className="about-band" id="about"><div><span>ABOUT MMAMBUGUA HOSTEL</span><h2>A long-established student hostel being modernised for today's JKUAT community.</h2></div><p>Our goal is simple: clear accommodation choices, transparent rates and a more convenient experience for students, parents and hostel management.</p></section>
+  <section className="marketing-cta"><div><h2>Looking for accommodation near JKUAT?</h2><p>Explore the room options and contact the hostel to confirm current availability.</p></div><a className="secondary-button no-underline" href="#rooms">View Room Options</a></section>
+  <footer className="marketing-footer"><div><strong>MMAMBUGUA HOSTEL</strong><span>Student accommodation · Juja, Kenya</span></div><div><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><Link href="/login">Management Login</Link></div><p>© {new Date().getFullYear()} MMAMBUGUA HOSTEL. All rights reserved.</p></footer>
+ </main>
 }
