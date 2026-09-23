@@ -7,6 +7,11 @@ export type ReceiptPdfData = {
   ownerName: string;
   organizationPhone: string;
   receiptNumber: string;
+  securityReference?: string | null;
+  integrityHash?: string | null;
+  issuedAt?: string | null;
+  reprintCount?: number;
+  verificationUrl?: string | null;
   studentName: string;
   studentPhone: string;
   studentEmail: string | null;
@@ -96,6 +101,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   const contentWidth = width - margin * 2;
 
   page.drawRectangle({ x: 0, y: 0, width, height: page.getHeight(), color: rgb(1, 1, 1) });
+  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.94, 0.96, 0.98), rotate: { type: "degrees", angle: 35 } });
   page.drawRectangle({ x: margin, y: 736, width: contentWidth, height: 68, color: paleBlue, borderColor: border, borderWidth: 1 });
   page.drawRectangle({ x: margin + 16, y: 754, width: 34, height: 34, color: blue });
   page.drawText("MMH", { x: margin + 21, y: 766, size: 9, font: bold, color: rgb(1, 1, 1) });
@@ -103,6 +109,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   page.drawText("OFFICIAL PAYMENT RECEIPT", { x: margin + 62, y: 758, size: 7.5, font: bold, color: muted });
   page.drawText("RECEIPT NUMBER", { x: 403, y: 779, size: 6.5, font: bold, color: muted });
   page.drawText(pdfText(data.receiptNumber), { x: 403, y: 760, size: 10.5, font: bold, color: blue });
+  if ((data.reprintCount ?? 0) > 0) page.drawText(`REPRINT #${data.reprintCount}`, { x: 403, y: 746, size: 6.5, font: bold, color: red });
 
   if (data.reversed) {
     page.drawRectangle({ x: margin, y: 706, width: contentWidth, height: 22, color: rgb(1, 0.91, 0.92) });
@@ -136,14 +143,19 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
     drawLabelValue({ page, regular, bold, label, value, x: margin + column * 261, y: detailTop - row * 62, width: 225 });
   });
 
-  page.drawLine({ start: { x: margin, y: 242 }, end: { x: width - margin, y: 242 }, thickness: 1, color: border });
-  page.drawText(`Received by: ${pdfText(data.receivedBy)}`, { x: margin, y: 218, size: 9, font: regular, color: navy });
-  page.drawText(pdfText(`${data.ownerName} | ${data.organizationPhone}`), { x: margin, y: 198, size: 9, font: regular, color: navy });
+  page.drawLine({ start: { x: margin, y: 272 }, end: { x: width - margin, y: 272 }, thickness: 1, color: border });
+  if (data.securityReference) page.drawText(`Security Ref: ${pdfText(data.securityReference)}`, { x: margin, y: 253, size: 7.5, font: bold, color: navy });
+  if (data.integrityHash) page.drawText(`Integrity: ${pdfText(data.integrityHash.slice(0, 24).toUpperCase())}`, { x: margin, y: 239, size: 7, font: regular, color: muted });
+  if (data.issuedAt) page.drawText(`Issued: ${pdfText(data.issuedAt)}`, { x: 350, y: 253, size: 7, font: regular, color: muted });
+  if (data.verificationUrl) page.drawText(`Verify: ${pdfText(data.verificationUrl)}`, { x: margin, y: 225, size: 6.5, font: regular, color: blue });
+  page.drawLine({ start: { x: margin, y: 212 }, end: { x: width - margin, y: 212 }, thickness: 1, color: border });
+  page.drawText(`Received by: ${pdfText(data.receivedBy)}`, { x: margin, y: 194, size: 9, font: regular, color: navy });
+  page.drawText(pdfText(`${data.ownerName} | ${data.organizationPhone}`), { x: margin, y: 176, size: 9, font: regular, color: navy });
   page.drawText(data.reversed
     ? "This receipt is retained only as a reversal audit record."
     : "This computer-generated receipt is valid without a signature.", {
     x: margin,
-    y: 170,
+    y: 150,
     size: 8,
     font: regular,
     color: muted,
@@ -152,7 +164,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   document.setTitle(`Receipt ${pdfText(data.receiptNumber)}`);
   document.setAuthor(pdfText(data.organizationName));
   document.setSubject("Payment receipt");
-  document.setCreator("Mama Mbugua Hostel Management System");
+  document.setCreator("MMAMBUGUA HOSTEL Management System");
 
   return document.save();
 }
