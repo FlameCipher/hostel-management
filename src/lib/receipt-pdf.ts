@@ -30,11 +30,11 @@ export type ReceiptPdfData = {
   reversalReason?: string | null;
 };
 
-const blue = rgb(0.12, 0.42, 0.89);
-const navy = rgb(0.08, 0.18, 0.32);
-const muted = rgb(0.37, 0.48, 0.62);
-const paleBlue = rgb(0.93, 0.97, 1);
-const border = rgb(0.82, 0.89, 0.96);
+const blue = rgb(0.40, 0.47, 0.53);
+const navy = rgb(0.18, 0.25, 0.31);
+const muted = rgb(0.39, 0.47, 0.51);
+const paleBlue = rgb(0.93, 0.95, 0.96);
+const border = rgb(0.78, 0.83, 0.86);
 const red = rgb(0.82, 0.12, 0.2);
 
 const money = (value: number) =>
@@ -101,7 +101,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   const contentWidth = width - margin * 2;
 
   page.drawRectangle({ x: 0, y: 0, width, height: page.getHeight(), color: rgb(1, 1, 1) });
-  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.94, 0.96, 0.98), rotate: degrees(35) });
+  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.91, 0.93, 0.94), rotate: degrees(35) });
   page.drawRectangle({ x: margin, y: 736, width: contentWidth, height: 68, color: paleBlue, borderColor: border, borderWidth: 1 });
   page.drawRectangle({ x: margin + 16, y: 754, width: 34, height: 34, color: blue });
   page.drawText("MMH", { x: margin + 21, y: 766, size: 9, font: bold, color: rgb(1, 1, 1) });
