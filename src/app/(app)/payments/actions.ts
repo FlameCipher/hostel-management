@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -83,7 +84,11 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
       });
       const receiptNumber = `${organization.receiptPrefix}-${year}-${String(sequence.lastIssued).padStart(5, "0")}`;
       const normalizedReference = parsed.data.method === "MPESA" ? parsed.data.reference?.toUpperCase() : parsed.data.reference;
-      const payment = await tx.payment.create({ data: { organizationId: session.organizationId, studentId: charge.studentId, chargeId: charge.id, recordedById: session.userId, amount: parsed.data.amount, paidAt: new Date(`${parsed.data.paidAt}T12:00:00.000Z`), method: parsed.data.method, reference: normalizedReference || null, receiptNumber, notes: parsed.data.notes || null } });
+      const securityReference = `MMH-${randomBytes(16).toString("hex").toUpperCase()}`;
+      const issuedAt = new Date();
+      const integrityPayload = [session.organizationId, charge.studentId, charge.id, receiptNumber, securityReference, parsed.data.amount.toFixed(2), parsed.data.paidAt, parsed.data.method, normalizedReference || "", issuedAt.toISOString()].join("|");
+      const integrityHash = createHash("sha256").update(integrityPayload).digest("hex");
+      const payment = await tx.payment.create({ data: { organizationId: session.organizationId, studentId: charge.studentId, chargeId: charge.id, recordedById: session.userId, amount: parsed.data.amount, paidAt: new Date(`${parsed.data.paidAt}T12:00:00.000Z`), method: parsed.data.method, reference: normalizedReference || null, receiptNumber, securityReference, integrityHash, issuedAt, notes: parsed.data.notes || null } });
       paymentId = payment.id;
       requiresRoomAllocation = charge.type === "SEMESTER_RENT" && !charge.occupancyId && charge.semester?.status === "ACTIVE";
       if (parsed.data.method === "MPESA" && normalizedReference) {
@@ -97,7 +102,7 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
       const dueDate = newBalance > 0 && parsed.data.nextBalanceDueDate ? new Date(`${parsed.data.nextBalanceDueDate}T12:00:00.000Z`) : charge.dueDate;
       const status = newBalance <= 0 ? "FULLY_PAID" : dueDate < new Date() ? "OVERDUE" : "PARTIALLY_PAID";
       await tx.charge.update({ where: { id: charge.id }, data: { status, dueDate } });
-      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "PAYMENT_RECORDED", entityType: "Payment", entityId: payment.id, metadata: { receiptNumber, amount: parsed.data.amount, chargeId: charge.id } } });
+      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "PAYMENT_RECORDED", entityType: "Payment", entityId: payment.id, metadata: { receiptNumber, securityReference, integrityHash, amount: parsed.data.amount, chargeId: charge.id } } });
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
