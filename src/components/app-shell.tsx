@@ -70,7 +70,8 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppShell({ children, organizationName, userName, userRole }: { children: React.ReactNode; organizationName: string; userName: string; userRole: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const initials = userName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const accountLabel = userRole === "OWNER" ? "Landlord/Landlady" : userName;
+  const initials = userRole === "OWNER" ? "LL" : userName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div className="app-shell">
@@ -103,7 +104,7 @@ export function AppShell({ children, organizationName, userName, userRole }: { c
             <Link className="icon-button notification-button" href="/notifications" aria-label="Open reminders"><Bell size={20} /></Link>
             <div className="profile-button">
               <span className="profile-avatar">{initials}</span>
-              <span className="hidden text-left sm:block"><strong>{userName}</strong><small>{userRole.charAt(0) + userRole.slice(1).toLowerCase()}</small></span>
+              <span className="hidden text-left sm:block"><strong>{accountLabel}</strong><small>{userRole === "OWNER" ? "System Administrator" : userRole.charAt(0) + userRole.slice(1).toLowerCase()}</small></span>
             </div>
           </div>
         </header>
