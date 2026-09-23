@@ -62,6 +62,7 @@ export default async function PaymentReceiptPage({
           <div className="receipt-number"><span>Receipt number</span><strong>{payment.receiptNumber}</strong></div>
         </header>
         <div className="receipt-rule" />
+        <div aria-hidden="true" style={{ position: "absolute", inset: "42% auto auto 8%", transform: "rotate(-25deg)", fontSize: "clamp(22px,4vw,42px)", fontWeight: 800, opacity: .045, pointerEvents: "none", whiteSpace: "nowrap" }}>MMAMBUGUA HOSTEL · OFFICIAL RECEIPT</div>
         <section className="receipt-meta">
           <div><span>Received from</span><strong>{payment.student.fullName}</strong><small>{payment.student.phone}{payment.student.email ? ` · ${payment.student.email}` : ""}</small></div>
           <div><span>Room and semester</span><strong>{roomNumber === "Pending allocation" ? roomNumber : `Room ${roomNumber}`}</strong><small>{semesterName}</small></div>
@@ -72,6 +73,9 @@ export default async function PaymentReceiptPage({
           <div><span>Amount received</span><strong>{money(Number(payment.amount))}</strong></div>
         </section>
         <section className="receipt-details">
+          <div><span>Security reference</span><strong>{payment.securityReference ?? "Legacy receipt"}</strong></div>
+          <div><span>Issued</span><strong>{payment.issuedAt.toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })}</strong></div>
+          {payment.integrityHash ? <div><span>Integrity code</span><strong>{payment.integrityHash.slice(0, 24).toUpperCase()}</strong></div> : null}
           <div><span>Payment method</span><strong>{payment.method.replaceAll("_", " ")}</strong></div>
           <div><span>Reference</span><strong>{payment.reference || "Not applicable"}</strong></div>
           <div><span>Total charge</span><strong>{money(Number(payment.charge.amount))}</strong></div>
@@ -82,7 +86,7 @@ export default async function PaymentReceiptPage({
           <p>Received by: <strong>{payment.recordedBy?.name ?? "Hostel management"}</strong></p>
           {payment.reversedAt ? <p>Reversed by: <strong>{payment.reversedBy?.name ?? "Hostel management"}</strong></p> : null}
           <p>{payment.organization.ownerName} · {payment.organization.phone}</p>
-          <small>{payment.reversedAt ? "This receipt is retained only as a reversal audit record and is not proof of an active payment." : "This computer-generated receipt is valid without a signature."}</small>
+          <small>{payment.securityReference ? <>Verify authenticity using Security Ref <strong>{payment.securityReference}</strong>. </> : null}{payment.reversedAt ? "This receipt is retained only as a reversal audit record and is not proof of an active payment." : "This computer-generated receipt is valid without a signature."}</small>
         </footer>
       </article>
     </div>
