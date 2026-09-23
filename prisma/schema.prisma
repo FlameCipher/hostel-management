@@ -230,6 +230,7 @@ model Organization {
   name                  String
   ownerName             String
   phone                 String
+  secondaryPhone        String?
   email                 String?
   physicalAddress       String?
   receiptPrefix         String   @default("MMH")
