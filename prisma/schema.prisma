@@ -25,6 +25,12 @@ enum SharingMode {
   SHARED
 }
 
+enum RoomPhotoType {
+  INSIDE
+  OUTSIDE
+  COMPOUND
+}
+
 enum RoomStatus {
   VACANT
   PARTIALLY_OCCUPIED
@@ -345,6 +351,7 @@ model Room {
   breakReservations BreakReservation[]
   assets            HostelAsset[]
   roomStays         OccupancyRoomStay[]
+  photos            RoomPhoto[]
 
   @@unique([organizationId, floorKey, numberKey])
   @@index([organizationId, status])
@@ -802,4 +809,17 @@ model Expense {
 
   @@index([organizationId, expenseDate])
   @@index([organizationId, category])
+}
+
+
+model RoomPhoto {
+  id        String        @id @default(cuid())
+  roomId    String
+  type      RoomPhotoType
+  url       String
+  pathname  String?
+  createdAt DateTime      @default(now())
+  room      Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@unique([roomId, type])
+  @@index([roomId])
 }
