@@ -5,5 +5,6 @@ import { db } from "@/lib/db";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const organization = await db.organization.findUnique({ where: { id: session.organizationId }, select: { name: true } });
-  return <AppShell organizationName={organization?.name ?? "Hostel Management"} userName={session.name} userRole={session.role}>{children}</AppShell>;
+  const organizationName = organization?.name === "Mama Mbugua Hostel" ? "MMAMBUGUA HOSTEL" : (organization?.name ?? "MMAMBUGUA HOSTEL");
+  return <AppShell organizationName={organizationName} userName={session.name} userRole={session.role}>{children}</AppShell>;
 }
