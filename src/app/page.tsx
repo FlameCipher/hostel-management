@@ -17,7 +17,7 @@ export default function Home(){
   <div className="public-topbar"><span><MapPin size={14}/> Approx. 500 metres from JKUAT Gate B, Juja</span><span>Student accommodation · Private & shared rooms</span></div>
   <nav className="marketing-nav">
    <Link className="marketing-brand" href="/"><strong>MMAMBUGUA HOSTEL</strong><span>JKUAT · JUJA</span></Link>
-   <div className="marketing-links"><a href="#home">Home</a><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><a href="#about">About</a><Link className="marketing-login" href="/login">Management Login</Link></div>
+   <div className="marketing-links"><a href="#home">Home</a><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><a href="#about">About</a><Link href="/tenant">Student Portal</Link><Link className="marketing-login" href="/login">Management Login</Link></div>
   </nav>
 
   <section className="approved-hero" id="home">
