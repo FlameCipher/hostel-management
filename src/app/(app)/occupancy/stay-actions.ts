@@ -49,6 +49,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
         }),
       ]);
       if (!student || !semester || !room) throw new Error("INVALID_SELECTION");
+      if (room.organizationId !== session.organizationId || room.roomType.organizationId !== session.organizationId) throw new Error("INVALID_SELECTION");
       if (checkInDate < semester.startDate || checkInDate > semester.endDate) throw new Error("INVALID_CHECK_IN_DATE");
       if (!initialPayment) throw new Error("INITIAL_PAYMENT_REQUIRED");
       if (existing?.semesterId === semester.id) throw new Error("ALREADY_CHECKED_IN");
@@ -58,6 +59,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       const capacity = room.capacityOverride ?? room.roomType.defaultCapacity;
       const held = new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]);
       const studentHasHold = held.has(student.id);
+      if (capacity < 1) throw new Error("ROOM_UNAVAILABLE");
       if (held.size >= capacity && !studentHasHold) throw new Error("ROOM_FULL");
       const existingSemesterRecord = await tx.occupancy.findFirst({ where: { semesterId: semester.id, studentId: student.id } });
       if (existingSemesterRecord) throw new Error("SEMESTER_DUPLICATE");
@@ -119,11 +121,13 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
         tx.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
       ]);
       if (!occupancy || !target) throw new Error("TRANSFER_UNAVAILABLE");
+      if (target.organizationId !== session.organizationId || target.roomType.organizationId !== session.organizationId) throw new Error("TRANSFER_UNAVAILABLE");
       if (occupancy.roomId === target.id) throw new Error("SAME_ROOM");
       if (["MAINTENANCE", "INACTIVE"].includes(target.status)) throw new Error("ROOM_UNAVAILABLE");
       if (transferDate <= occupancy.checkInAt || transferDate > occupancy.semester.endDate) throw new Error("INVALID_TRANSFER_DATE");
       const capacity = target.capacityOverride ?? target.roomType.defaultCapacity;
       const held = new Set([...target.occupancies.map((item) => item.studentId), ...target.breakReservations.map((item) => item.studentId)]);
+      if (capacity < 1) throw new Error("ROOM_UNAVAILABLE");
       if (held.size >= capacity && !held.has(occupancy.studentId)) throw new Error("ROOM_FULL");
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
