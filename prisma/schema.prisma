@@ -373,6 +373,9 @@ model Student {
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  portalEnabled      Boolean       @default(false)
+  portalPasswordHash String?
+  portalLastLoginAt  DateTime?
 
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   guardian              Guardian?

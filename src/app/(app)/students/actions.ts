@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { hash } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
@@ -355,4 +356,31 @@ export async function deleteStudentAction(studentId: string, _state: DeleteStude
   }, { isolationLevel: "Serializable" });
 
   revalidatePath("/students"); revalidatePath("/payments"); revalidatePath("/dashboard"); redirect("/students");
+}
+
+
+export type PortalAccessState = { error: string; success?: string };
+
+export async function setStudentPortalAccessAction(studentId: string, _state: PortalAccessState, formData: FormData): Promise<PortalAccessState> {
+  const session = await requireStudentManager();
+  if (!["OWNER", "ADMIN"].includes(session.role)) redirect("/students");
+  const password = String(formData.get("portalPassword") ?? "");
+  if (password.length < 10 || password.length > 128) return { error: "Use a portal password of at least 10 characters." };
+  const student = await db.student.findFirst({ where: { id: studentId, organizationId: session.organizationId }, select: { id: true, email: true, fullName: true } });
+  if (!student) return { error: "This student could not be found." };
+  if (!student.email) return { error: "Add the student email address before enabling portal access." };
+  await db.student.update({ where: { id: student.id }, data: { portalPasswordHash: await hash(password, 12), portalEnabled: true } });
+  await db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_PORTAL_ENABLED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName } } });
+  revalidatePath("/students/" + student.id + "/edit");
+  return { error: "", success: "Student portal access enabled." };
+}
+
+export async function disableStudentPortalAction(studentId: string) {
+  const session = await requireStudentManager();
+  if (!["OWNER", "ADMIN"].includes(session.role)) redirect("/students");
+  const student = await db.student.findFirst({ where: { id: studentId, organizationId: session.organizationId }, select: { id: true, fullName: true } });
+  if (!student) redirect("/students");
+  await db.student.update({ where: { id: student.id }, data: { portalEnabled: false, portalPasswordHash: null } });
+  await db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_PORTAL_DISABLED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName } } });
+  revalidatePath("/students/" + student.id + "/edit");
 }
