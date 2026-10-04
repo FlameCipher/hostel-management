@@ -7,6 +7,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -227,6 +243,8 @@ enum ChargeAdjustmentReason {
 
 model Organization {
   id                    String   @id @default(cuid())
+  slug                  String?  @unique
+  status                OrganizationStatus @default(ACTIVE)
   name                  String
   ownerName             String
   phone                 String
@@ -265,6 +283,87 @@ model Organization {
   roomStays             OccupancyRoomStay[]
   chargeAdjustments     ChargeAdjustment[]
   expenses              Expense[]
+  properties            Property[]
+  subscriptions         Subscription[]
+}
+
+
+model Product {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  domain        String?  @unique
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  plans         Plan[]
+  subscriptions Subscription[]
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  productId       String
+  code            String
+  name            String
+  monthlyPrice    Decimal? @db.Decimal(12, 2)
+  annualPrice     Decimal? @db.Decimal(12, 2)
+  maxProperties   Int?
+  maxRooms        Int?
+  maxUsers        Int?
+  whiteLabel      Boolean  @default(false)
+  customDomain    Boolean  @default(false)
+  active          Boolean  @default(true)
+  features        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  subscriptions   Subscription[]
+
+  @@unique([productId, code])
+  @@index([productId, active])
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  organizationId String
+  productId      String
+  planId         String?
+  status         SubscriptionStatus @default(TRIAL)
+  trialEndsAt    DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, productId])
+  @@index([productId, status])
+  @@index([organizationId, status])
+}
+
+model Property {
+  id             String   @id @default(cuid())
+  organizationId String
+  slug           String
+  name           String
+  physicalAddress String?
+  phone          String?
+  email          String?
+  customDomain   String?  @unique
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, active])
 }
 
 model User {
