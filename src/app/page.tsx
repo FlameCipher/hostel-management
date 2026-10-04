@@ -1,44 +1,97 @@
 import Link from "next/link";
-import { ArrowRight, BedDouble, BookOpen, Droplets, GraduationCap, MapPin, ShieldCheck, ShoppingBag, Smartphone, Users, Wifi, Zap } from "lucide-react";
 
-const rooms=[
- {name:"Single Room (Private)",monthly:"KES 4,500",semester:"KES 18,000",detail:"Private room · 1 student"},
- {name:"Single Room (Shared)",monthly:"KES 3,500",semester:"KES 14,000",detail:"Shared room · per student"},
- {name:"Bedsitter (Private)",monthly:"KES 7,000",semester:"KES 28,000",detail:"Private bedsitter · 1 student"},
- {name:"Bedsitter (Shared)",monthly:"KES 5,000",semester:"KES 20,000",detail:"Shared bedsitter · per student"},
+const products = [
+  {
+    name: "StudentsHostels",
+    description: "A complete hostel management, student accommodation and booking platform for landlords and landladies.",
+    href: "https://studentshostels.com",
+    status: "Product 01",
+  },
 ];
-const facilities=[
- [Wifi,"Wi-Fi service"],[ShieldCheck,"Managed environment"],[Droplets,"Water supply"],[Zap,"Electricity"],
- [BookOpen,"Study friendly"],[Users,"Student community"],[ShoppingBag,"Nearby services"],[Smartphone,"Digital records"]
-] as const;
 
-export default function Home(){
- return <main className="marketing-site approved-home">
-  <div className="public-topbar"><span><MapPin size={14}/> Approx. 500 metres from JKUAT Gate B, Juja</span><span>Student accommodation · Private & shared rooms</span></div>
-  <nav className="marketing-nav">
-   <Link className="marketing-brand" href="/"><strong>MMAMBUGUA HOSTEL</strong><span>JKUAT · JUJA</span></Link>
-   <div className="marketing-links"><a href="#home">Home</a><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><a href="#about">About</a><Link className="marketing-login" href="/login">Management Login</Link></div>
-  </nav>
+const services = [
+  ["Subscription systems", "Run your business on a professionally managed system with predictable recurring access."],
+  ["Dedicated licensing", "Deploy a dedicated licensed environment for organizations that need greater control and separation."],
+  ["White-label systems", "Use selected products with your own business identity, domain and customer-facing branding."],
+  ["Custom development", "Extend an existing product or commission a purpose-built business system around your workflow."],
+];
 
-  <section className="approved-hero" id="home">
-   <div className="approved-hero-copy"><span>STUDENT ACCOMMODATION IN JUJA</span><h1>MMAMBUGUA<br/>HOSTEL</h1><p>Affordable private and shared student accommodation approximately 500 metres from JKUAT Gate B, with straightforward rates and professional hostel management.</p><div className="marketing-actions"><a className="primary-button no-underline" href="#rooms"><BedDouble size={17}/> View Rooms</a><a className="secondary-button no-underline" href="#location">Plan a Visit <ArrowRight size={16}/></a></div></div>
-   <div className="compound-showcase"><div className="compound-placeholder"><strong>MMAMBUGUA HOSTEL</strong><span>Professional property photography coming soon.</span></div></div>
-  </section>
+export const metadata = {
+  title: "SYSTEM IN ONE | Many Systems. One Platform.",
+  description: "Business software, subscription systems, dedicated licensing and custom digital platforms.",
+};
 
-  <section className="public-benefits"><span><GraduationCap/>Close to JKUAT<small>Approx. 500 metres</small></span><span><ShieldCheck/>Professionally managed<small>Clear tenant records</small></span><span><Wifi/>Student focused<small>Connected living</small></span><span><Droplets/>Practical accommodation<small>Built for student life</small></span><span><Users/>Friendly community<small>Private & shared choices</small></span></section>
+export default function SystemInOneHome() {
+  return (
+    <main className="min-h-screen bg-[#07111f] text-white">
+      <nav className="border-b border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+          <Link href="/" className="font-semibold tracking-[0.18em]">SYSTEM IN ONE</Link>
+          <a href="#products" className="rounded-full border border-white/20 px-4 py-2 text-sm hover:bg-white/10">Explore systems</a>
+        </div>
+      </nav>
 
-  <section className="marketing-section" id="rooms"><div className="marketing-section-head"><span>OUR ROOMS</span><h2>Comfortable options for every student.</h2><p>Choose private or shared accommodation with transparent monthly and semester rates.</p></div>
-   <div className="marketing-room-grid">{rooms.map((r,i)=><article className="marketing-room-card" key={r.name}><div className={"marketing-room-photo room-visual-"+(i+1)}><BedDouble size={38}/><span>Interior presentation</span></div><h3>{r.name}</h3><p>{r.detail}</p><div className="marketing-prices"><span><small>Monthly</small><strong>{r.monthly}</strong></span><span><small>Semester</small><strong>{r.semester}</strong></span></div><a className="room-enquiry" href="#location">Check availability</a></article>)}</div>
-  </section>
+      <section className="mx-auto max-w-7xl px-6 py-24 md:py-32">
+        <p className="text-sm font-semibold tracking-[0.28em] text-slate-400">BUSINESS SOFTWARE PLATFORM</p>
+        <h1 className="mt-6 max-w-5xl text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+          Many systems.<br />One platform.
+        </h1>
+        <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
+          SYSTEM IN ONE brings practical business software into one growing platform. Subscribe to a system, license a dedicated environment, choose white-label options, or build around your organization.
+        </p>
+        <div className="mt-10 flex flex-wrap gap-3">
+          <a href="#products" className="rounded-full bg-white px-6 py-3 font-medium text-slate-950">View our systems</a>
+          <a href="#solutions" className="rounded-full border border-white/20 px-6 py-3 font-medium">How it works</a>
+        </div>
+      </section>
 
-  <section className="facility-strip" id="facilities"><div className="marketing-section-head"><span>OUR FACILITIES</span><h2>Everything you need for student life.</h2></div><div className="facility-icons">{facilities.map(([Icon,label])=><div key={label}><Icon/><strong>{label}</strong></div>)}</div></section>
+      <section id="products" className="border-y border-white/10 bg-white/[0.03]">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <p className="text-sm font-semibold tracking-[0.22em] text-slate-400">OUR SYSTEMS</p>
+          <h2 className="mt-3 text-3xl font-semibold md:text-4xl">Software built for real operations.</h2>
+          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+            {products.map((product) => (
+              <article key={product.name} className="rounded-3xl border border-white/10 bg-[#0b1728] p-7">
+                <span className="text-xs font-semibold tracking-[0.18em] text-slate-500">{product.status}</span>
+                <h3 className="mt-5 text-2xl font-semibold">{product.name}</h3>
+                <p className="mt-3 max-w-xl leading-7 text-slate-300">{product.description}</p>
+                <a href={product.href} className="mt-7 inline-block font-medium">Visit StudentsHostels →</a>
+              </article>
+            ))}
+            <article className="rounded-3xl border border-dashed border-white/15 p-7">
+              <span className="text-xs font-semibold tracking-[0.18em] text-slate-500">EXPANDING PLATFORM</span>
+              <h3 className="mt-5 text-2xl font-semibold">More systems are coming.</h3>
+              <p className="mt-3 leading-7 text-slate-400">The mother platform is designed to support additional industries without mixing one customer’s data or operations with another.</p>
+            </article>
+          </div>
+        </div>
+      </section>
 
-  <section className="marketing-section" id="gallery"><div className="marketing-section-head"><span>GALLERY</span><h2>Our hostel compound & rooms.</h2><p>The public gallery is designed for genuine MMAMBUGUA property photography. Verified compound images are never mixed with another property's exterior.</p></div><div className="gallery-coming-soon"><strong>Professional photography coming soon</strong><span>We are preparing a new set of high-quality photographs of the hostel, rooms and facilities.</span></div></section>
+      <section id="solutions" className="mx-auto max-w-7xl px-6 py-20">
+        <p className="text-sm font-semibold tracking-[0.22em] text-slate-400">FLEXIBLE DELIVERY</p>
+        <h2 className="mt-3 max-w-2xl text-3xl font-semibold md:text-4xl">Choose how your organization uses the system.</h2>
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
+          {services.map(([title, body]) => (
+            <article key={title} className="rounded-2xl border border-white/10 p-6">
+              <h3 className="font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
-  <section className="public-split" id="location"><div><span className="marketing-chip"><MapPin size={16}/> OUR LOCATION</span><h2>Approximately 500 metres from JKUAT Gate B.</h2><p>Conveniently positioned in Juja for students who want to stay close to university. Confirm current room availability and arrange a viewing before making a booking.</p><div className="location-points"><span>✓ Close to JKUAT Gate B</span><span>✓ Access to Juja shops and services</span><span>✓ Private and shared accommodation</span><span>✓ Professionally managed records</span></div></div><div className="marketing-map-placeholder"><MapPin size={42}/><strong>MMAMBUGUA HOSTEL · JUJA</strong><span>Exact public directions will be activated after the hostel map pin is verified.</span></div></section>
+      <section className="border-t border-white/10">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <h2 className="max-w-3xl text-3xl font-semibold">One foundation. Separate businesses. Room to grow.</h2>
+          <p className="mt-4 max-w-2xl leading-7 text-slate-400">Each product and customer environment is designed around clear access boundaries, while SYSTEM IN ONE provides the commercial and technology foundation behind the platform.</p>
+        </div>
+      </section>
 
-  <section className="about-band" id="about"><div><span>ABOUT MMAMBUGUA HOSTEL</span><h2>A long-established student hostel being modernised for today's JKUAT community.</h2></div><p>Our goal is simple: clear accommodation choices, transparent rates and a more convenient experience for students, parents and hostel management.</p></section>
-  <section className="marketing-cta"><div><h2>Looking for accommodation near JKUAT?</h2><p>Explore the room options and contact the hostel to confirm current availability.</p></div><a className="secondary-button no-underline" href="#rooms">View Room Options</a></section>
-  <footer className="marketing-footer"><div><strong>MMAMBUGUA HOSTEL</strong><span>Student accommodation · Juja, Kenya</span></div><div><a href="#rooms">Rooms</a><a href="#facilities">Facilities</a><a href="#gallery">Gallery</a><a href="#location">Location</a><Link href="/login">Management Login</Link></div><p>© {new Date().getFullYear()} MMAMBUGUA HOSTEL. All rights reserved.</p></footer>
- </main>
+      <footer className="border-t border-white/10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-8 text-sm text-slate-500 sm:flex-row sm:justify-between">
+          <span>© 2026 SYSTEM IN ONE</span><span>Many Systems. One Platform.</span>
+        </div>
+      </footer>
+    </main>
+  );
 }
