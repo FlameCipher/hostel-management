@@ -19,7 +19,7 @@ SELECT
     ELSE 'main-property'
   END,
   o."name",
-  o."address",
+  o."physicalAddress",
   o."phone",
   o."email",
   true,
