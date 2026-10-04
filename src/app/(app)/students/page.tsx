@@ -48,8 +48,12 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
         ...(query ? {
           OR: [
             { fullName: { contains: query, mode: "insensitive" } },
+            { email: { contains: query, mode: "insensitive" } },
             ...phoneVariants.map((phone) => ({ phone: { contains: phone } })),
             { admissionNumber: { contains: query, mode: "insensitive" } },
+            { nationalId: { contains: query, mode: "insensitive" } },
+            { guardian: { is: { name: { contains: query, mode: "insensitive" } } } },
+            { guardian: { is: { phone: { in: phoneVariants } } } },
             {
               occupancies: {
                 some: {
@@ -104,7 +108,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
       <section className="panel mt-5 overflow-hidden">
         <div className="panel-heading room-list-heading"><div><p className="panel-kicker">Student register</p><h2>{students.length} matching student{students.length === 1 ? "" : "s"}</h2></div></div>
         <form className="filter-bar student-filter-bar" method="get">
-          <label className="filter-search"><Search size={17} /><input aria-label="Search students by name, phone, room or admission number" defaultValue={query} name="q" placeholder="Search name, phone, room or admission number" /></label>
+          <label className="filter-search"><Search size={17} /><input aria-label="Search students by student or guardian name, phone, room, admission number or national ID" defaultValue={query} name="q" placeholder="Search student, guardian, phone, room, admission or ID" /></label>
           <FormSelect aria-label="Filter by student status" defaultValue={status ?? ""} name="status"><option value="">All statuses</option>{Object.values(StudentStatus).map((value) => <option key={value} value={value}>{studentStatusLabels[value]}</option>)}</FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
           {(query || status) ? <Link className="text-link" href="/students">Clear</Link> : null}
@@ -113,7 +117,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
         {students.length ? (
           <div className="table-scroll room-table-wrap">
             <table className="data-table student-table">
-              <thead><tr><th>Student</th><th>JKUAT details</th><th>Current room</th><th>Guardian</th><th>Date admitted</th><th>Status</th>{canManageStudents ? <th aria-label="Actions" /> : null}</tr></thead>
+              <thead><tr><th>Student</th><th>JKUAT details</th><th>Current room</th><th>Parent / guardian</th><th>Date admitted</th><th>Status</th>{canManageStudents ? <th aria-label="Actions" /> : null}</tr></thead>
               <tbody>{students.map((student) => {
                 const occupancy = student.occupancies[0];
                 return (
