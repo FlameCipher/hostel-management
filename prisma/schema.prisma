@@ -361,6 +361,7 @@ model Property {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rooms        Room[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, active])
@@ -434,6 +435,7 @@ model RoomType {
 model Room {
   id               String     @id @default(cuid())
   organizationId   String
+  propertyId       String
   roomTypeId       String
   number           String
   numberKey        String
@@ -446,6 +448,7 @@ model Room {
   updatedAt        DateTime   @updatedAt
 
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property          Property           @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   roomType          RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
   occupancies       Occupancy[]
   breakReservations BreakReservation[]
@@ -455,6 +458,7 @@ model Room {
 
   @@unique([organizationId, floorKey, numberKey])
   @@index([organizationId, status])
+  @@index([propertyId, status])
   @@index([roomTypeId])
 }
 
