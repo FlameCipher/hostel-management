@@ -39,6 +39,11 @@ async function main() {
     update: { name: "MMAMBUGUA HOSTEL", ownerName: "Samuel Murigi Waigwa", phone: "0714 464 701", email: "info@mamambugua.co.ke", physicalAddress: "Near JKUAT Main Campus, Juja, Kiambu", receiptPrefix: "MMH", defaultSemesterMonths: 4, defaultBreakMonths: 3, reminderDaysBefore: 7, mpesaShortcode: "123456", mpesaAccountName: "MMAMBUGUA HOSTEL", whatsappEnabled: true, smsEnabled: false },
     create: { id: organizationId, name: "MMAMBUGUA HOSTEL", ownerName: "Samuel Murigi Waigwa", phone: "0714 464 701", email: "info@mamambugua.co.ke", physicalAddress: "Near JKUAT Main Campus, Juja, Kiambu", receiptPrefix: "MMH", defaultSemesterMonths: 4, defaultBreakMonths: 3, reminderDaysBefore: 7, mpesaShortcode: "123456", mpesaAccountName: "MMAMBUGUA HOSTEL", whatsappEnabled: true, smsEnabled: false },
   });
+  const property = await db.property.upsert({
+    where: { organizationId_slug: { organizationId, slug: "mmambugua-hostel" } },
+    update: { name: "MMAMBUGUA HOSTEL", active: true },
+    create: { organizationId, slug: "mmambugua-hostel", name: "MMAMBUGUA HOSTEL", physicalAddress: organization.physicalAddress, phone: organization.phone, email: organization.email, active: true },
+  });
   const passwordHash = await hash("ChangeMe123!", 12);
   const userRows = [
     ["Samuel Murigi Waigwa", "owner@mamambugua.co.ke", "0714 464 701", "OWNER"],
@@ -86,7 +91,7 @@ async function main() {
     const floor = number <= 12 ? "Ground" : "First";
     const numberKey = normalizeRoomIdentifier(roomNumber);
     const floorKey = normalizeRoomIdentifier(floor);
-    const room = await db.room.upsert({ where: { organizationId_floorKey_numberKey: { organizationId, floorKey, numberKey } }, update: { roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null }, create: { organizationId, roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null } });
+    const room = await db.room.upsert({ where: { organizationId_floorKey_numberKey: { organizationId, floorKey, numberKey } }, update: { propertyId: property.id, roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null }, create: { organizationId, propertyId: property.id, roomTypeId, number: roomNumber, numberKey, floor, floorKey, status: number === 24 ? "MAINTENANCE" : "VACANT", notes: number === 24 ? "Window repair scheduled before next intake." : null } });
     roomIds.set(String(number), room.id);
   }
 

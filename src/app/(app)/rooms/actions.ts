@@ -60,7 +60,7 @@ export async function createRoomAction(
   const numberKey = normalizeRoomIdentifier(parsed.data.number);
   const floorKey = normalizeRoomIdentifier(parsed.data.floor);
 
-  const [roomType, existingRoom] = await Promise.all([
+  const [roomType, existingRoom, property] = await Promise.all([
     db.roomType.findFirst({ where: { id: parsed.data.roomTypeId, organizationId: session.organizationId, active: true } }),
     db.room.findUnique({
       where: {
@@ -71,8 +71,10 @@ export async function createRoomAction(
         },
       },
     }),
+    db.property.findFirst({ where: { organizationId: session.organizationId, active: true }, orderBy: { createdAt: "asc" } }),
   ]);
   if (!roomType) return { error: "The selected accommodation type is unavailable." };
+  if (!property) return { error: "No active property is configured for this organization." };
   if (existingRoom) return { error: `Room ${parsed.data.number} already exists on ${parsed.data.floor}.` };
 
   const capacity = parsed.data.capacityOverride ?? roomType.defaultCapacity;
@@ -85,6 +87,7 @@ export async function createRoomAction(
       const room = await tx.room.create({
         data: {
           organizationId: session.organizationId,
+          propertyId: property.id,
           roomTypeId: roomType.id,
           number: parsed.data.number,
           numberKey,
