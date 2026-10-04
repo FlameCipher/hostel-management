@@ -65,8 +65,8 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
     await db.$transaction(async (tx) => {
       const charge = await tx.charge.findFirst({ where: { id: parsed.data.chargeId, organizationId: session.organizationId }, include: { semester: { select: { status: true } }, payments: { where: { reversedAt: null }, select: { amount: true } } } });
       if (!charge) throw new Error("CHARGE_NOT_FOUND");
-      if (parsed.data.method === "MPESA" && parsed.data.reference) {
-        const duplicateReference = await tx.payment.findFirst({ where: { organizationId: session.organizationId, method: "MPESA", reference: { equals: parsed.data.reference, mode: "insensitive" }, reversedAt: null } });
+      if (parsed.data.reference) {
+        const duplicateReference = await tx.payment.findFirst({ where: { organizationId: session.organizationId, method: parsed.data.method, reference: { equals: parsed.data.reference, mode: "insensitive" }, reversedAt: null } });
         if (duplicateReference) throw new Error(`DUPLICATE_REFERENCE:${duplicateReference.receiptNumber}`);
       }
       const amountPaid = charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -109,7 +109,7 @@ export async function recordPaymentAction(_state: FinanceFormState, formData: Fo
     if (message === "CHARGE_NOT_FOUND") return { error: "The selected charge is unavailable." };
     if (message === "ORGANIZATION_NOT_FOUND") return { error: "Organization settings are unavailable." };
     if (message === "CHARGE_PAID") return { error: "This charge has already been fully paid." };
-    if (message.startsWith("DUPLICATE_REFERENCE:")) return { error: `This M-Pesa reference is already recorded on receipt ${message.split(":")[1]}.` };
+    if (message.startsWith("DUPLICATE_REFERENCE:")) return { error: `This payment reference is already recorded on receipt ${message.split(":")[1]}.` };
     if (message.startsWith("OVERPAY:")) return { error: `Payment exceeds the remaining balance of KES ${Number(message.split(":")[1]).toLocaleString("en-KE")}.` };
     throw error;
   }
