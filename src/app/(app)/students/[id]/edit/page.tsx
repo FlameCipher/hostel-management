@@ -3,6 +3,8 @@ import { Banknote, BedDouble, CalendarDays, ExternalLink } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { CheckInForm } from "@/components/occupancy-forms";
 import { StudentForm } from "@/components/student-form";
+import { StudentPortalAccessForm } from "@/components/student-portal-access-form";
+import { disableStudentPortalAction } from "@/app/(app)/students/actions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { compareRooms } from "@/lib/natural-sort";
@@ -67,6 +69,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
         guardianName: student.guardian?.name ?? "", guardianPhone: student.guardian?.phone ?? "",
         guardianRelationship: student.guardian?.relationship ?? "", guardianEmail: student.guardian?.email ?? "",
       }} />
+
+      {["OWNER", "ADMIN"].includes(session.role) ? <section className="panel mt-5"><div className="panel-heading"><div><p className="panel-kicker">Student portal</p><h2>Tenant account access</h2></div></div><p className="mb-4 text-sm">Portal status: <strong>{student.portalEnabled ? "Enabled" : "Disabled"}</strong>{student.portalLastLoginAt ? " · Last login " + student.portalLastLoginAt.toLocaleString("en-KE", { timeZone: "Africa/Nairobi" }) : ""}</p><StudentPortalAccessForm studentId={student.id}/>{student.portalEnabled ? <form action={disableStudentPortalAction.bind(null, student.id)} className="mt-3"><button className="secondary-button" type="submit">Disable portal access</button></form> : null}</section> : null}
 
       <div className="mt-5" id="room-assignment">
         {activeOccupancy ? (
