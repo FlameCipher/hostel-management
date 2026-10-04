@@ -20,7 +20,7 @@ export default async function PlatformOrganizationsPage() {
       phone: true,
       status: true,
       createdAt: true,
-      _count: { select: { users: true, rooms: true, students: true, properties: true, subscriptions: true } },
+      _count: { select: { users: true, rooms: true, properties: true, subscriptions: true } },
     },
   });
 
@@ -53,7 +53,7 @@ export default async function PlatformOrganizationsPage() {
                     <th className="px-5 py-4 font-medium">Status</th>
                     <th className="px-5 py-4 font-medium">Properties</th>
                     <th className="px-5 py-4 font-medium">Rooms</th>
-                    <th className="px-5 py-4 font-medium">Students</th>
+                    
                     <th className="px-5 py-4 font-medium">Users</th>
                     <th className="px-5 py-4 font-medium">Subscriptions</th>
                   </tr>
@@ -72,7 +72,7 @@ export default async function PlatformOrganizationsPage() {
                       <td className="px-5 py-4"><span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs">{label(org.status)}</span></td>
                       <td className="px-5 py-4">{org._count.properties}</td>
                       <td className="px-5 py-4">{org._count.rooms}</td>
-                      <td className="px-5 py-4">{org._count.students}</td>
+                      
                       <td className="px-5 py-4">{org._count.users}</td>
                       <td className="px-5 py-4">{org._count.subscriptions}</td>
                     </tr>
