@@ -2,7 +2,7 @@
 
 The first Organizations screen is intentionally read-only.
 
-It reads existing Organization records only after `requireSuperAdmin()` succeeds and displays high-level counts for users, rooms, students, properties and subscriptions.
+It reads existing Organization records only after `requireSuperAdmin()` succeeds and displays high-level counts for users, rooms, properties and subscriptions.
 
 No cross-organization operational records are opened from this screen, and there are no edit, suspend, impersonate or delete actions. Those operations require explicit audited workflows in later phases.
 
