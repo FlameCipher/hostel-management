@@ -261,6 +261,8 @@ model Organization {
   smsEnabled            Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  platformOrganizationId String?  @unique
+  platformProductCode    String?
 
   users                 User[]
   semesters             Semester[]
