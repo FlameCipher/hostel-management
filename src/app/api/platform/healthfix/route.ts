@@ -14,25 +14,34 @@ function authorized(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     await db.$queryRaw`SELECT 1`;
+    const provisioningSecretConfigured = Boolean(process.env.PLATFORM_PROVISIONING_SECRET);
 
     return NextResponse.json({
       productCode: PRODUCT_CODE,
       service: "studentshostels",
       environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
-      status: "HEALTHY",
+      status: provisioningSecretConfigured ? "HEALTHY" : "DEGRADED",
       observedAt: new Date().toISOString(),
       modules: [
         { code: "application", name: "Application", status: "HEALTHY", checks: [{ code: "http", name: "HealthFix connector", status: "PASSING", checkType: "HTTP" }] },
         { code: "database", name: "Database", status: "HEALTHY", checks: [{ code: "connectivity", name: "Database connectivity", status: "PASSING", checkType: "DATABASE" }] },
-        { code: "provisioning", name: "Platform provisioning", status: "UNKNOWN", checks: [] },
+        {
+          code: "provisioning",
+          name: "Platform provisioning",
+          status: provisioningSecretConfigured ? "HEALTHY" : "DEGRADED",
+          checks: [{
+            code: "configuration",
+            name: "Provisioning security configuration",
+            status: provisioningSecretConfigured ? "PASSING" : "FAILING",
+            checkType: "CONFIGURATION",
+          }],
+        },
       ],
-    }, { headers: { "cache-control": "no-store" } });
+    }, { status: provisioningSecretConfigured ? 200 : 503, headers: { "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({
       productCode: PRODUCT_CODE,
