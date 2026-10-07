@@ -4,6 +4,7 @@ import { compare } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createTenantSession, deleteTenantSession } from "@/lib/auth/tenant-session";
+import { TERMS_ORGANIZATION_ID } from "@/lib/hostel-terms/policy";
 import { db } from "@/lib/db";
 
 export type TenantLoginState = { error: string };
@@ -23,7 +24,7 @@ export async function tenantLoginAction(_state: TenantLoginState, formData: Form
   const student = students[0];
   await db.student.update({ where: { id: student.id }, data: { portalLastLoginAt: new Date() } });
   await createTenantSession({ studentId: student.id, organizationId: student.organizationId, name: student.fullName });
-  redirect("/tenant/account");
+  redirect(student.organizationId === TERMS_ORGANIZATION_ID ? "/tenant/terms" : "/tenant/account");
 }
 
 export async function tenantLogoutAction() {

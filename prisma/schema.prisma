@@ -287,6 +287,7 @@ model Organization {
   expenses              Expense[]
   properties            Property[]
   subscriptions         Subscription[]
+  termsAcceptances      StudentTermsAcceptance[]
 }
 
 
@@ -490,6 +491,7 @@ model Student {
   payments              Payment[]
   notifications         Notification[]
   detailsUpdateRequests StudentDetailsUpdateRequest[]
+  termsAcceptances      StudentTermsAcceptance[]
 
   @@unique([organizationId, admissionNumber])
   @@index([organizationId, status])
@@ -574,6 +576,7 @@ model Occupancy {
   room          Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
   charges       Charge[]
   propertyItems StudentPropertyItem[]
+  termsAcceptances StudentTermsAcceptance[]
   roomStays     OccupancyRoomStay[]
 
   @@unique([semesterId, studentId])
@@ -931,4 +934,24 @@ model RoomPhoto {
   room      Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   @@unique([roomId, type])
   @@index([roomId])
+}
+
+model StudentTermsAcceptance {
+  id             String   @id @default(cuid())
+  organizationId String
+  studentId      String
+  occupancyId    String
+  version        String
+  reference      String   @unique
+  signatureName  String
+  acceptedAt     DateTime @default(now())
+  snapshot       Json
+  integrityHash  String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  occupancy    Occupancy    @relation(fields: [occupancyId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, studentId, occupancyId, version], map: "StudentTermsAcceptance_scope_version_key")
+  @@index([organizationId, acceptedAt])
 }
