@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { queueDuePaymentReminders } from "@/lib/payment-reminders";
+import { runCommunications } from "@/lib/communications";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,6 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const queued = await queueDuePaymentReminders();
-  return NextResponse.json({ ok: true, queued });
+  const communications = await runCommunications(db);
+  return NextResponse.json({ ok: true, queued: communications.queued, communications });
 }

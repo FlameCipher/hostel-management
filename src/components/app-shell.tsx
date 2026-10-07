@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Expenses", href: "/expenses", icon: CircleDollarSign },
   { label: "Vacancy Card", href: "/vacancy-card", icon: Share2 },
+  { label: "Communications", href: "/communications", icon: Bell },
   { label: "Reminders", href: "/notifications", icon: Bell },
   { label: "Check-in / Check-out", href: "/occupancy", icon: ClipboardCheck },
   { label: "Student Property", href: "/student-property", icon: PackageSearch },
