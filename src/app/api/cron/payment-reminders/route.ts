@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { runCommunications } from "@/lib/communications";
+import { db } from "@/lib/db";
 import { queueDuePaymentReminders } from "@/lib/payment-reminders";
 
 export const runtime = "nodejs";
@@ -9,5 +11,6 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   const queued = await queueDuePaymentReminders();
-  return NextResponse.json({ ok: true, queued });
+  const communications = await runCommunications(db);
+  return NextResponse.json({ ok: true, queued, communications });
 }

@@ -277,6 +277,8 @@ model Organization {
   breakPeriods          BreakPeriod[]
   breakReservations     BreakReservation[]
   receiptSequences      ReceiptSequence[]
+  tenantMessages        TenantMessage[]
+  communicationSettings CommunicationSettings?
   notifications         Notification[]
   mpesaTransactions     MpesaTransaction[]
   studentUpdateRequests StudentDetailsUpdateRequest[]
@@ -496,6 +498,7 @@ model Student {
   @@unique([organizationId, admissionNumber])
   @@index([organizationId, status])
   @@index([organizationId, fullName])
+  tenantMessages TenantMessage[]
 }
 
 model Guardian {
@@ -954,4 +957,31 @@ model StudentTermsAcceptance {
 
   @@unique([organizationId, studentId, occupancyId, version], map: "StudentTermsAcceptance_scope_version_key")
   @@index([organizationId, acceptedAt])
+}
+
+model CommunicationSettings {
+ organizationId String @id
+ balanceEnabled Boolean @default(false)
+ holidayEnabled Boolean @default(false)
+ whatsappCopies Boolean @default(false)
+ organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+model TenantMessage {
+ id String @id @default(cuid())
+ organizationId String
+ studentId String
+ batchId String
+ dedupKey String
+ title String
+ body String
+ category String
+ publishAt DateTime @default(now())
+ readAt DateTime?
+ whatsappCopy Boolean @default(false)
+ notificationId String? @unique
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+ student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+ @@unique([organizationId, studentId, dedupKey])
+ @@index([organizationId, studentId, publishAt])
 }
