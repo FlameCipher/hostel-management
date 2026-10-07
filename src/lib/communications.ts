@@ -7,7 +7,7 @@ export const communicationSchema = z.object({
  title: z.string().trim().min(3).max(160), body: z.string().trim().min(10).max(3000),
  audience: z.enum(["ALL", "SELECTED"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
  category: z.enum(["GENERAL", "EXAM", "HOLIDAY", "BALANCE"]),
- publishAt: z.date(), whatsapp: z.boolean(), requestId: z.string().uuid(),
+ publishAt: z.date(), email: z.boolean().default(false), whatsapp: z.boolean(), requestId: z.string().uuid(),
 });
 export function tenantWhere(organizationId: string): Prisma.StudentWhereInput {
  return { organizationId, status: "ACTIVE", occupancies: { some: { organizationId, status: { in: ["ACTIVE", "RESERVED"] }, room: { organizationId }, semester: { organizationId } } } };
@@ -27,8 +27,8 @@ export function outstanding(amount: string | number, payments: Array<{ amount: {
  const cents = (value: string) => Math.round(Number(value)*100);
  return Math.max(0, cents(String(amount)) - payments.reduce((sum,p) => sum+cents(p.amount.toString()),0))/100;
 }
-async function addMessage(tx: Prisma.TransactionClient, data: { organizationId: string; studentId: string; batchId: string; dedupKey: string; title: string; body: string; category: string; publishAt: Date; whatsappCopy: boolean }) {
- const rows = await tx.tenantMessage.createMany({ data: { ...data, id: randomUUID() }, skipDuplicates: true });
+async function addMessage(tx: Prisma.TransactionClient, data: { organizationId: string; studentId: string; batchId: string; dedupKey: string; title: string; body: string; category: string; publishAt: Date; whatsappCopy: boolean; emailCopy: boolean }) {
+ const rows = await tx.tenantMessage.createMany({ data: { ...data, emailStatus:data.emailCopy?"QUEUED":"NOT_REQUESTED", id: randomUUID() }, skipDuplicates: true });
  return rows.count;
 }
 export async function publishCommunication(database: PrismaClient, session: SessionPayload | null, input: unknown) {
@@ -44,7 +44,7 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : {})},select:{id:true},take:5001});
  if(!students.length || students.length>5000 || (value.audience === "SELECTED" && students.length !== ids.length)) return {error:"Recipients must be current tenants of this hostel. Maximum 5,000 recipients."};
  let added=0;
- for(const student of students) added+=await addMessage(tx,{organizationId:session.organizationId,studentId:student.id,batchId:value.requestId,dedupKey:value.requestId,title:value.title,body:value.body,category:value.category,publishAt:value.publishAt,whatsappCopy:value.whatsapp});
+ for(const student of students) added+=await addMessage(tx,{organizationId:session.organizationId,studentId:student.id,batchId:value.requestId,dedupKey:value.requestId,title:value.title,body:value.body,category:value.category,publishAt:value.publishAt,whatsappCopy:value.whatsapp,emailCopy:value.email});
  if(added) await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"TENANT_COMMUNICATION_PUBLISHED",entityType:"TenantMessage",entityId:value.requestId,metadata:{recipients:added,audience:value.audience,publishAt:value.publishAt.toISOString()}}});
  return {success:`Saved for ${students.length} tenant${students.length===1?"":"s"}. ${value.publishAt > new Date() ? "Scheduled for publication." : "Available in their private inboxes."}`};
  },{timeout:30000});
@@ -59,7 +59,7 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  for(const charge of charges) {
  const balance=outstanding(charge.amount.toString(),charge.payments); if(!balance) continue;
  const key=`balance:${charge.id}:${day}`;
- created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:charge.studentId,batchId:key,dedupKey:key,title:"Accommodation balance reminder",body:`Your outstanding balance for ${charge.description} is KES ${balance.toLocaleString("en-KE",{minimumFractionDigits:2})}. Due date: ${charge.dueDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Please clear rent arrears by the 10th or contact management. View your statement in your tenant account.`,category:"BALANCE",publishAt:now,whatsappCopy:rule.whatsappCopies}));
+ created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:charge.studentId,batchId:key,dedupKey:key,title:"Accommodation balance reminder",body:`Your outstanding balance for ${charge.description} is KES ${balance.toLocaleString("en-KE",{minimumFractionDigits:2})}. Due date: ${charge.dueDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Please clear rent arrears by the 10th or contact management. View your statement in your tenant account.`,category:"BALANCE",publishAt:now,whatsappCopy:rule.whatsappCopies,emailCopy:rule.emailCopies}));
  }
  }
  if(rule.holidayEnabled) {
@@ -68,7 +68,7 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  const students=await database.student.findMany({where:scope,select:{id:true}});
  for(const holiday of breaks) for(const student of students) {
  const key=`holiday:${holiday.id}`;
- created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:student.id,batchId:key,dedupKey:key,title:`Holiday arrangements: ${holiday.name}`,body:`${holiday.name} begins on ${holiday.startDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Contact management to confirm whether you will return next semester, stay during the holiday or vacate. Confirm room retention, belongings and any applicable charges before leaving. Read the hostel terms in your account.`,category:"HOLIDAY",publishAt:now,whatsappCopy:rule.whatsappCopies}));
+ created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:student.id,batchId:key,dedupKey:key,title:`Holiday arrangements: ${holiday.name}`,body:`${holiday.name} begins on ${holiday.startDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Contact management to confirm whether you will return next semester, stay during the holiday or vacate. Confirm room retention, belongings and any applicable charges before leaving. Read the hostel terms in your account.`,category:"HOLIDAY",publishAt:now,whatsappCopy:rule.whatsappCopies,emailCopy:rule.emailCopies}));
  }
  }
  }
