@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendCommunicationEmails } from "@/lib/communication-email";
 import { runCommunications } from "@/lib/communications";
 import { db } from "@/lib/db";
 
@@ -10,5 +11,6 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   const communications = await runCommunications(db);
-  return NextResponse.json({ ok: true, queued: communications.queued, communications });
+  const email = await sendCommunicationEmails(db);
+  return NextResponse.json({ ok: true, queued: communications.queued, communications, email });
 }

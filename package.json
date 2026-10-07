@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -19,7 +19,8 @@
     "test:rent": "node --import tsx scripts/test-rent-calculation.ts",
     "test:platform-isolation": "node --import tsx scripts/test-platform-tenant-isolation.ts",
     "test:terms": "node --import tsx --test scripts/test-student-terms.ts",
-    "test:communications": "node --import tsx --test scripts/test-communications.ts"
+    "test:communications": "node --import tsx --test scripts/test-communications.ts",
+    "test:contact": "node --import tsx --test scripts/test-tenant-contact.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
