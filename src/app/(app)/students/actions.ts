@@ -369,7 +369,7 @@ export async function setStudentPortalAccessAction(studentId: string, _state: Po
   const student = await db.student.findFirst({ where: { id: studentId, organizationId: session.organizationId }, select: { id: true, email: true, fullName: true, phone: true } });
   if (!student) return { error: "This student could not be found." };
   if (!student.email && !student.phone) return { error: "Add the student mobile number or email before enabling portal access." };
-  await db.student.update({ where: { id: student.id }, data: { portalPasswordHash: await hash(password, 12), portalEnabled: true } });
+  await db.student.update({ where: { id: student.id }, data: { portalPasswordHash: await hash(password, 12), portalEnabled: true, portalInviteBlocked:false } });
   await db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_PORTAL_ENABLED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName } } });
   revalidatePath("/students/" + student.id + "/edit");
   return { error: "", success: "Student portal access enabled." };
@@ -380,7 +380,7 @@ export async function disableStudentPortalAction(studentId: string) {
   if (!["OWNER", "ADMIN"].includes(session.role)) redirect("/students");
   const student = await db.student.findFirst({ where: { id: studentId, organizationId: session.organizationId }, select: { id: true, fullName: true } });
   if (!student) redirect("/students");
-  await db.student.update({ where: { id: student.id }, data: { portalEnabled: false, portalPasswordHash: null } });
+  await db.student.update({ where: { id: student.id }, data: { portalEnabled: false, portalPasswordHash: null, portalInviteBlocked:true } });
   await db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_PORTAL_DISABLED", entityType: "Student", entityId: student.id, metadata: { fullName: student.fullName } } });
   revalidatePath("/students/" + student.id + "/edit");
 }
