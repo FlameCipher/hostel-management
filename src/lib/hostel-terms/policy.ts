@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 export const TERMS_ORGANIZATION_ID = "mama-mbugua-hostel";
-export const TERMS_VERSION = "2026-10-08-v1";
+export const TERMS_VERSION = "2026-10-08-v2";
 export const TERMS_CONTACT = { name: "MMAMBUGUA HOSTEL", phone: "0714 464 701", location: "Gachororo, Highpoint Road, approximately 500 metres from JKUAT Gate B, Juja" };
 export const TERMS_RULES = [
   { title: "Semester rent and arrears", text: "Rent is charged per semester. Outstanding rent balances must be cleared by the 10th of every month. Your allocated room, semester and recorded semester rent are shown in this agreement; refer to your account statement for subsequent payments and adjustments." },
@@ -15,7 +15,7 @@ export const TERMS_RULES = [
   { title: "Cleanliness, respect and damage", text: "Keep rooms and common areas clean, dispose of rubbish correctly and avoid excessive noise. Respect other residents and their property. Report damage, maintenance issues and unsafe conditions promptly." },
   { title: "Moving out and clearance", text: "Inform management before moving out. Arrange a room inspection, return keys and clear outstanding charges. Obtain confirmation that the room has been surrendered. Refer to any separately agreed deposit and notice terms; this document does not introduce a new deposit, notice period, penalty or automatic charge." },
 ] as const;
-export const TERMS_DECLARATION = "I have read and understood these hostel rules and accommodation terms, including semester rent, payment deadlines, holiday room retention and visitors. I agree to comply with them. By typing my full name and selecting the agreement checkbox, I intend to sign this agreement electronically and acknowledge that I can download a copy.";
+export const TERMS_DECLARATION = "I have read and understood these hostel rules and accommodation terms, including semester rent, payment deadlines, holiday room retention and visitors. I agree to comply with them. By selecting Accept accommodation and agree to hostel terms, I accept my accommodation at MMAMBUGUA HOSTEL subject to all the terms above. My digital acceptance is recorded against my student account, and I can download a copy.";
 
 const ruleSchema = z.object({ title: z.string().min(1).max(150), text: z.string().min(1).max(3000) });
 export const snapshotSchema = z.object({
@@ -24,10 +24,11 @@ export const snapshotSchema = z.object({
   room: z.string().max(200), semester: z.string().max(300), semesterStart: z.string(), semesterEnd: z.string(),
   rentCharges: z.array(z.object({ amount: z.string().regex(/^\d+\.\d{2}$/), dueDate: z.string() })).max(100),
   rules: z.array(ruleSchema).min(1).max(30), declaration: z.string().min(1).max(3000),
+  // Optional so previously signed snapshots retain their original hash and signature meaning.
+  acceptanceMethod: z.literal("DIGITAL_ACCEPTANCE").optional(),
 });
 export type TermsSnapshot = z.infer<typeof snapshotSchema>;
-export const signatureSchema = z.object({ version: z.literal(TERMS_VERSION), occupancyId: z.string().min(1).max(128).regex(/^[\w-]+$/), documentHash: z.string().regex(/^[a-f0-9]{64}$/), signatureName: z.string().trim().min(2).max(300).refine(s => !/[\x00-\x1f\x7f]/.test(s)), agree: z.literal("yes") });
-export function normalizedName(name: string) { return name.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-KE"); }
+export const acceptanceSchema = z.object({ version: z.literal(TERMS_VERSION), occupancyId: z.string().min(1).max(128).regex(/^[\w-]+$/), documentHash: z.string().regex(/^[a-f0-9]{64}$/), agree: z.literal("yes") });
 export function termsHash(snapshot: TermsSnapshot, signatureName: string, acceptedAt: Date, reference: string) {
   return createHash("sha256").update(JSON.stringify({ snapshot: snapshotSchema.parse(snapshot), signatureName, acceptedAt: acceptedAt.toISOString(), reference })).digest("hex");
 }

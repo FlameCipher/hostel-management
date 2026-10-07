@@ -6,8 +6,11 @@ import { revalidatePath } from "next/cache";
 export type TermsSignState = { error?: string; id?: string };
 export async function signTermsAction(_state: TermsSignState, form: FormData): Promise<TermsSignState> {
   try {
-    const result = await signStudentTerms(db, await getTenantSession(), { version: form.get("version"), documentHash: form.get("documentHash"), occupancyId: form.get("occupancyId"), signatureName: form.get("signatureName"), agree: form.get("agree") });
-    if ("id" in result && result.id) { revalidatePath("/tenant/terms"); revalidatePath("/student-terms"); }
+    const result = await signStudentTerms(db, await getTenantSession(), { version: form.get("version"), documentHash: form.get("documentHash"), occupancyId: form.get("occupancyId"), agree: form.get("agree") });
+    if ("id" in result && result.id) {
+      // A refresh failure must not report a committed acceptance as unsaved.
+      try { revalidatePath("/tenant/terms"); revalidatePath("/student-terms"); } catch { /* The saved copy remains retrievable. */ }
+    }
     return result;
   } catch { return { error: "The terms could not be saved. Please try again. Your account and rent charges have not been changed." }; }
 }
