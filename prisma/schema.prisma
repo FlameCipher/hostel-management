@@ -277,6 +277,7 @@ model Organization {
   breakPeriods          BreakPeriod[]
   breakReservations     BreakReservation[]
   receiptSequences      ReceiptSequence[]
+  portalInvitations TenantPortalInvitation[]
   tenantConversations TenantConversation[]
   tenantMessages        TenantMessage[]
   communicationSettings CommunicationSettings?
@@ -482,6 +483,7 @@ model Student {
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  portalInviteBlocked Boolean @default(false)
   portalEnabled      Boolean       @default(false)
   portalPasswordHash String?
   portalLastLoginAt  DateTime?
@@ -499,6 +501,7 @@ model Student {
   @@unique([organizationId, admissionNumber])
   @@index([organizationId, status])
   @@index([organizationId, fullName])
+  portalInvitations TenantPortalInvitation[]
   tenantConversations TenantConversation[]
   tenantMessages TenantMessage[]
 }
@@ -965,6 +968,7 @@ model CommunicationSettings {
  organizationId String @id
  balanceEnabled Boolean @default(false)
  holidayEnabled Boolean @default(false)
+ inviteEnabled Boolean @default(false)
  emailCopies Boolean @default(false)
  whatsappCopies Boolean @default(false)
  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1022,4 +1026,27 @@ model TenantConversationEntry {
  createdAt DateTime @default(now())
  conversation TenantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
  @@index([conversationId, createdAt])
+}
+
+model TenantPortalInvitation {
+ id String @id @default(cuid())
+ organizationId String
+ studentId String
+ hostelName String
+ generation Int @default(0)
+ tokenHash String? @unique
+ recipient String?
+ sender String?
+ expiresAt DateTime?
+ usedAt DateTime?
+ status String @default("QUEUED")
+ attempts Int @default(0)
+ attemptedAt DateTime?
+ providerId String?
+ error String?
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
+ @@unique([organizationId,studentId])
+ @@index([organizationId,status,createdAt])
 }
