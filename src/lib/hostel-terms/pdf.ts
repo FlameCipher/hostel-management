@@ -32,7 +32,8 @@ export async function generateTermsPdf(record: Record) {
     }
   }
   line(snapshot.hostel.name, true);
-  line("SIGNED HOSTEL RULES AND ACCOMMODATION TERMS", true);
+  const digital = snapshot.acceptanceMethod === "DIGITAL_ACCEPTANCE";
+  line(digital ? "DIGITALLY ACCEPTED HOSTEL TERMS" : "SIGNED HOSTEL RULES AND ACCOMMODATION TERMS", true);
   line(snapshot.hostel.location);
   line("Contact: " + snapshot.hostel.phone);
   line("Reference: " + record.reference);
@@ -41,27 +42,27 @@ export async function generateTermsPdf(record: Record) {
   line("Institution: " + snapshot.student.institution + " | Admission number: " + snapshot.student.admissionNumber);
   line("Room: " + snapshot.room + " | Semester: " + snapshot.semester);
   line("Semester dates: " + snapshot.semesterStart.slice(0, 10) + " to " + snapshot.semesterEnd.slice(0, 10));
-  line(snapshot.rentCharges.length ? "Recorded semester rent at signing: " + snapshot.rentCharges.map(c => "KES " + c.amount + " (account due date " + c.dueDate.slice(0, 10) + ")").join("; ") : "Semester rent has not yet been recorded. Confirm the amount with management; this agreement does not invent a rent charge.");
+  line(snapshot.rentCharges.length ? "Recorded semester rent at " + (digital ? "acceptance" : "signing") + ": " + snapshot.rentCharges.map(c => "KES " + c.amount + " (account due date " + c.dueDate.slice(0, 10) + ")").join("; ") : "Semester rent has not yet been recorded. Confirm the amount with management; this agreement does not invent a rent charge.");
   snapshot.rules.forEach((rule, i) => { line(`${i + 1}. ${rule.title}`, true); line(rule.text); });
   line("STUDENT ACCEPTANCE", true);
   line(snapshot.declaration);
-  line("Electronic signature (typed full name): " + record.signatureName, true);
-  line("Signed: " + new Intl.DateTimeFormat("en-KE", {dateStyle:"long", timeStyle:"short", timeZone:"Africa/Nairobi"}).format(record.acceptedAt) + " EAT");
-  line("Acceptance was recorded from the student's authenticated portal account. This is a typed electronic signature, not a certificate-based digital signature. Management retains the same acceptance record.");
+  line((digital ? "Digital acceptance recorded for: " : "Electronic signature (typed full name): ") + record.signatureName, true);
+  line((digital ? "Accepted: " : "Signed: ") + new Intl.DateTimeFormat("en-KE", {dateStyle:"long", timeStyle:"short", timeZone:"Africa/Nairobi"}).format(record.acceptedAt) + " EAT");
+  line(digital ? "The student explicitly accepted accommodation and all displayed hostel terms through their authenticated portal account. This is digital acceptance, not a handwritten or certificate-based signature. Management retains the same acceptance record." : "Acceptance was recorded from the student's authenticated portal account. This is a typed electronic signature, not a certificate-based digital signature. Management retains the same acceptance record.");
   line("Record checksum: " + record.integrityHash);
   const pages = doc.getPages();
-  pages.forEach((p, i) => p.drawText(`MMAMBUGUA HOSTEL | Signed terms | Page ${i + 1} of ${pages.length}`, { x: 48, y: 35, size: 8, font: regular, color: ink }));
-  doc.setTitle("Signed terms " + record.reference); doc.setAuthor(snapshot.hostel.name); doc.setCreationDate(record.acceptedAt); doc.setModificationDate(record.acceptedAt);
+  pages.forEach((p, i) => p.drawText(`MMAMBUGUA HOSTEL | Accommodation terms | Page ${i + 1} of ${pages.length}`, { x: 48, y: 35, size: 8, font: regular, color: ink }));
+  doc.setTitle((digital ? "Accepted terms " : "Signed terms ") + record.reference); doc.setAuthor(snapshot.hostel.name); doc.setCreationDate(record.acceptedAt); doc.setModificationDate(record.acceptedAt);
   return doc.save();
 }
 export async function termsPdfResponse(record: Record | null) {
   const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
-  if (!record) return new Response("Signed terms not found", { status: 404, headers });
+  if (!record) return new Response("Agreement not found", { status: 404, headers });
   try {
     const pdf = await generateTermsPdf(record);
     const body = new ArrayBuffer(pdf.byteLength); new Uint8Array(body).set(pdf);
     // Database-generated reference is additionally constrained for header safety.
     const filename = record.reference.replace(/[^A-Za-z0-9-]/g, "");
     return new Response(body, { headers: { ...headers, "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` } });
-  } catch { return new Response("Signed terms temporarily unavailable", { status: 503, headers }); }
+  } catch { return new Response("Agreement temporarily unavailable", { status: 503, headers }); }
 }
