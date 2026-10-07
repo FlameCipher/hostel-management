@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Rooms", href: "/rooms", icon: BedDouble },
   { label: "Students", href: "/students", icon: Users },
+  { label: "Student Terms", href: "/student-terms", icon: ClipboardCheck },
   { label: "Semesters", href: "/semesters", icon: CalendarDays },
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Expenses", href: "/expenses", icon: CircleDollarSign },
