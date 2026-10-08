@@ -81,7 +81,19 @@ export async function runHealthfixMaintenance(db: PrismaClient, now = new Date()
   const organizations = await db.organization.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
   let changed = 0, failed = 0;
   for (const organization of organizations) {
-    try { const result = await repairHealthfix(db, organization.id, null, now); if (Object.values(result).some(Boolean)) changed++; } catch { failed++; }
+    let runId: string | undefined;
+    const metadata = { source: "DAILY_CRON", version: 1, startedAt: now.toISOString() };
+    try {
+      const run = await db.auditLog.create({ data: { organizationId: organization.id, action: "HEALTHFIX_MAINTENANCE_RUN", entityType: "Organization", entityId: organization.id, metadata: { ...metadata, status: "RUNNING" } }, select: { id: true } });
+      runId = run.id;
+      const result = await repairHealthfix(db, organization.id, null, now);
+      if (Object.values(result).some(Boolean)) changed++;
+      await db.auditLog.update({ where: { id: runId }, data: { metadata: { ...metadata, status: "COMPLETED", completedAt: new Date().toISOString(), ...result } } });
+    } catch {
+      failed++;
+      // Completion persistence can fail after committed repairs. Never claim rollback.
+      if (runId) await db.auditLog.update({ where: { id: runId }, data: { metadata: { ...metadata, status: "FAILED", completedAt: new Date().toISOString(), error: "Run completion could not be confirmed. Review repair history before retrying." } } }).catch(() => undefined);
+    }
   }
   return { checked: organizations.length, changed, failed };
 }
