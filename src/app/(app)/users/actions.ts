@@ -1,13 +1,18 @@
 "use server";
-import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-export type UserFormState={error:string};
-async function admin(){const s=await requireSession();if(!["OWNER","ADMIN"].includes(s.role))redirect("/dashboard");return s;}
-const schema=z.object({name:z.string().trim().min(2).max(100),email:z.string().trim().email(),phone:z.string().trim().max(30).optional(),role:z.enum(["OWNER","ADMIN","MANAGER","CARETAKER"]),password:z.string(),active:z.boolean()});
-function parse(f:FormData){return schema.safeParse({name:f.get("name"),email:f.get("email"),phone:f.get("phone")||undefined,role:f.get("role"),password:f.get("password")||"",active:f.get("active")==="on"});}
-export async function createUserAction(_s:UserFormState,f:FormData):Promise<UserFormState>{const session=await admin();const p=parse(f);if(!p.success)return{error:"Check the user details."};if(session.role!=="OWNER"&&p.data.role==="OWNER")return{error:"Only the Owner can create another Owner."};if(p.data.password.length<8)return{error:"Password must contain at least 8 characters."};if(await db.user.findFirst({where:{organizationId:session.organizationId,email:p.data.email.toLowerCase()}}))return{error:"That email address is already registered."};await db.user.create({data:{organizationId:session.organizationId,name:p.data.name,email:p.data.email.toLowerCase(),phone:p.data.phone||null,role:p.data.role,passwordHash:await hash(p.data.password,12),active:p.data.active}});revalidatePath("/users");redirect("/users");}
-export async function updateUserAction(id:string,_s:UserFormState,f:FormData):Promise<UserFormState>{const session=await admin();const p=parse(f);if(!p.success)return{error:"Check the user details."};const user=await db.user.findFirst({where:{id,organizationId:session.organizationId}});if(!user)return{error:"User not found."};if(id===session.userId&&(p.data.password||p.data.email.toLowerCase()!==user.email.toLowerCase()))return{error:"Use My Account to change your own login email or password."};if(user.role==="OWNER"&&session.role!=="OWNER")return{error:"Only the Owner can edit an Owner account."};if(session.role!=="OWNER"&&p.data.role==="OWNER")return{error:"Only the Owner can assign the Owner role."};if(id===session.userId&&!p.data.active)return{error:"You cannot deactivate your own account."};if(p.data.password&&p.data.password.length<8)return{error:"New password must contain at least 8 characters."};const duplicate=await db.user.findFirst({where:{organizationId:session.organizationId,email:p.data.email.toLowerCase(),NOT:{id}}});if(duplicate)return{error:"That email address is already registered."};await db.user.update({where:{id},data:{...(p.data.password||p.data.email.toLowerCase()!==user.email.toLowerCase()||p.data.role!==user.role||p.data.active!==user.active?{sessionVersion:{increment:1}}:{}),name:p.data.name,email:p.data.email.toLowerCase(),phone:p.data.phone||null,role:p.data.role,active:p.data.active,...(p.data.password?{passwordHash:await hash(p.data.password,12)}:{})}});revalidatePath("/users");redirect("/users");}
+import { saveHostelStaff } from "@/lib/hostel-staff";
+export type UserFormState = { error: string };
+async function save(id: string | null, form: FormData): Promise<UserFormState> {
+  const session = await requireSession();
+  let result;
+  try { result = await saveHostelStaff(db, session, id, { name: form.get("name"), email: form.get("email"), phone: form.get("phone") || "", role: form.get("role"), password: form.get("password") || "", active: form.get("active") === "on" }); }
+  catch { return { error: "Changes could not be saved. Refresh and try again." }; }
+  if (!result.success) return { error: result.error };
+  revalidatePath("/users");
+  redirect("/users");
+}
+export async function createUserAction(_state: UserFormState, form: FormData) { return save(null, form); }
+export async function updateUserAction(id: string, _state: UserFormState, form: FormData) { return save(id, form); }

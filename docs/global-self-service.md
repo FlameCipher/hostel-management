@@ -26,7 +26,7 @@ Automatic gateway integration is deferred at the owner's request. Manual M-Pesa 
 - Keep setup at USD40. Agree on the exact KES quote and any separate subscription charges before the customer pays; there is no automatic exchange-rate conversion or invented recurring price.
 - Customer creates an account, verifies email, requests access, confirms the amount/recipient, uses M-Pesa Send Money and shares the reference, amount and business name through WhatsApp.
 - Platform administrator checks the actual receiving account. New StudentsHostels activations require the reference, identical agreed/received KES amounts and explicit verification. Record the verifier and payment details in the audit transaction; reject reused references across organizations.
-- A pending organization and its approved access are activated by the administrator. Provisioning remains a separate existing administrative step. No customer checkbox, message or uploaded screenshot activates access.
+- A pending organization and its approved access are activated by the administrator. The activated owner can create their workspace from SYSTEM IN ONE → Set up my hostel, then complete the hostel setup checklist. No customer checkbox, message or uploaded screenshot activates access.
 - This contact is for platform fees and support, never a universal tenant-rent recipient. WhatsApp Business registration is handled by the owner separately; publishing a contact link does not configure the account.
 
 ## Later automatic payment activation work
@@ -50,3 +50,7 @@ The existing access model uses commercial approval and entitlements; it does not
 - User-managed account security, role permissions, auditability and tenant isolation should be verified together with the billing flow.
 
 Technical references: https://developer.pesapal.com/how-to-integrate/e-commerce/api-30-json/gettransactionstatus ; https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html ; https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html .
+
+## Paid self-service access
+
+Linked hostel organizations revalidate central entitlement status and dates for local password sessions as well as shared login. Provisioning independently verifies a current central owner identity, serializes organization/address creation and returns the existing workspace for retries. New listings stay unpublished. Staff writes recheck current actor and organization access, scope targets to the organization, preserve an active owner, revoke affected sessions and write an audit record atomically. Central organization invitations are distinct from hostel operational roles.

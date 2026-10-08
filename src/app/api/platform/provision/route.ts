@@ -1,9 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import {propertyAddress} from "@/lib/property-address";
+import { provisionHostel } from "@/lib/platform-provisioning";
 import { db } from "@/lib/db";
 
-const PRODUCT_CODE = "STUDENTSHOSTELS";
 
 function authorized(request: Request) {
   const expected = process.env.PLATFORM_PROVISIONING_SECRET;
@@ -17,51 +16,13 @@ function authorized(request: Request) {
 export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json().catch(() => null) as null | {
-    platformOrganizationId?: string;
-    productCode?: string;
-    organizationName?: string;
-    ownerName?: string;
-    phone?: string;
-    email?: string;
-  };
-
-  if (!body?.platformOrganizationId || body.productCode !== PRODUCT_CODE || !body.organizationName || !body.ownerName || !body.phone) {
-    return NextResponse.json({ error: "Invalid provisioning request" }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  try {
+    const result = await provisionHostel(db, body);
+    return NextResponse.json(result, { status: result.status === "CREATED" ? 201 : 200, headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "FAILED";
+    const status = code === "INVALID_REQUEST" ? 400 : code === "ACCESS_UNAVAILABLE" ? 403 : 503;
+    return NextResponse.json({ error: status === 400 ? "Invalid provisioning request" : "Workspace setup unavailable" }, { status, headers: { "cache-control": "no-store" } });
   }
-
-  const existing = await db.organization.findUnique({
-    where: { platformOrganizationId: body.platformOrganizationId },
-    select: { id: true, name: true, platformOrganizationId: true, platformProductCode: true },
-  });
-
-  if (existing) {
-    if (existing.platformProductCode !== PRODUCT_CODE) {
-      return NextResponse.json({ error: "Platform identity product mismatch" }, { status: 409 });
-    }
-    return NextResponse.json({ organizationId: existing.id, status: "EXISTING" });
-  }
-
-  const organization = await db.$transaction(async tx=>{
-  const created = await tx.organization.create({
-    data: {
-      platformOrganizationId: body.platformOrganizationId,
-      platformProductCode: PRODUCT_CODE,
-      platformBootstrapAllowed:true,
-      name: body.organizationName!,
-      ownerName: body.ownerName!,
-      phone: body.phone!,
-      email: body.email ?? null,
-      receiptPrefix: "SH",
-      status: "ACTIVE",
-    },
-    select: { id: true },
-  });
-
-  let address=propertyAddress(body.organizationName!,body.platformOrganizationId!);
-  if(await tx.property.findUnique({where:{customDomain:address},select:{id:true}}))address=propertyAddress(body.organizationName!,body.platformOrganizationId!,true);
-  await tx.property.create({data:{organizationId:created.id,slug:address.split(".")[0],name:body.organizationName!,phone:body.phone!,email:body.email??null,customDomain:address,publicListing:false}});
-  return created;
-  });
-  return NextResponse.json({ organizationId: organization.id, status: "CREATED" }, { status: 201 });
 }

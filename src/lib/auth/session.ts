@@ -1,3 +1,4 @@
+import { platformOrganizationAccess } from "@/lib/platform-access";
 import { localSessionCurrent } from "@/lib/account-security-policy";
 import { requestPropertyContext } from "@/lib/property-host";
 import { accountScopeAllowed } from "@/lib/property-host-policy";
@@ -28,8 +29,9 @@ function getSessionSecret() {
 
 export async function createSession(payload: SessionPayload) {
   if (!Number.isSafeInteger(payload.sessionVersion) || (payload.sessionVersion ?? -1) < 0) throw new Error("SESSION_VERSION_REQUIRED");
-  const current = await db.user.findFirst({ where: { id: payload.userId, organizationId: payload.organizationId, active: true, sessionVersion: payload.sessionVersion, organization: { status: "ACTIVE" } }, select: { id: true } });
+  const current = await db.user.findFirst({ where: { id: payload.userId, organizationId: payload.organizationId, active: true, sessionVersion: payload.sessionVersion, organization: { status: "ACTIVE" } }, include: { organization: true } });
   if (!current) throw new Error("SESSION_REVOKED");
+  if (!payload.platformSubject && !await platformOrganizationAccess(current.organization, current)) throw new Error("PLATFORM_ACCESS_UNAVAILABLE");
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -55,7 +57,7 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
     if(typeof session.userId!=="string" || typeof session.organizationId!=="string") return null;
     const context=await requestPropertyContext();
     if(!accountScopeAllowed(context.host,context.property?.organizationId??null,session.organizationId)) return null;
-    const current=await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,organization:{status:"ACTIVE"}},select:{name:true,role:true,sessionVersion:true}});
+    const current=await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,organization:{status:"ACTIVE"}},include:{organization:true}});
     if(!current || !localSessionCurrent(session.sessionVersion, current.sessionVersion)) return null;
     session.name=current.name;session.role=current.role;
     if (session.platformSubject) {
@@ -66,6 +68,7 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
       if (!user || !platformRoleAllows(user.role, identity.role)) return null;
       return {...session,name:user.name,role:user.role};
     }
+    if (!await platformOrganizationAccess(current.organization, current)) return null;
     return session;
   } catch {
     return null;
