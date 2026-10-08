@@ -4,7 +4,7 @@ import {platformIdentity} from '@/lib/platform-sso';
 import {publicationProblems} from '@/lib/landlord-onboarding-policy';
 export async function publishProperty(database:PrismaClient,session:SessionPayload,id:string,publish:boolean,resolveIdentity=platformIdentity){
  if(session.role!=='OWNER')throw Error('Only the owner can update publication.');
- if(publish){if(!session.platformSubject || !(await resolveIdentity(session.platformSubject)))throw Error('Sign in with SYSTEM IN ONE to confirm active access.');}
+ if(publish){const identity=session.platformSubject?await resolveIdentity(session.platformSubject):null;if(!identity || identity.role!=='OWNER')throw Error('Sign in with SYSTEM IN ONE to confirm active owner access.');}
  return database.$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "User" WHERE id=${session.userId} AND "organizationId"=${session.organizationId} FOR UPDATE`;
  const owner=await tx.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,role:'OWNER',organization:{status:'ACTIVE'}},include:{organization:true}});
