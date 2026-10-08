@@ -1,0 +1,11 @@
+"use client";
+import {useActionState} from 'react';
+import {createAccommodationType,setWebsitePublication} from '@/app/(app)/setup/actions';
+export function AccommodationTypeForm(){
+ const [state,action,pending]=useActionState(createAccommodationType,{error:'',message:''});
+ return <form action={action} className="panel entity-form"><h2>Create an accommodation type</h2><p>Set your own prices. Shared accommodation rates are per student.</p><label>Type name<input name="name" required minLength={3} maxLength={120} placeholder="e.g. Private bedsitter"/></label><label>Accommodation<select name="sharingMode"><option value="PRIVATE">Private</option><option value="SHARED">Shared</option></select></label><label>Monthly rent (KES)<input name="monthlyRate" type="number" min="0.01" step="0.01" required/></label><label>Semester rent (KES)<input name="semesterRate" type="number" min="0.01" step="0.01" required/></label><label>Students per room<input name="defaultCapacity" type="number" min={1} max={20} required defaultValue={1}/></label>{state.error&&<p role="alert">{state.error}</p>}{state.message&&<p role="status">{state.message}</p>}<button className="primary-button" disabled={pending}>{pending?'Saving…':'Create accommodation type'}</button></form>;
+}
+export function PublicationForm({propertyId,published,ready}:{propertyId:string;published:boolean;ready:boolean}){
+ const [state,action,pending]=useActionState(setWebsitePublication,{error:'',message:''});
+ return <form action={action} className="panel entity-form"><h2>{published?'Website is published':'Review and publish'}</h2><input type="hidden" name="propertyId" value={propertyId}/><input type="hidden" name="publish" value={published?'no':'yes'}/><label><input type="checkbox" name="confirm" value="yes" required/>{published?'I want to remove this website from public view.':'I confirm the property details, contacts and room prices are accurate and ready for public advertising.'}</label>{state.error&&<p role="alert">{state.error}</p>}{state.message&&<p role="status">{state.message}</p>}<button className="primary-button" disabled={pending || (!published && !ready)}>{pending?'Updating…':published?'Unpublish website':'Publish website'}</button></form>;
+}

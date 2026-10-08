@@ -1,9 +1,10 @@
+import {normalizeHost} from '@/lib/property-host-policy';
 import {randomBytes} from 'node:crypto';
 import {NextResponse} from 'next/server';
 import {ssoHash} from '@/lib/platform-sso';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
-  if(new URL(request.url).hostname !== "studentshostels.com" && process.env.NODE_ENV === "production") return NextResponse.redirect("https://studentshostels.com/api/platform/sso/start");
+  if(normalizeHost(request.headers.get("host")) !== "studentshostels.com" && process.env.NODE_ENV === "production") return NextResponse.redirect("https://studentshostels.com/api/platform/sso/start");
   if(!process.env.HOSTEL_SSO_SECRET)return new Response('Shared login is not configured.',{status:503});
   const state=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const target=new URL('https://systeminone.com/account/hostel/authorize');target.searchParams.set('state',state);target.searchParams.set('challenge',ssoHash(verifier));

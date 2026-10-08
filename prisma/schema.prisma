@@ -262,6 +262,7 @@ model Organization {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   platformOrganizationId String?  @unique
+  platformBootstrapAllowed Boolean @default(false)
   platformProductCode    String?
 
   users                 User[]

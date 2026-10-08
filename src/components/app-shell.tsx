@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   { label: "HealthFix", href: "/healthfix", icon: ShieldCheck },
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Users & Permissions", href: "/users", icon: ShieldCheck },
+  { label: "Hostel Setup", href: "/setup", icon: Building2 },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

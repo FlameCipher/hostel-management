@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     data: {
       platformOrganizationId: body.platformOrganizationId,
       platformProductCode: PRODUCT_CODE,
+      platformBootstrapAllowed:true,
       name: body.organizationName!,
       ownerName: body.ownerName!,
       phone: body.phone!,
