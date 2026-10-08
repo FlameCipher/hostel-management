@@ -1,6 +1,9 @@
 // Approved one-time platform setup price: USD 40, selected by the owner after converting KES 5,000.
 // Fixed displayed price; do not recalculate an accepted order when exchange rates change.
 export const PLATFORM_SETUP_FEE = { currency: "USD", amountMinor: 4000 } as const;
+export const PLATFORM_MANUAL_PAYMENT = {
+  display: "0726 717 120", international: "+254726717120", whatsapp: "https://wa.me/254726717120",
+} as const;
 export const RENT_PAYMENT_OPTIONS = [
   { value: "PESAPAL", label: "Pesapal" },
   { value: "MPESA_PAYBILL", label: "M-Pesa Paybill" },
