@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { getSession } from "@/lib/auth/session";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ accountUpdated?: string }> }) {
+  const updated = (await searchParams).accountUpdated === "1";
   const context=await requestPropertyContext();
   const hostelName=context.property?.name ?? "StudentsHostels";
   if (await getSession()) redirect("/dashboard");
@@ -30,6 +31,7 @@ export default async function LoginPage() {
           </div>
           <h2 className="mt-12 text-3xl font-semibold tracking-tight text-slate-950">Welcome back</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">Sign in to manage rooms, students and semester payments.</p>
+          {updated && <p role="status" className="mt-5">Your hostel account was updated. Previous hostel sessions are signed out. Sign in with your updated hostel credentials or use SYSTEM IN ONE.</p>}
           <LoginForm />
           <p className="mt-5"><a className="secondary-button" href="https://studentshostels.com/api/platform/sso/start">Sign in with SYSTEM IN ONE</a></p>
           <p className="mt-8 text-center text-xs text-slate-400">Authorized users only. Contact the owner for account access.</p>
