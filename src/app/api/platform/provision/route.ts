@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import {propertyAddress} from "@/lib/property-address";
 import { db } from "@/lib/db";
 
 const PRODUCT_CODE = "STUDENTSHOSTELS";
@@ -41,13 +42,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ organizationId: existing.id, status: "EXISTING" });
   }
 
-  const organization = await db.organization.create({
+  const organization = await db.$transaction(async tx=>{
+  const created = await tx.organization.create({
     data: {
       platformOrganizationId: body.platformOrganizationId,
       platformProductCode: PRODUCT_CODE,
-      name: body.organizationName,
-      ownerName: body.ownerName,
-      phone: body.phone,
+      name: body.organizationName!,
+      ownerName: body.ownerName!,
+      phone: body.phone!,
       email: body.email ?? null,
       receiptPrefix: "SH",
       status: "ACTIVE",
@@ -55,5 +57,10 @@ export async function POST(request: Request) {
     select: { id: true },
   });
 
+  let address=propertyAddress(body.organizationName!,body.platformOrganizationId!);
+  if(await tx.property.findUnique({where:{customDomain:address},select:{id:true}}))address=propertyAddress(body.organizationName!,body.platformOrganizationId!,true);
+  await tx.property.create({data:{organizationId:created.id,slug:address.split(".")[0],name:body.organizationName!,phone:body.phone!,email:body.email??null,customDomain:address,publicListing:false}});
+  return created;
+  });
   return NextResponse.json({ organizationId: organization.id, status: "CREATED" }, { status: 201 });
 }
