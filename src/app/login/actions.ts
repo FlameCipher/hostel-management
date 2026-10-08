@@ -5,6 +5,7 @@ import { compare } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSession, deleteSession } from "@/lib/auth/session";
+import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
 
 export type LoginState = { error: string };
@@ -27,8 +28,11 @@ export async function loginAction(
     return { error: "Enter a valid email address and password." };
   }
 
-  const user = await db.user.findFirst({
-    where: { email: parsed.data.email.toLowerCase(), active: true },
+  const context=await requestPropertyContext();
+  if(!context.shared && !context.property) return {error:"Hostel address unavailable."};
+  const users = await db.user.findMany({
+    where: { email: parsed.data.email.toLowerCase(), active: true, organization:{status:"ACTIVE"}, ...(context.property?{organizationId:context.property.organizationId}:{}) },
+    take:2,
     select: {
       id: true,
       organizationId: true,
@@ -38,6 +42,8 @@ export async function loginAction(
     },
   });
 
+  if(users.length !== 1) return {error:"Use your hostel website to sign in, or sign in with SYSTEM IN ONE."};
+  const user=users[0];
   if (!user || !(await compare(parsed.data.password, user.passwordHash))) {
     return { error: "The email address or password is incorrect." };
   }

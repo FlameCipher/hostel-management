@@ -1,5 +1,6 @@
 "use server";
 
+import { requestPropertyContext } from "@/lib/property-host";
 import { compare } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -14,19 +15,23 @@ const schema = z.object({ email: z.string().trim().min(5).max(254), password: z.
 export async function tenantLoginAction(_state: TenantLoginState, formData: FormData): Promise<TenantLoginState> {
   const parsed = schema.safeParse({ email: formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Enter your registered mobile number or email and password." };
+  const context=await requestPropertyContext();
+  if(!context.shared && !context.property)return {error:"Hostel address unavailable."};
+  const organizationId=context.property?.organizationId ?? null;
   const identifier=parsed.data.email;
   const isEmail=z.string().email().safeParse(identifier).success;
   const phone=normalizeStudentPhone(identifier);
   if(!isEmail && !/^(?:\+|[0-9])[0-9 ()+-]*$/.test(identifier)) return {error:"The mobile number, email or password is incorrect."};
   const matches=isEmail ? null : await db.$queryRaw<Array<{id:string}>>`
     SELECT id FROM "Student" WHERE "portalEnabled"=true AND status != 'ARCHIVED'
+    AND (${organizationId}::text IS NULL OR "organizationId"=${organizationId})
     AND CASE WHEN regexp_replace(phone, '[^0-9]', '', 'g') LIKE '0%'
       THEN '254' || substring(regexp_replace(phone, '[^0-9]', '', 'g') FROM 2)
       WHEN regexp_replace(phone, '[^0-9]', '', 'g') ~ '^[17][0-9]{8}$'
       THEN '254' || regexp_replace(phone, '[^0-9]', '', 'g')
       ELSE regexp_replace(phone, '[^0-9]', '', 'g') END = ${phone} LIMIT 2`;
   const students = await db.student.findMany({
-    where: { ...(isEmail ? {email:{equals:identifier.toLowerCase(),mode:"insensitive" as const}} : {id:{in:(matches??[]).map(x=>x.id)}}), portalEnabled: true, status: { not: "ARCHIVED" } },
+    where: { organization:{status:"ACTIVE"}, ...(organizationId?{organizationId}:{}), ...(isEmail ? {email:{equals:identifier.toLowerCase(),mode:"insensitive" as const}} : {id:{in:(matches??[]).map(x=>x.id)}}), portalEnabled: true, status: { not: "ARCHIVED" } },
     select: { id: true, organizationId: true, fullName: true, portalPasswordHash: true }, take: 2,
   });
   if (students.length !== 1 || !students[0].portalPasswordHash || !(await compare(parsed.data.password, students[0].portalPasswordHash))) {

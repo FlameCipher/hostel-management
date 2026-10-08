@@ -1,0 +1,8 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {normalizeHost,isSharedHost,isLegacyHost,publishedWhere,accountScopeAllowed} from "../src/lib/property-host-policy";
+test("host normalizes case and port",()=>assert.equal(normalizeHost("MMAMBUGUAHOSTEL.studentshostels.com:443"),"mmambuguahostel.studentshostels.com"));
+for(const host of [null,"","evil.com,studentshostels.com","https://studentshostels.com","a..studentshostels.com","studentshostels.com/path","studentshostels.com@evil.com"])test("reject malformed host "+host,()=>assert.equal(normalizeHost(host),null));
+test("only shared domains allow unscoped entry",()=>{assert.equal(isSharedHost("studentshostels.com"),true);assert.equal(isSharedHost("build-123.vercel.app"),true);assert.equal(isSharedHost("studentshostels.com.evil.com"),false);assert.equal(isSharedHost("unknown.studentshostels.com"),false);assert.equal(isLegacyHost("hostel.sampesa.com"),true)});
+test("foreign and unknown hosts reject organization sessions",()=>{assert.equal(accountScopeAllowed("one.studentshostels.com","org-one","org-two"),false);assert.equal(accountScopeAllowed("one.studentshostels.com","org-one","org-one"),true);assert.equal(accountScopeAllowed("unknown.studentshostels.com",null,"org-one"),false);assert.equal(accountScopeAllowed(null,null,"org-one"),false)});
+test("publication requires explicit opt-in and active property and landlord",()=>assert.deepEqual(publishedWhere(),{active:true,publicListing:true,organization:{status:"ACTIVE"}}));

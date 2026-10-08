@@ -1,3 +1,5 @@
+import { requestPropertyContext } from "@/lib/property-host";
+import { accountScopeAllowed } from "@/lib/property-host-policy";
 import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
@@ -45,6 +47,12 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
   try {
     const { payload } = await jwtVerify(token, getSessionSecret());
     const session = payload as SessionPayload;
+    if(typeof session.userId!=="string" || typeof session.organizationId!=="string") return null;
+    const context=await requestPropertyContext();
+    if(!accountScopeAllowed(context.host,context.property?.organizationId??null,session.organizationId)) return null;
+    const current=await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,organization:{status:"ACTIVE"}},select:{name:true,role:true}});
+    if(!current) return null;
+    session.name=current.name;session.role=current.role;
     if (session.platformSubject) {
       if (!validSubject(session.platformSubject)) return null;
       const identity = await platformIdentity(session.platformSubject);

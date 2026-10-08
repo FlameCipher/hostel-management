@@ -1,0 +1,8 @@
+"use client";
+import {useActionState} from "react";
+import {updatePropertyProfileAction} from "@/app/(app)/settings/actions";
+type Profile={id:string;name:string;physicalAddress:string|null;phone:string|null;email:string|null;publicDescription:string|null;customDomain:string|null;publicListing:boolean};
+export function PropertyProfileForm({property}:{property:Profile}){
+ const [state,action,pending]=useActionState(updatePropertyProfileAction,{error:"",message:""});
+ return <form action={action} className="panel space-y-4"><h2 className="text-xl font-semibold">{property.name} · Public website</h2><p>{property.customDomain??"Website address not yet assigned"} · {property.publicListing?"Published":"Unpublished"}</p><input type="hidden" name="id" value={property.id}/>{([['name','Property name'],['physicalAddress','Location'],['phone','Public contact phone'],['email','Public contact email']] as const).map(([name,label])=><label className="block" key={name}>{label}<input className="form-input w-full" name={name} type={name==='email'?'email':'text'} defaultValue={property[name]??''} required={name==='name'} maxLength={name==='physicalAddress'?240:name==='name'?120:name==='phone'?20:254}/></label>)}<label className="block">Advertising description<textarea className="form-input w-full" name="publicDescription" maxLength={1200} rows={4} defaultValue={property.publicDescription??''}/></label><p className="text-sm">These details are public. Include only the contacts and information you want students to see.</p>{state.error&&<p role="alert">{state.error}</p>}{state.message&&<p role="status">{state.message}</p>}<button className="primary-button" disabled={pending}>{pending?'Saving…':'Save website details'}</button></form>;
+}
