@@ -552,3 +552,75 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mobile-sidebar > *, .sidebar > * { flex-shrink: 0; }
 @media (max-width: 850px) { .marketing-nav { min-height: 78px; height: auto; padding-top: 10px; padding-bottom: 10px; } .marketing-links { flex-shrink: 0; } }
 @media (min-width: 1024px) { .management-menu-button { display: none; } }
+
+/* Property information and the student booking guide. */
+.marketing-site section[id] { scroll-margin-top: 100px; }
+.hostel-section-nav { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 10px max(5vw, 20px); background: #eef2f4; border-bottom: 1px solid #d8e0e5; }
+.hostel-section-nav a { display: inline-flex; align-items: center; min-height: 40px; color: #344753; font-size: 13px; font-weight: 650; text-decoration: none; }
+.hostel-section-nav a:hover, .hostel-text-link:hover, .hostel-information-grid a:hover { text-decoration: underline; }
+.marketing-site a:focus-visible, .hostel-faq summary:focus-visible { outline: 3px solid #667987; outline-offset: 4px; border-radius: 4px; }
+.hostel-hero-location { display: flex; align-items: flex-start; gap: 9px; }
+.hostel-hero-location svg { flex-shrink: 0; margin-top: 5px; }
+.hostel-at-a-glance { width: 100%; align-self: center; padding: clamp(28px, 4vw, 60px); color: #2d414e; }
+.hostel-at-a-glance > span, .hostel-kicker { font-size: 11px; font-weight: 800; letter-spacing: .13em; }
+.hostel-at-a-glance h2 { margin: 16px 0 24px; font-size: clamp(28px, 3vw, 40px); line-height: 1.1; letter-spacing: -.025em; }
+.hostel-at-a-glance dl { margin: 0; }
+.hostel-at-a-glance dl > div { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 18px; padding: 16px 0; border-bottom: 1px solid #b5c2ca; }
+.hostel-at-a-glance dt { font-size: 14px; }
+.hostel-at-a-glance dd { margin: 0; font-size: 23px; font-weight: 750; }
+.hostel-at-a-glance dd small { display: block; font-size: 11px; font-weight: 500; margin-top: 5px; }
+.hostel-at-a-glance p { margin: 24px 0 12px; font-size: 14px; line-height: 1.7; }
+.hostel-at-a-glance a { color: #2d414e; font-weight: 700; }
+.hostel-at-a-glance > a { display: inline-flex; align-items: center; min-height: 44px; }
+.hostel-description { white-space: pre-line; overflow-wrap: anywhere; }
+.hostel-information-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.hostel-information-grid article { padding: 26px; border: 1px solid #dce3e8; border-radius: 15px; background: #fff; }
+.hostel-information-grid svg { color: #526b7a; }
+.hostel-information-grid h3 { margin: 14px 0 10px; color: #2d414e; font-size: 19px; }
+.hostel-information-grid p, .hostel-information-grid li { color: #576975; line-height: 1.75; font-size: 15px; }
+.hostel-information-grid ul { padding-left: 20px; margin-bottom: 0; }
+.hostel-information-grid li + li { margin-top: 10px; }
+.hostel-information-grid a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 10px; color: #344d5c; font-size: 14px; font-weight: 700; }
+.hostel-about { padding-bottom: 20px; }
+.hostel-room-detail { display: flex; flex-direction: column; padding: 22px; }
+.hostel-room-type { color: #607683; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.hostel-room-detail h3 { margin: 12px 0; font-size: 21px; color: #2d414e; }
+.hostel-room-detail > p { margin: 0; font-size: 14px; line-height: 1.7; color: #586b77; }
+.hostel-room-detail .marketing-prices { margin: 20px 0 16px; flex-wrap: wrap; gap: 12px 22px; }
+.hostel-room-detail .marketing-prices strong { font-size: 20px; }
+.hostel-room-detail .marketing-prices small { font-size: 10px; }
+.hostel-room-detail > .hostel-room-availability { color: #365747; font-weight: 650; margin-bottom: 14px; }
+.hostel-room-actions { margin-top: auto; }
+.hostel-room-actions .room-enquiry { margin: 0; font-size: 14px; min-height: 44px; }
+.hostel-text-link { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 6px; font-size: 14px; color: #344d5c; }
+.hostel-rate-note { margin-top: 22px; color: #586b77; line-height: 1.7; font-size: 14px; max-width: 820px; }
+.hostel-guide-band { background: #eef2f4; }
+.hostel-booking-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; }
+.hostel-booking-steps li > span { color: #607a8a; font-size: 34px; font-weight: 650; }
+.hostel-booking-steps h3 { margin: 14px 0 10px; color: #2d414e; font-size: 19px; }
+.hostel-booking-steps p { margin: 0; color: #526571; line-height: 1.75; font-size: 15px; }
+.hostel-booking-note { display: flex; gap: 12px; margin: 32px 0 22px; padding: 20px; background: #fff; border-left: 3px solid #617b8b; border-radius: 0 12px 12px 0; }
+.hostel-booking-note svg { flex-shrink: 0; color: #526b7a; margin-top: 3px; }
+.hostel-booking-note p { margin: 0; line-height: 1.7; color: #465d6b; font-size: 15px; }
+.hostel-viewing { padding-bottom: 20px; }
+.hostel-faq { max-width: 1000px; }
+.hostel-faq-list { border-top: 1px solid #ccd6dd; }
+.hostel-faq details { border-bottom: 1px solid #ccd6dd; padding: 8px 0; }
+.hostel-faq summary { cursor: pointer; padding: 18px 4px; color: #2d414e; font-size: 17px; font-weight: 650; }
+.hostel-faq details p { margin: 0; padding: 0 4px 20px; color: #576975; font-size: 16px; line-height: 1.8; }
+.hostel-contact { align-items: start; }
+.hostel-contact h3 { font-size: 20px; color: #2d414e; }
+.hostel-contact p { font-size: 16px; }
+.hostel-contact a { overflow-wrap: anywhere; }
+.hostel-portal-panel { background: #eef2f4; padding: 30px; border-radius: 18px; }
+.hostel-portal-panel h2 { font-size: 32px; }
+.hostel-footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.hostel-footer-links a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+@media (max-width: 1050px) { .marketing-links > a:not(.marketing-login) { display: none; } .hostel-information-grid { gap: 16px; } .hostel-room-detail { padding: 18px; } .marketing-room-grid:has(.hostel-room-detail) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .hostel-information-grid { grid-template-columns: 1fr; } .hostel-booking-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hostel-section-nav { gap: 2px 20px; } }
+@media (max-width: 520px) { .marketing-room-grid:has(.hostel-room-detail), .hostel-booking-steps { grid-template-columns: 1fr; } .hostel-at-a-glance { padding: 28px 20px; } .hostel-booking-steps { gap: 26px; } .hostel-booking-note { padding: 16px; } .hostel-portal-panel { padding: 22px; } .hostel-information-grid article { padding: 22px; } .hostel-contact .portal-access-actions > a { width: 100%; justify-content: center; } }
+
+.hostel-directory-search { display: flex; gap: 18px; flex-wrap: wrap; align-items: end; margin: 24px 0 30px; padding: 24px; background: #f2f5f1; border-radius: 18px; }
+.hostel-directory-search label { display: grid; gap: 8px; font-weight: 600; flex: 1 1 210px; min-width: 0; }
+.hostel-directory-search input, .hostel-directory-search select { width: 100%; border: 1px solid #bcc8be; background: #fff; color: #173629; border-radius: 8px; padding: 13px 12px; font: inherit; }
+.hostel-directory-search :is(input,select):focus-visible { outline: 3px solid #bf8c38; outline-offset: 3px; }

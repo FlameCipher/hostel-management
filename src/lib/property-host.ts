@@ -6,6 +6,6 @@ export const requestPropertyContext = cache(async () => {
   // Only Host selects a property. Client-supplied forwarded headers never do.
   const host = normalizeHost((await headers()).get("host"));
   if (isSharedHost(host)) return {host,shared:true,property:null};
-  const property = host ? await db.property.findFirst({where:{...publishedWhere(),...(isLegacyHost(host)?{organizationId:"mama-mbugua-hostel",slug:"mmambugua-hostel"}:{customDomain:host})},select:{id:true,organizationId:true,name:true,customDomain:true,physicalAddress:true,phone:true,email:true,publicDescription:true}}) : null;
+  const property = host ? await db.property.findFirst({where:{...publishedWhere(),...(isLegacyHost(host)?{organizationId:"mama-mbugua-hostel",slug:"mmambugua-hostel"}:{customDomain:host})},select:{id:true,organizationId:true,name:true,customDomain:true,physicalAddress:true,countryCode:true,city:true,region:true,postalCode:true,latitude:true,longitude:true,timeZone:true,rentPaymentMethods:true,phone:true,email:true,publicDescription:true}}) : null;
   return {host,shared:false,property};
 });

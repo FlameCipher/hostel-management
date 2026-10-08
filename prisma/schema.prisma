@@ -361,6 +361,14 @@ model Property {
   slug           String
   name           String
   physicalAddress String?
+  countryCode    String?
+  city           String?
+  region         String?
+  postalCode     String?
+  latitude       Float?
+  longitude      Float?
+  timeZone       String?
+  rentPaymentMethods String[] @default([])
   phone          String?
   email          String?
   publicListing  Boolean  @default(false)
@@ -377,6 +385,7 @@ model Property {
   @@unique([id, organizationId])
   @@unique([organizationId, slug])
   @@index([organizationId, active])
+  @@index([countryCode, city])
   bookingRequests BookingRequest[]
 
 }
