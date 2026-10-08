@@ -74,9 +74,23 @@ export async function consumeSso(db: PrismaClient, code: string, verifier: strin
       await tx.auditLog.create({data:{organizationId:org.id,actorUserId:user.id,action:'PLATFORM_ACCOUNT_LINKED',entityType:'User',entityId:user.id,metadata:{platformUserId:identity.platformUserId,platformOrganizationId:identity.platformOrganizationId}}});
     }
     if (!user) throw Error('SSO_LINK_REQUIRED');
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id=${user.id} FOR UPDATE`;
+    user = await tx.user.findUnique({where:{id:user.id},include:{organization:true}});
+    if (!user?.active || user.organization.status !== 'ACTIVE' || user.platformUserId !== identity.platformUserId || user.organization.platformOrganizationId !== identity.platformOrganizationId || user.organization.platformProductCode !== 'STUDENTSHOSTELS') throw Error('SSO_DENIED');
     if (!platformRoleAllows(user.role, identity.role)) throw Error('SSO_DENIED');
     await tx.platformSsoGrant.update({where:{id:grant.id},data:{consumedAt:now}});
     await tx.auditLog.create({data:{organizationId:user.organizationId,actorUserId:user.id,action:'PLATFORM_SIGN_IN',entityType:'User',entityId:user.id}});
-    return {userId:user.id,organizationId:user.organizationId,name:user.name,role:user.role,platformSubject:{platformUserId:identity.platformUserId,platformOrganizationId:identity.platformOrganizationId,sessionVersion:identity.sessionVersion}};
+    return {sessionVersion:user.sessionVersion,userId:user.id,organizationId:user.organizationId,name:user.name,role:user.role,platformSubject:{platformUserId:identity.platformUserId,platformOrganizationId:identity.platformOrganizationId,sessionVersion:identity.sessionVersion}};
   },{timeout:15000});
+}
+
+export async function verifyPlatformPassword(subject: PlatformSubject, password: string, fetcher: typeof fetch = fetch): Promise<PlatformIdentity | null> {
+  const secret = process.env.HOSTEL_SSO_SECRET;
+  if (!secret || !validSubject(subject) || !password || password.length > 128) return null;
+  try {
+    const response = await fetcher('https://systeminone.com/api/hostel/sso/credentials', { method:'POST', headers:{'content-type':'application/json','x-hostel-sso-secret':secret}, body:JSON.stringify({...subject,password}), cache:'no-store', redirect:'error', signal:AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    const identity = await response.json() as PlatformIdentity;
+    return validSubject(identity) && identity.platformUserId === subject.platformUserId && identity.platformOrganizationId === subject.platformOrganizationId && identity.sessionVersion === subject.sessionVersion && ['OWNER','ADMIN','MEMBER'].includes(identity.role) ? identity : null;
+  } catch { return null; }
 }

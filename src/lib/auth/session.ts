@@ -1,3 +1,4 @@
+import { localSessionCurrent } from "@/lib/account-security-policy";
 import { requestPropertyContext } from "@/lib/property-host";
 import { accountScopeAllowed } from "@/lib/property-host-policy";
 import { cache } from "react";
@@ -11,6 +12,7 @@ const SESSION_COOKIE = "hostel_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12;
 
 export type SessionPayload = {
+  sessionVersion?: number;
   platformSubject?: PlatformSubject;
   userId: string;
   organizationId: string;
@@ -25,6 +27,9 @@ function getSessionSecret() {
 }
 
 export async function createSession(payload: SessionPayload) {
+  if (!Number.isSafeInteger(payload.sessionVersion) || (payload.sessionVersion ?? -1) < 0) throw new Error("SESSION_VERSION_REQUIRED");
+  const current = await db.user.findFirst({ where: { id: payload.userId, organizationId: payload.organizationId, active: true, sessionVersion: payload.sessionVersion, organization: { status: "ACTIVE" } }, select: { id: true } });
+  if (!current) throw new Error("SESSION_REVOKED");
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -50,14 +55,14 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
     if(typeof session.userId!=="string" || typeof session.organizationId!=="string") return null;
     const context=await requestPropertyContext();
     if(!accountScopeAllowed(context.host,context.property?.organizationId??null,session.organizationId)) return null;
-    const current=await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,organization:{status:"ACTIVE"}},select:{name:true,role:true}});
-    if(!current) return null;
+    const current=await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,organization:{status:"ACTIVE"}},select:{name:true,role:true,sessionVersion:true}});
+    if(!current || !localSessionCurrent(session.sessionVersion, current.sessionVersion)) return null;
     session.name=current.name;session.role=current.role;
     if (session.platformSubject) {
       if (!validSubject(session.platformSubject)) return null;
       const identity = await platformIdentity(session.platformSubject);
       if (!identity) return null;
-      const user = await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,platformUserId:session.platformSubject.platformUserId,organization:{status:"ACTIVE",platformOrganizationId:session.platformSubject.platformOrganizationId,platformProductCode:"STUDENTSHOSTELS"}},select:{name:true,role:true}});
+      const user = await db.user.findFirst({where:{id:session.userId,organizationId:session.organizationId,active:true,sessionVersion:current.sessionVersion,platformUserId:session.platformSubject.platformUserId,organization:{status:"ACTIVE",platformOrganizationId:session.platformSubject.platformOrganizationId,platformProductCode:"STUDENTSHOSTELS"}},select:{name:true,role:true}});
       if (!user || !platformRoleAllows(user.role, identity.role)) return null;
       return {...session,name:user.name,role:user.role};
     }

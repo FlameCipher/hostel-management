@@ -385,6 +385,7 @@ model User {
   email          String
   phone          String?
   passwordHash   String
+  sessionVersion Int @default(0)
   role           UserRole @default(ADMIN)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())

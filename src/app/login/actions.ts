@@ -39,6 +39,7 @@ export async function loginAction(
       name: true,
       role: true,
       passwordHash: true,
+      sessionVersion: true,
     },
   });
 
@@ -48,12 +49,13 @@ export async function loginAction(
     return { error: "The email address or password is incorrect." };
   }
 
-  await createSession({
+  try { await createSession({
+    sessionVersion: user.sessionVersion,
     userId: user.id,
     organizationId: user.organizationId,
     name: user.name,
     role: user.role,
-  });
+  }); } catch { return { error: "Your account changed. Sign in again with your current credentials." }; }
 
   redirect((await cookies()).get("hostel_sso_code") ? "/platform/connection" : "/dashboard");
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PropertyProfileForm } from "@/components/property-profile-form";
 import { LockKeyhole } from "lucide-react";
 import { AccommodationRatesForm, OrganizationSettingsForm } from "@/components/settings-forms";
@@ -12,5 +13,5 @@ export default async function SettingsPage() {
     db.roomType.findMany({ where: { organizationId: session.organizationId, active: true }, orderBy: { name: "asc" } }),
     db.property.findMany({where:{organizationId:session.organizationId,active:true},select:{id:true,name:true,physicalAddress:true,phone:true,email:true,publicDescription:true,customDomain:true,publicListing:true},orderBy:{name:"asc"}}),
   ]);
-  return <div><div className="page-heading-row"><div><p className="eyebrow">Configuration</p><h1>Settings</h1><p>Manage hostel identity, operational defaults, payment details and accommodation pricing.</p></div></div>{canManage ? <div className="settings-stack"><OrganizationSettingsForm settings={settings} />{properties.map(property=><PropertyProfileForm key={property.id} property={property}/>)}<AccommodationRatesForm rates={rates.map((rate) => ({ ...rate, monthlyRate: Number(rate.monthlyRate), semesterRate: Number(rate.semesterRate) }))} /></div> : <div className="inline-empty"><LockKeyhole size={28} /><strong>View-only access</strong><p>Only the Owner or an Admin can change hostel settings.</p></div>}</div>;
+  return <div><div className="page-heading-row"><div><p className="eyebrow">Configuration</p><h1>Settings</h1><p>Manage hostel identity, operational defaults, payment details and accommodation pricing.</p><p><Link className="secondary-button" href="/account">Change my login email or password</Link></p></div></div>{canManage ? <div className="settings-stack"><OrganizationSettingsForm settings={settings} />{properties.map(property=><PropertyProfileForm key={property.id} property={property}/>)}<AccommodationRatesForm rates={rates.map((rate) => ({ ...rate, monthlyRate: Number(rate.monthlyRate), semesterRate: Number(rate.semesterRate) }))} /></div> : <div className="inline-empty"><LockKeyhole size={28} /><strong>View-only access</strong><p>Only the Owner or an Admin can change hostel settings.</p></div>}</div>;
 }
