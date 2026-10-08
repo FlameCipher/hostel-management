@@ -375,6 +375,7 @@ model Property {
 }
 
 model User {
+  platformUserId String?
   id             String   @id @default(cuid())
   organizationId String
   name           String
@@ -397,7 +398,9 @@ model User {
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
+  @@unique([organizationId, platformUserId])
 }
+
 
 model Semester {
   id             String         @id @default(cuid())
@@ -1049,4 +1052,18 @@ model TenantPortalInvitation {
  student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
  @@unique([organizationId,studentId])
  @@index([organizationId,status,createdAt])
+}
+
+model PlatformSsoGrant {
+  attempts Int @default(0)
+  id String @id @default(cuid())
+  tokenHash String @unique
+  challenge String
+  platformUserId String
+  platformOrganizationId String
+  sessionVersion Int
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
 }
