@@ -56,7 +56,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   await read("database", "Database", () => db.$queryRaw`SELECT 1`);
   modules.push(module("provisioning", "Platform provisioning", [configuration("configuration", "Provisioning secret configured", Boolean(env.PLATFORM_PROVISIONING_SECRET)), unknown("functional", "Provisioning flow not probed")]));
   await read("tenant-login", "Student login", () => db.student.count({ where: scope }), [configuration("session", "Session signing secret configured", (env.SESSION_SECRET?.length ?? 0) >= 16), unknown("login", "Student sign-in flow not probed")]);
-  await read("bookings", "Rooms and allocations", () => db.occupancy.count({ where: scope }), [unknown("booking", "Booking completion not probed")]);
+  await read("bookings", "Rooms and allocations", () => Promise.all([db.occupancy.count({ where: scope }),db.bookingRequest.count({where:scope})]), [unknown("booking", "Booking completion not probed")]);
   await read("payments", "Rent and payments", () => Promise.all([db.charge.count({ where: scope }), db.payment.count({ where: scope })]), [unknown("reconciliation", "Financial reconciliation not performed")]);
   await read("website", "Property website and pictures", () => Promise.all([db.property.count({ where: scope }), db.propertyPhoto.count({ where: scope })]), [configuration("storage", "Public picture storage configured", Boolean(env.BLOB_READ_WRITE_TOKEN)), unknown("pictures", "Live photo upload and image delivery not independently probed")]);
   await read("terms", "Hostel terms", () => db.studentTermsAcceptance.count({ where: scope }), [unknown("pdf", "PDF generation and download not probed")]);

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:photography && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:photography && npm run test:bookings && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -26,6 +26,7 @@
     "test:sso": "node --import tsx --test scripts/test-platform-sso.ts",
     "test:domains": "node --import tsx --test scripts/test-property-host.ts",
     "test:photography": "node --import tsx --test scripts/test-property-photography.ts",
+    "test:bookings": "node --import tsx --test scripts/test-booking-requests.ts",
     "test:account": "node --import tsx --test scripts/test-account-security.ts",
     "test:onboarding": "node --import tsx --test scripts/test-landlord-onboarding.ts"
   },

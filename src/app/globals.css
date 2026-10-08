@@ -534,3 +534,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .property-public-photo figcaption { margin-top: 10px; color: #4d606e; }
 @media (max-width: 900px) { .property-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .property-photo-grid { grid-template-columns: 1fr; } .property-cover-image { min-height: 280px; } }
+
+.booking-page { font-size: 1rem; }
+.booking-page h1 { font-size: 1.75rem; margin: 1rem 0; }
+.booking-page p, .booking-page label, .booking-page input, .booking-page select, .booking-page button { font-size: 1rem; line-height: 1.5; }
+.booking-page select { max-width: 100%; }
