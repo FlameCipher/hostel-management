@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { validTimeZone } from "./property-location";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { localSessionCurrent } from "@/lib/account-security-policy";
@@ -27,10 +28,13 @@ export function verifyBookingTicket(ticket:unknown,propertyId:string,now=new Dat
  if(data.propertyId!==propertyId || !z.uuid().safeParse(data.requestId).success || !Number.isSafeInteger(data.issuedAt) || data.issuedAt>now.getTime()+60000 || now.getTime()-data.issuedAt>30*60000)return null;
  return {requestId:data.requestId};}catch{return null;}
 }
-export function bookingToday() { return new Date(Date.now()+3*3600000).toISOString().slice(0,10); }
-export function validMoveInDate(value:string,now=new Date()) {
+export function bookingToday(timeZone="UTC", now=new Date()) {
+ const parts = new Intl.DateTimeFormat("en-US", { timeZone: validTimeZone(timeZone) ? timeZone : "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+ return ["year", "month", "day"].map(type => parts.find(part => part.type === type)!.value).join("-");
+}
+export function validMoveInDate(value:string,now=new Date(),timeZone="UTC") {
  const date=new Date(`${value}T00:00:00.000Z`);
- const today=new Date(now.getTime()+3*3600000).toISOString().slice(0,10);
+ const today=bookingToday(timeZone,now);
  return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10)===value && value>=today && date.getTime()<=now.getTime()+366*86400000;
 }
 export async function bookingOptions(db:Pick<PrismaClient,"room">,propertyId:string,organizationId:string) {
@@ -44,10 +48,11 @@ export async function bookingOptions(db:Pick<PrismaClient,"room">,propertyId:str
  return [...options.values()];
 }
 export type BookingState={error?:string;reference?:string};
-export async function submitBooking(db:PrismaClient,property:{id:string;organizationId:string},raw:unknown,ticket:unknown,now=new Date()):Promise<BookingState>{
+export async function submitBooking(db:PrismaClient,property:{id:string;organizationId:string;timeZone?:string|null;countryCode?:string|null},raw:unknown,ticket:unknown,now=new Date()):Promise<BookingState>{
  const parsed=inputSchema.safeParse(raw);const signed=verifyBookingTicket(ticket,property.id,now);
- if(!parsed.success || !signed || !validMoveInDate(parsed.data.preferredMoveIn,now))return{error:"Check your details and move-in date. If this page has been open for 30 minutes, refresh it."};
- const input=parsed.data;const contactKey=signature(`booking-contact:${input.phone.replace(/^\+/,"").replace(/^0(?=[17][0-9]{8}$)/,"254")}`);
+ if(!parsed.success || !signed || !validMoveInDate(parsed.data.preferredMoveIn,now,property.timeZone??"UTC"))return{error:"Check your details and move-in date. If this page has been open for 30 minutes, refresh it."};
+ const input=parsed.data;const normalizedPhone=input.phone.replace(/^\+/,"");
+ const contactKey=signature(`booking-contact:${property.countryCode==="KE"?normalizedPhone.replace(/^0(?=[17][0-9]{8}$)/,"254"):normalizedPhone}`);
  return db.$transaction(async tx=>{
  await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id"=${property.id} AND "organizationId"=${property.organizationId} FOR UPDATE`;
  const parent=await tx.property.findFirst({where:{id:property.id,organizationId:property.organizationId,...publishedWhere()},select:{id:true}});

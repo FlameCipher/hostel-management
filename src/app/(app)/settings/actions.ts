@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { propertyLocationSchema } from "@/lib/property-location";
+import { RENT_PAYMENT_OPTIONS } from "@/lib/landlord-commercial-policy";
 
 export type SettingsFormState = { error: string; message: string };
 
@@ -73,14 +75,14 @@ export async function updateAccommodationRatesAction(_state: SettingsFormState, 
   return { error: "", message: "Accommodation rates and capacities saved successfully." };
 }
 
-const propertyProfileSchema=z.object({id:z.string().min(1).max(128),name:z.string().trim().min(3).max(120),physicalAddress:z.string().trim().max(240),phone:z.union([z.literal(""),phone]),email:z.union([z.literal(""),z.string().trim().email()]),publicDescription:z.string().trim().max(1200)});
+const propertyProfileSchema=propertyLocationSchema.safeExtend({rentPaymentMethods:z.array(z.enum(RENT_PAYMENT_OPTIONS.map(option=>option.value))).max(RENT_PAYMENT_OPTIONS.length),id:z.string().min(1).max(128),name:z.string().trim().min(3).max(120),physicalAddress:z.string().trim().max(240),phone:z.union([z.literal(""),phone]),email:z.union([z.literal(""),z.string().trim().email()]),publicDescription:z.string().trim().max(1200)});
 export async function updatePropertyProfileAction(_state:SettingsFormState,formData:FormData):Promise<SettingsFormState>{
  const session=await requireSettingsManager();if(!session)return{error:"Only the Owner or an Admin can edit the property website.",message:""};
- const parsed=propertyProfileSchema.safeParse(Object.fromEntries(["id","name","physicalAddress","phone","email","publicDescription"].map(k=>[k,formData.get(k)])));
+ const parsed=propertyProfileSchema.safeParse({...Object.fromEntries(["id","name","physicalAddress","phone","email","publicDescription","countryCode","city","region","postalCode","latitude","longitude","timeZone"].map(k=>[k,formData.get(k)??""])),rentPaymentMethods:[...new Set(formData.getAll("rentPaymentMethods"))]});
  if(!parsed.success)return{error:parsed.error.issues[0]?.message??"Check property details.",message:""};
  const {id,...profile}=parsed.data;
  try { await db.$transaction(async tx=>{
- const result=await tx.property.updateMany({where:{id,organizationId:session.organizationId,active:true},data:{...profile,phone:profile.phone||null,email:profile.email||null,physicalAddress:profile.physicalAddress||null,publicDescription:profile.publicDescription||null}});
+ const result=await tx.property.updateMany({where:{id,organizationId:session.organizationId,active:true},data:{...profile,countryCode:profile.countryCode||null,city:profile.city||null,region:profile.region||null,postalCode:profile.postalCode||null,timeZone:profile.timeZone||null,phone:profile.phone||null,email:profile.email||null,physicalAddress:profile.physicalAddress||null,publicDescription:profile.publicDescription||null}});
  if(result.count!==1)throw Error("PROPERTY_UNAVAILABLE");
  await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"PROPERTY_PUBLIC_PROFILE_UPDATED",entityType:"Property",entityId:id}});
  }); }catch{return{error:"Property unavailable or changes could not be saved.",message:""};}
