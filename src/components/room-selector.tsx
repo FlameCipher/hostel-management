@@ -1,4 +1,6 @@
 "use client";
+import { useCurrency } from "@/components/currency-context";
+import { formatMoney } from "@/lib/currency";
 
 import { useId, useRef, useState } from "react";
 import { BedDouble, Check, ChevronDown, Search, X } from "lucide-react";
@@ -16,6 +18,8 @@ export type AllocationRoomOption = {
 };
 
 export function RoomSelector({ rooms, onValueChange }: { rooms: AllocationRoomOption[]; onValueChange?: (roomId: string) => void }) {
+  const currency = useCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -26,7 +30,6 @@ export function RoomSelector({ rooms, onValueChange }: { rooms: AllocationRoomOp
   const selected = rooms.find((room) => room.id === value);
   const visible = rooms.filter((room) => `Room ${room.number} ${room.floor ?? ""} ${room.type}`.toLowerCase().includes(query.trim().toLowerCase()))
     .sort(compareRooms);
-  const money = (rate: number) => `KES ${rate.toLocaleString("en-KE")}`;
 
   function open() {
     setQuery("");

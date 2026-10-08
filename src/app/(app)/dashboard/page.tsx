@@ -1,3 +1,5 @@
+import { formatMoney, roundCurrency } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, Banknote, BedDouble, CircleCheck, DoorOpen, Users, WalletCards } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
@@ -5,8 +7,9 @@ import { db } from "@/lib/db";
 import { compareRooms } from "@/lib/natural-sort";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
 export default async function DashboardPage() {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
   const [rooms, students, charges, recentPayments] = await Promise.all([
@@ -22,9 +25,9 @@ export default async function DashboardPage() {
   const maintenance = roomData.filter((room) => room.effectiveStatus === "MAINTENANCE").length;
   const expected = charges.reduce((sum, charge) => sum + Number(charge.amount), 0);
   const collected = charges.reduce((sum, charge) => sum + charge.payments.reduce((paid, item) => paid + Number(item.amount), 0), 0);
-  const outstanding = Math.max(0, expected - collected);
-  const overdueCharges = charges.filter((charge) => charge.dueDate < new Date() && Number(charge.amount) > charge.payments.reduce((sum, item) => sum + Number(item.amount), 0));
-  const fullyPaid = charges.filter((charge) => Number(charge.amount) <= charge.payments.reduce((sum, item) => sum + Number(item.amount), 0)).length;
+  const outstanding = Math.max(0, roundCurrency(expected - collected, currency));
+  const overdueCharges = charges.filter((charge) => charge.dueDate < new Date() && roundCurrency(Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0), currency) > 0);
+  const fullyPaid = charges.filter((charge) => roundCurrency(Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0), currency) <= 0).length;
   const collectionPercent = expected ? Math.min(100, Math.round((collected / expected) * 100)) : 0;
   return <div><div className="page-heading-row"><div><p className="eyebrow">Live semester overview</p><h1>Welcome, Landlord / Landlady</h1><p>{semester?.name ?? "No active semester"} · updated from current records</p></div><Link className="secondary-button no-underline" href="/payments/new"><Banknote size={18} /> Record payment</Link></div>
     <section className="metric-grid"><Link className="metric-card dashboard-metric-link" href="/rooms"><span className="metric-icon metric-blue"><BedDouble size={23} /></span><div><p>Total rooms</p><strong>{rooms.length}</strong><small>Tap to list all rooms</small></div></Link><Link className="metric-card dashboard-metric-link" href="/rooms?status=OCCUPIED"><span className="metric-icon metric-green"><Users size={23} /></span><div><p>Occupied rooms</p><strong>{occupied}</strong><small>Tap to list occupied rooms</small></div></Link><Link className="metric-card dashboard-metric-link" href="/rooms?status=VACANT"><span className="metric-icon metric-sky"><DoorOpen size={23} /></span><div><p>Vacant rooms</p><strong>{vacant}</strong><small>Tap to list vacant rooms</small></div></Link>{maintenance > 0 ? <Link className="metric-card dashboard-metric-link" href="/rooms?status=MAINTENANCE"><span className="metric-icon metric-maintenance"><AlertCircle size={23} /></span><div><p>Maintenance rooms</p><strong>{maintenance}</strong><small>Tap to list maintenance rooms</small></div></Link> : null}<Link className="metric-card dashboard-metric-link" href="/students?status=ACTIVE"><span className="metric-icon metric-violet"><Users size={23} /></span><div><p>Active students</p><strong>{students}</strong><small>Tap to list active students</small></div></Link></section>

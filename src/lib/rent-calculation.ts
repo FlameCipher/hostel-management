@@ -1,3 +1,4 @@
+import { roundCurrency, validAmount } from "@/lib/currency";
 import type { Prisma } from "@/generated/prisma/client";
 import { refreshChargeStatus } from "@/lib/payment-balance";
 
@@ -25,11 +26,12 @@ export function daysBetween(start: Date, endExclusive: Date) {
   return Math.max(0, Math.round((utcDay(endExclusive) - utcDay(start)) / DAY_MS));
 }
 
-export function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+export function roundMoney(value: number, currency = "KES") {
+  return roundCurrency(value, currency);
 }
 
 export function calculateActualDaysRent(input: {
+  currency?: string;
   semesterStart: Date;
   semesterEnd: Date;
   segments: RentSegment[];
@@ -40,27 +42,28 @@ export function calculateActualDaysRent(input: {
     const start = segment.startDate < input.semesterStart ? input.semesterStart : segment.startDate;
     const end = segment.endDate > semesterEndExclusive ? semesterEndExclusive : segment.endDate;
     const days = daysBetween(start, end);
-    const amount = roundMoney(segment.semesterRate * days / totalDays);
+    const amount = roundMoney(segment.semesterRate * days / totalDays, input.currency);
     return { ...segment, startDate: start, endDate: end, days, amount };
   }).filter((line) => line.days > 0);
   return {
     totalDays,
-    amount: roundMoney(lines.reduce((sum, line) => sum + line.amount, 0)),
+    amount: roundMoney(lines.reduce((sum, line) => sum + line.amount, 0), input.currency),
     lines,
   };
 }
 
 export function calculateBreakStorageCharge(input: {
+  currency?: string;
   mode: "MONTHLY_RATE_MONTHS" | "FLAT_AMOUNT" | "PERCENTAGE_MONTHLY_RATE";
   value: number | null;
   months: number;
   monthlyRate: number;
 }) {
-  if (input.mode === "FLAT_AMOUNT") return roundMoney(input.value ?? 0);
+  if (input.mode === "FLAT_AMOUNT") return roundMoney(input.value ?? 0, input.currency);
   if (input.mode === "PERCENTAGE_MONTHLY_RATE") {
-    return roundMoney(input.monthlyRate * input.months * (input.value ?? 100) / 100);
+    return roundMoney(input.monthlyRate * input.months * (input.value ?? 100) / 100, input.currency);
   }
-  return roundMoney(input.monthlyRate * input.months);
+  return roundMoney(input.monthlyRate * input.months, input.currency);
 }
 
 type AdjustmentInput = {
@@ -82,11 +85,12 @@ export async function applyChargeAmount(tx: Prisma.TransactionClient, input: Adj
   });
   if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
   const previousAmount = Number(charge.amount);
-  const newAmount = roundMoney(input.newAmount);
+  if (!validAmount(input.newAmount, charge.currency)) throw new Error("INVALID_CURRENCY_AMOUNT");
+  const newAmount = roundMoney(input.newAmount, charge.currency);
   if (newAmount < 0) throw new Error("INVALID_RENT_AMOUNT");
-  if (Math.abs(previousAmount - newAmount) < 0.005) {
-    const paid = charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-    return { changed: false, previousAmount, newAmount, paid, balance: Math.max(0, newAmount - paid), credit: Math.max(0, paid - newAmount) };
+  if (previousAmount === newAmount) {
+    const paid = roundMoney(charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0), charge.currency);
+    return { changed: false, previousAmount, newAmount, paid, balance: Math.max(0, roundMoney(newAmount - paid, charge.currency)), credit: Math.max(0, roundMoney(paid - newAmount, charge.currency)) };
   }
   await tx.charge.update({
     where: { id: charge.id },
@@ -101,13 +105,13 @@ export async function applyChargeAmount(tx: Prisma.TransactionClient, input: Adj
       calculationMethod: input.calculationMethod,
       previousAmount,
       newAmount,
-      adjustmentAmount: roundMoney(newAmount - previousAmount),
+      adjustmentAmount: roundMoney(newAmount - previousAmount, charge.currency),
       effectiveDate: input.effectiveDate,
       explanation: input.explanation,
       calculationData: input.calculationData,
     },
   });
   await refreshChargeStatus(tx, charge.id);
-  const paid = charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-  return { changed: true, previousAmount, newAmount, paid, balance: Math.max(0, newAmount - paid), credit: Math.max(0, paid - newAmount) };
+  const paid = roundMoney(charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0), charge.currency);
+  return { changed: true, previousAmount, newAmount, paid, balance: Math.max(0, roundMoney(newAmount - paid, charge.currency)), credit: Math.max(0, roundMoney(paid - newAmount, charge.currency)) };
 }

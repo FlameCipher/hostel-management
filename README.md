@@ -93,3 +93,15 @@ CommandPurpose`npm run dev`Start the local development server`npm run lint`Run E
 - Enable HTTPS and secure hosting environment variables.
 - Configure role permissions and audit all payment changes.
 - Do not store M-Pesa credentials in source control.
+
+## Operating currencies
+
+Owners choose the workspace currency in Setup or Settings before creating rates or financial records. All properties within that organization share one ledger currency. Different operating currencies require separate workspaces; there is no foreign-exchange conversion. The platform’s US$40 setup price and manual M-Pesa payment process remain separate from tenant rent.
+
+Existing amounts and currency snapshots are backfilled as KES. The migration widens monetary decimals to `(15,3)` without converting values. Database triggers permanently lock currency when the first pricing or financial record is inserted, preserve currency on individual ledger records, and reject incorrect currency or unsupported fractional units. Changing a currency with old financial data is deliberately unsupported. Deploy the additive migration before the new application code; older code continues to work for existing KES organizations. Once non-KES workspaces exist, do not roll back to code that assumes KES.
+
+`src/lib/currencies.json` is a pinned snapshot of the SIX ISO 4217 current currency list published 2026-09-17, excluding fund/metal/accounting units. Source: https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml . It includes currencies with zero, two and three minor-unit digits. Update both the registry and database checks through a reviewed migration when the list changes. This is currency formatting support, not a claim of international regulatory certification.
+
+Payment balances use integer minor units. Rent proration rounds each segment in the selected currency. Statements and CSV exports explicitly identify the currency; PDF and verification receipts use the payment’s saved currency. Kenyan M-Pesa CSV imports are KES-only. Record other payments manually in the operating currency; no payment collection integration is enabled by this feature.
+
+Run `npm run test:currency` and `npm run test:rent` for focused arithmetic checks. Currency changes and test fixture writes must never be run against customer records merely to verify a release.

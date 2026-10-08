@@ -23,6 +23,7 @@ export async function reversePaymentAction(_state: ReversalFormState, formData: 
 
   try {
     await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${session.organizationId} FOR UPDATE`;
       const payment = await tx.payment.findFirst({
         where: { id: parsed.data.paymentId, organizationId: session.organizationId },
         include: { mpesaTransaction: true },

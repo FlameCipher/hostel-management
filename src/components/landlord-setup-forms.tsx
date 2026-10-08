@@ -1,9 +1,12 @@
 "use client";
+import { useCurrency } from "@/components/currency-context";
+import { currencyStep } from "@/lib/currency";
 import {useActionState} from 'react';
 import {createAccommodationType,setWebsitePublication} from '@/app/(app)/setup/actions';
 export function AccommodationTypeForm(){
+  const currency = useCurrency();
  const [state,action,pending]=useActionState(createAccommodationType,{error:'',message:''});
- return <form action={action} className="panel entity-form"><h2>Create an accommodation type</h2><p>Set your own prices. Shared accommodation rates are per student.</p><label>Type name<input name="name" required minLength={3} maxLength={120} placeholder="e.g. Private bedsitter"/></label><label>Accommodation<select name="sharingMode"><option value="PRIVATE">Private</option><option value="SHARED">Shared</option></select></label><label>Monthly rent (KES)<input name="monthlyRate" type="number" min="0.01" step="0.01" required/></label><label>Semester rent (KES)<input name="semesterRate" type="number" min="0.01" step="0.01" required/></label><label>Students per room<input name="defaultCapacity" type="number" min={1} max={20} required defaultValue={1}/></label>{state.error&&<p role="alert">{state.error}</p>}{state.message&&<p role="status">{state.message}</p>}<button className="primary-button" disabled={pending}>{pending?'Saving…':'Create accommodation type'}</button></form>;
+ return <form action={action} className="panel entity-form"><input type="hidden" name="currency" value={currency} /><h2>Create an accommodation type</h2><p>Set your own prices. Shared accommodation rates are per student.</p><label>Type name<input name="name" required minLength={3} maxLength={120} placeholder="e.g. Private bedsitter"/></label><label>Accommodation<select name="sharingMode"><option value="PRIVATE">Private</option><option value="SHARED">Shared</option></select></label><label>Monthly rent ({currency})<input name="monthlyRate" type="number" min={currencyStep(currency)} step={currencyStep(currency)} required/></label><label>Semester rent ({currency})<input name="semesterRate" type="number" min={currencyStep(currency)} step={currencyStep(currency)} required/></label><label>Students per room<input name="defaultCapacity" type="number" min={1} max={20} required defaultValue={1}/></label>{state.error&&<p role="alert">{state.error}</p>}{state.message&&<p role="status">{state.message}</p>}<button className="primary-button" disabled={pending}>{pending?'Saving…':'Create accommodation type'}</button></form>;
 }
 export function PublicationForm({propertyId,published,ready}:{propertyId:string;published:boolean;ready:boolean}){
  const [state,action,pending]=useActionState(setWebsitePublication,{error:'',message:''});

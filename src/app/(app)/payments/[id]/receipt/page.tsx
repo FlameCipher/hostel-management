@@ -1,3 +1,4 @@
+import { formatMoney, roundCurrency } from "@/lib/currency";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2 } from "lucide-react";
@@ -7,13 +8,13 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import "@/components/receipt-toolbar.css";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 export default async function PaymentReceiptPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+
   const session = await requireSession();
   const { id } = await params;
   const payment = await db.payment.findFirst({
@@ -32,9 +33,10 @@ export default async function PaymentReceiptPage({
     },
   });
   if (!payment) notFound();
+  const money = (value: number) => formatMoney(value, payment.currency);
 
   const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
-  const balance = Math.max(0, Number(payment.charge.amount) - paid);
+  const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
   const emailStatus = !payment.student.email ? "No email recorded."
@@ -62,7 +64,7 @@ export default async function PaymentReceiptPage({
           <div className="receipt-number"><span>Receipt number</span><strong>{payment.receiptNumber}</strong></div>
         </header>
         <div className="receipt-rule" />
-        <div aria-hidden="true" style={{ position: "absolute", inset: "42% auto auto 8%", transform: "rotate(-25deg)", fontSize: "clamp(22px,4vw,42px)", fontWeight: 800, opacity: .045, pointerEvents: "none", whiteSpace: "nowrap" }}>MMAMBUGUA HOSTEL · OFFICIAL RECEIPT</div>
+        <div aria-hidden="true" style={{ position: "absolute", inset: "42% auto auto 8%", transform: "rotate(-25deg)", fontSize: "clamp(22px,4vw,42px)", fontWeight: 800, opacity: .045, pointerEvents: "none", whiteSpace: "nowrap" }}>{payment.organization.name} · OFFICIAL RECEIPT</div>
         <section className="receipt-meta">
           <div><span>Received from</span><strong>{payment.student.fullName}</strong><small>{payment.student.phone}{payment.student.email ? ` · ${payment.student.email}` : ""}</small></div>
           <div><span>Room and semester</span><strong>{roomNumber === "Pending allocation" ? roomNumber : `Room ${roomNumber}`}</strong><small>{semesterName}</small></div>

@@ -1,8 +1,8 @@
+import { formatMoney } from "@/lib/currency";
 import { notFound } from "next/navigation";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 function protectedName(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -18,11 +18,12 @@ export default async function VerifyReceiptPage({ params }: { params: Promise<{ 
   });
   if (!payment) notFound();
 
+  const money = (v: number) => formatMoney(v, payment.currency);
   const valid = !payment.reversedAt;
   return (
     <main style={{ minHeight: "100vh", background: "#f4f8fc", padding: "40px 18px" }}>
       <article style={{ maxWidth: 620, margin: "0 auto", background: "white", borderRadius: 24, padding: 28, boxShadow: "0 18px 50px rgba(25,55,85,.10)" }}>
-        <p style={{ letterSpacing: 2, fontWeight: 800, fontSize: 12, color: "#54708d" }}>MMAMBUGUA HOSTEL · RECEIPT VERIFICATION</p>
+        <p style={{ letterSpacing: 2, fontWeight: 800, fontSize: 12, color: "#54708d" }}>{payment.organization.name} · RECEIPT VERIFICATION</p>
         <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "18px 0" }}>
           {valid ? <CheckCircle2 size={34} color="#16845b" /> : <XCircle size={34} color="#b42318" />}
           <div><h1 style={{ margin: 0 }}>{valid ? "VALID RECEIPT" : "REVERSED RECEIPT"}</h1><p style={{ margin: "5px 0 0", color: "#64748b" }}>{valid ? "This receipt matches an official hostel payment record." : "This receipt exists, but the payment has been reversed."}</p></div>

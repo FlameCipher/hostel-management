@@ -1,3 +1,4 @@
+import { minorUnits } from "@/lib/currency";
 import type { Prisma } from "@/generated/prisma/client";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -9,8 +10,8 @@ export async function refreshChargeStatus(tx: TransactionClient, chargeId: strin
   });
   if (!charge) return;
 
-  const paid = charge.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-  const balance = Math.max(0, Number(charge.amount) - paid);
+  const paid = charge.payments.reduce((sum, payment) => sum + minorUnits(Number(payment.amount), charge.currency), 0);
+  const balance = Math.max(0, minorUnits(Number(charge.amount), charge.currency) - paid);
   const status = balance <= 0
     ? "FULLY_PAID"
     : charge.dueDate < new Date()

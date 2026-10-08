@@ -1,9 +1,9 @@
+import { formatMoney, roundCurrency } from "@/lib/currency";
 import { db } from "@/lib/db";
 import { generateReceiptPdf } from "@/lib/receipt-pdf";
 
 export type ReceiptDeliveryResult = "email" | "whatsapp" | "failed" | "deferred";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -36,6 +36,7 @@ export async function deliverPaymentReceipt(
     });
 
     if (!payment?.charge.occupancy) return "deferred";
+    const money = (value: number) => formatMoney(value, payment.currency);
 
     if (!payment.student.email) {
       await db.payment.update({
@@ -64,9 +65,15 @@ export async function deliverPaymentReceipt(
     }
 
     const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
-    const balance = Math.max(0, Number(payment.charge.amount) - paid);
+    const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
     const roomNumber = payment.charge.occupancy.room.number;
     const pdf = await generateReceiptPdf({
+    currency: payment.currency,
+    securityReference: payment.securityReference,
+    integrityHash: payment.integrityHash,
+    issuedAt: payment.issuedAt.toISOString(),
+    reprintCount: payment.reprintCount,
+    verificationUrl: payment.securityReference ? `https://studentshostels.com/verify-receipt/${encodeURIComponent(payment.securityReference)}` : null,
       organizationName: payment.organization.name,
       ownerName: payment.organization.ownerName,
       organizationPhone: payment.organization.phone,

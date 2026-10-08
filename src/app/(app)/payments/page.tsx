@@ -1,12 +1,15 @@
+import { formatMoney, roundCurrency } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { AlertCircle, Banknote, FilePlus2, ListChecks, Plus, ReceiptText, RotateCcw, Search, WalletCards } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { maximumFractionDigits: 2 })}`;
 const chargeType: Record<string, string> = { SEMESTER_RENT: "Semester rent", BREAK_ACCOMMODATION: "Break accommodation", DAMAGE: "Damage", OTHER: "Other" };
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   const query = (await searchParams).q?.trim() ?? "";
   const canManage = session.role !== "CARETAKER";
@@ -15,7 +18,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     db.charge.findMany({ where: { organizationId: session.organizationId }, include: { student: true, semester: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, ...(query ? { OR: [{ reference: { contains: query, mode: "insensitive" } }, { receiptNumber: { contains: query, mode: "insensitive" } }, { student: { fullName: { contains: query, mode: "insensitive" } } }] } : {}) }, include: { student: true, charge: { include: { semester: true } }, mpesaTransaction: true }, orderBy: { paidAt: "desc" }, take: query ? 100 : 20 }),
   ]);
-  const rows = charges.map((item) => { const paid = item.payments.reduce((sum, payment) => sum + Number(payment.amount), 0); const net = Number(item.amount) - paid; return { ...item, amountNumber: Number(item.amount), paid, balance: Math.max(0, net), credit: Math.max(0, -net) }; });
+  const rows = charges.map((item) => { const paid = item.payments.reduce((sum, payment) => sum + Number(payment.amount), 0); const net = roundCurrency(Number(item.amount) - paid, currency); return { ...item, amountNumber: Number(item.amount), paid, balance: Math.max(0, net), credit: Math.max(0, -net) }; });
   const expected = rows.reduce((sum, item) => sum + item.amountNumber, 0);
   const collected = rows.reduce((sum, item) => sum + item.paid, 0);
   const outstanding = rows.reduce((sum, item) => sum + item.balance, 0);

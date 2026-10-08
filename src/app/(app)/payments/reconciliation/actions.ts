@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { parseCsv } from "@/lib/csv";
+import { validAmount } from "@/lib/currency";
+import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 
 export type ImportState = { error: string; message: string };
@@ -27,6 +29,7 @@ const normalizeHeader = (value: string) => aliases[value.toLowerCase().replace(/
 
 export async function importMpesaStatementAction(_state: ImportState, formData: FormData): Promise<ImportState> {
   const session = await requireReconciliationAccess();
+  if (await organizationCurrency(session.organizationId) !== "KES") return {error:"This importer supports Kenyan M-Pesa statements in KES only. Record payments manually in your workspace currency.",message:""};
   const file = formData.get("statement");
   if (!(file instanceof File) || !file.size) return { error: "Select an M-Pesa CSV statement.", message: "" };
   if (file.size > 2_000_000) return { error: "The CSV must be smaller than 2 MB.", message: "" };
@@ -43,17 +46,17 @@ export async function importMpesaStatementAction(_state: ImportState, formData: 
     const code = String(data.transactionCode ?? "").trim().toUpperCase();
     const amount = Number(String(data.amount ?? "").replace(/[^0-9.-]/g, ""));
     const transactedAt = new Date(String(data.transactedAt ?? ""));
-    if (!code || !Number.isFinite(amount) || amount <= 0 || Number.isNaN(transactedAt.getTime())) { invalid += 1; continue; }
+    if (!code || !validAmount(amount, "KES") || amount <= 0 || Number.isNaN(transactedAt.getTime())) { invalid += 1; continue; }
 
     const existing = await db.mpesaTransaction.findUnique({ where: { organizationId_transactionCode: { organizationId: session.organizationId, transactionCode: code } } });
     if (existing) { duplicates += 1; continue; }
     const payment = await db.payment.findFirst({
       where: { organizationId: session.organizationId, method: "MPESA", reference: { equals: code, mode: "insensitive" }, reversedAt: null, mpesaTransaction: null },
     });
-    const exact = payment && Number(payment.amount) === amount;
+    const exact = payment && payment.currency === "KES" && Number(payment.amount) === amount;
     const status = exact ? "MATCHED" : payment ? "AMOUNT_MISMATCH" : "UNMATCHED";
     await db.$transaction(async (tx) => {
-      const transaction = await tx.mpesaTransaction.create({ data: {
+      const transaction = await tx.mpesaTransaction.create({ data: { currency: "KES",
         organizationId: session.organizationId,
         paymentId: exact ? payment.id : null,
         transactionCode: code,
@@ -87,7 +90,7 @@ export async function matchMpesaPaymentAction(formData: FormData) {
       ]);
       if (!transaction || !payment) throw new Error("NOT_FOUND");
       if (transaction.paymentId || payment.mpesaTransaction) throw new Error("ALREADY_MATCHED");
-      if (Number(transaction.amount) !== Number(payment.amount)) throw new Error("AMOUNT_MISMATCH");
+      if (transaction.currency !== payment.currency || Number(transaction.amount) !== Number(payment.amount)) throw new Error("AMOUNT_MISMATCH");
       await tx.mpesaTransaction.update({ where: { id: transaction.id }, data: { paymentId: payment.id, status: "MATCHED", matchedAt: new Date(), notes: null } });
       await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "MPESA_MANUALLY_MATCHED", entityType: "MpesaTransaction", entityId: transaction.id, metadata: { paymentId: payment.id, receiptNumber: payment.receiptNumber } } });
     });

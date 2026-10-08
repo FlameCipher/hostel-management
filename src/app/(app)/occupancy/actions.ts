@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
+import { validAmount } from "@/lib/currency";
+import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 import { applyChargeAmount, calculateBreakStorageCharge } from "@/lib/rent-calculation";
 import { refreshRoomStatus } from "@/lib/room-status";
@@ -27,16 +29,19 @@ const periodSchema = z.object({
 
 export async function createBreakPeriodAction(_state: BreakFormState, formData: FormData): Promise<BreakFormState> {
   const session = await requireManager();
+  const currency = await organizationCurrency(session.organizationId);
+  if (formData.get("currency") !== currency) return {error:"Currency changed. Reload this page."};
   const storageValue = formData.get("storageChargeValue");
   const parsed = periodSchema.safeParse({ name: formData.get("name"), startDate: formData.get("startDate"), endDate: formData.get("endDate"), months: formData.get("months"), storageChargeMode: formData.get("storageChargeMode"), storageChargeValue: storageValue === "" || storageValue === null ? undefined : storageValue });
   if (!parsed.success) return { error: "Enter a valid break name, dates and duration." };
+  if (parsed.data.storageChargeMode === "FLAT_AMOUNT" && !validAmount(parsed.data.storageChargeValue ?? 0, currency)) return {error:"Use the decimal places supported by your currency."};
   const startDate = new Date(`${parsed.data.startDate}T12:00:00.000Z`);
   const endDate = new Date(`${parsed.data.endDate}T12:00:00.000Z`);
   if (endDate <= startDate) return { error: "Break end date must be after its start date." };
   if (parsed.data.storageChargeMode !== "MONTHLY_RATE_MONTHS" && parsed.data.storageChargeValue === undefined) return { error: "Enter the flat amount or monthly-rate percentage for break storage." };
   const duplicate = await db.breakPeriod.findFirst({ where: { organizationId: session.organizationId, name: parsed.data.name } });
   if (duplicate) return { error: "A break period with this name already exists." };
-  await db.breakPeriod.create({ data: { organizationId: session.organizationId, name: parsed.data.name, startDate, endDate, months: parsed.data.months, storageChargeMode: parsed.data.storageChargeMode, storageChargeValue: parsed.data.storageChargeValue ?? null, status: "UPCOMING" } });
+  await db.breakPeriod.create({ data: { currency, organizationId: session.organizationId, name: parsed.data.name, startDate, endDate, months: parsed.data.months, storageChargeMode: parsed.data.storageChargeMode, storageChargeValue: parsed.data.storageChargeValue ?? null, status: "UPCOMING" } });
   revalidatePath("/occupancy");
   return { error: "" };
 }
@@ -69,10 +74,11 @@ export async function saveBreakDecisionAction(_state: BreakFormState, formData: 
     where: { breakPeriodId_studentId: { breakPeriodId: period.id, studentId: occupancy.studentId } },
     include: { charge: { include: { payments: { where: { reversedAt: null } } } } },
   });
-  const potentialCharge = calculateBreakStorageCharge({ mode: period.storageChargeMode, value: period.storageChargeValue === null ? null : Number(period.storageChargeValue), months: period.months, monthlyRate: Number(occupancy.room.roomType.monthlyRate) });
+  const potentialCharge = calculateBreakStorageCharge({ currency: period.currency, mode: period.storageChargeMode, value: period.storageChargeValue === null ? null : Number(period.storageChargeValue), months: period.months, monthlyRate: Number(occupancy.room.roomType.monthlyRate) });
   const shouldCharge = parsed.data.intent === "RETURNING" && parsed.data.belongingsStored;
   const finalCharge = shouldCharge ? parsed.data.customStorageCharge ?? potentialCharge : 0;
-  const hasOverride = shouldCharge && Math.abs(finalCharge - potentialCharge) >= 0.005;
+  if (!validAmount(finalCharge, period.currency)) return {error:"Use the decimal places supported by your currency."};
+  const hasOverride = shouldCharge && finalCharge !== potentialCharge;
   if (hasOverride && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can override the calculated break-storage charge." };
   if (hasOverride && (!parsed.data.chargeOverrideReason || parsed.data.chargeOverrideReason.length < 5)) return { error: "Provide a reason for the custom break-storage charge." };
   const status = parsed.data.intent === "NOT_RETURNING" ? "CLEARANCE_REQUIRED" : shouldCharge ? "CHARGED" : "RESERVED_FREE";
@@ -87,7 +93,7 @@ export async function saveBreakDecisionAction(_state: BreakFormState, formData: 
         await tx.charge.update({ where: { id: previous.charge.id }, data: { dueDate: period.startDate, description: `${period.name} belongings accommodation` } });
         await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: previous.charge.id, createdById: session.userId, reason: "BREAK_STORAGE", calculationMethod: hasOverride ? "CUSTOM" : "STANDARD_RATE", newAmount: finalCharge, effectiveDate: period.startDate, explanation: parsed.data.chargeOverrideReason ?? `Break storage calculated using ${period.storageChargeMode.toLowerCase().replaceAll("_", " ")}`, calculationData: { mode: period.storageChargeMode, value: period.storageChargeValue === null ? null : Number(period.storageChargeValue), months: period.months, monthlyRate: Number(occupancy.room.roomType.monthlyRate), calculatedCharge: potentialCharge } });
       } else {
-        await tx.charge.create({ data: { organizationId: session.organizationId, studentId: occupancy.studentId, breakReservationId: reservation.id, type: "BREAK_ACCOMMODATION", description: `${period.name} belongings accommodation`, amount: finalCharge, baseAmount: finalCharge, dueDate: period.startDate, status: "UNPAID" } });
+        await tx.charge.create({ data: { currency: period.currency, organizationId: session.organizationId, studentId: occupancy.studentId, breakReservationId: reservation.id, type: "BREAK_ACCOMMODATION", description: `${period.name} belongings accommodation`, amount: finalCharge, baseAmount: finalCharge, dueDate: period.startDate, status: "UNPAID" } });
       }
     } else if (previous?.charge) {
       if (previous.charge.payments.length) {
@@ -119,7 +125,7 @@ export async function confirmBreakReturnAction(formData: FormData) {
     if (!existing) {
       const occupancy = await tx.occupancy.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: reservation.studentId, roomId: reservation.roomId, checkInAt: semester.startDate, expectedCheckoutAt: semester.endDate, status: "ACTIVE", checkInCondition: "Continued from free break reservation" } });
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: reservation.roomId, roomTypeId: reservation.room.roomTypeId, startDate: semester.startDate, monthlyRateSnapshot: reservation.room.roomType.monthlyRate, semesterRateSnapshot: reservation.room.roomType.semesterRate } });
-      await tx.charge.create({ data: { organizationId: session.organizationId, semesterId: semester.id, studentId: reservation.studentId, roomTypeId: reservation.room.roomTypeId, occupancyId: occupancy.id, type: "SEMESTER_RENT", description: `${semester.name} rent · Room ${reservation.room.number}`, amount: reservation.room.roomType.semesterRate, baseAmount: reservation.room.roomType.semesterRate, dueDate: semester.startDate, status: "UNPAID" } });
+      await tx.charge.create({ data: { currency: reservation.room.roomType.currency, organizationId: session.organizationId, semesterId: semester.id, studentId: reservation.studentId, roomTypeId: reservation.room.roomTypeId, occupancyId: occupancy.id, type: "SEMESTER_RENT", description: `${semester.name} rent · Room ${reservation.room.number}`, amount: reservation.room.roomType.semesterRate, baseAmount: reservation.room.roomType.semesterRate, dueDate: semester.startDate, status: "UNPAID" } });
     }
     await tx.breakReservation.update({ where: { id }, data: { status: "RETURN_CONFIRMED", returnConfirmedAt: new Date() } });
     await tx.student.update({ where: { id: reservation.studentId }, data: { status: "ACTIVE" } });

@@ -1,3 +1,4 @@
+import { roundCurrency } from "@/lib/currency";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateReceiptPdf } from "@/lib/receipt-pdf";
@@ -30,8 +31,14 @@ export async function GET(
   if (!payment) return new Response("Receipt not found", { status: 404 });
 
   const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
-  const balance = Math.max(0, Number(payment.charge.amount) - paid);
+  const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
   const pdf = await generateReceiptPdf({
+    currency: payment.currency,
+    securityReference: payment.securityReference,
+    integrityHash: payment.integrityHash,
+    issuedAt: payment.issuedAt.toISOString(),
+    reprintCount: payment.reprintCount,
+    verificationUrl: payment.securityReference ? `https://studentshostels.com/verify-receipt/${encodeURIComponent(payment.securityReference)}` : null,
     organizationName: payment.organization.name,
     ownerName: payment.organization.ownerName,
     organizationPhone: payment.organization.phone,

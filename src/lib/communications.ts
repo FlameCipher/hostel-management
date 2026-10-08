@@ -1,3 +1,4 @@
+import { formatMoney, minorUnits, currencyDigits } from "@/lib/currency";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
@@ -23,9 +24,9 @@ export function scheduledDate(value: string, now = new Date()) {
  const date = new Date(value + ":00+03:00");
  return Number.isFinite(date.getTime()) && date >= now && date.getTime() <= now.getTime() + 366*86400000 ? date : null;
 }
-export function outstanding(amount: string | number, payments: Array<{ amount: { toString(): string } }>) {
- const cents = (value: string) => Math.round(Number(value)*100);
- return Math.max(0, cents(String(amount)) - payments.reduce((sum,p) => sum+cents(p.amount.toString()),0))/100;
+export function outstanding(amount: string | number, payments: Array<{ amount: { toString(): string } }>, currency = "KES") {
+ const cents = (value: string) => minorUnits(Number(value), currency);
+ return Math.max(0, cents(String(amount)) - payments.reduce((sum,p) => sum+cents(p.amount.toString()),0))/10 ** currencyDigits(currency);
 }
 async function addMessage(tx: Prisma.TransactionClient, data: { organizationId: string; studentId: string; batchId: string; dedupKey: string; title: string; body: string; category: string; publishAt: Date; whatsappCopy: boolean; emailCopy: boolean }) {
  const rows = await tx.tenantMessage.createMany({ data: { ...data, emailStatus:data.emailCopy?"QUEUED":"NOT_REQUESTED", id: randomUUID() }, skipDuplicates: true });
@@ -57,9 +58,9 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  if(rule.balanceEnabled && [7,10].includes(dom)) {
  const charges=await database.charge.findMany({where:{organizationId:rule.organizationId,student:scope,dueDate:{lte:new Date(now.getTime()+3*86400000)},status:{in:["UNPAID","PARTIALLY_PAID","OVERDUE"]}},include:{payments:{where:{reversedAt:null},select:{amount:true}}}});
  for(const charge of charges) {
- const balance=outstanding(charge.amount.toString(),charge.payments); if(!balance) continue;
+ const balance=outstanding(charge.amount.toString(),charge.payments,charge.currency); if(!balance) continue;
  const key=`balance:${charge.id}:${day}`;
- created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:charge.studentId,batchId:key,dedupKey:key,title:"Accommodation balance reminder",body:`Your outstanding balance for ${charge.description} is KES ${balance.toLocaleString("en-KE",{minimumFractionDigits:2})}. Due date: ${charge.dueDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Please clear rent arrears by the 10th or contact management. View your statement in your tenant account.`,category:"BALANCE",publishAt:now,whatsappCopy:rule.whatsappCopies,emailCopy:rule.emailCopies}));
+ created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:charge.studentId,batchId:key,dedupKey:key,title:"Accommodation balance reminder",body:`Your outstanding balance for ${charge.description} is ${formatMoney(balance,charge.currency)}. Due date: ${charge.dueDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Please pay by the agreed due date or contact management. View your statement in your tenant account.`,category:"BALANCE",publishAt:now,whatsappCopy:rule.whatsappCopies,emailCopy:rule.emailCopies}));
  }
  }
  if(rule.holidayEnabled) {

@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Banknote } from "lucide-react";
@@ -11,6 +13,8 @@ export default async function CheckInPage({
 }: {
   searchParams: Promise<{ paymentId?: string }>;
 }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   if (session.role === "CARETAKER") redirect("/occupancy");
   const { paymentId } = await searchParams;
@@ -31,7 +35,7 @@ export default async function CheckInPage({
       <div className="form-page">
         <div className="page-heading-row"><div><p className="eyebrow">Paid student intake</p><h1>Select student to allocate</h1><p>Only students with a valid initial payment appear here.</p></div></div>
         <section className="panel overflow-hidden">
-          {allocations.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Student</th><th>Room type</th><th>Semester</th><th>Initial payment</th><th /></tr></thead><tbody>{allocations.map((payment) => <tr key={payment.id}><td><strong>{payment.student.fullName}</strong></td><td>{payment.charge.roomType?.name ?? "Any matching room"}</td><td>{payment.charge.semester?.name ?? "—"}</td><td>KES {Number(payment.amount).toLocaleString("en-KE")}</td><td><Link className="table-action" href={`/occupancy/check-in?paymentId=${payment.id}`}>Allocate <ArrowRight size={14} /></Link></td></tr>)}</tbody></table></div> : <div className="inline-empty"><Banknote size={25} /><strong>No paid student awaiting allocation</strong><p>Register a student and record the initial payment first.</p></div>}
+          {allocations.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Student</th><th>Room type</th><th>Semester</th><th>Initial payment</th><th /></tr></thead><tbody>{allocations.map((payment) => <tr key={payment.id}><td><strong>{payment.student.fullName}</strong></td><td>{payment.charge.roomType?.name ?? "Any matching room"}</td><td>{payment.charge.semester?.name ?? "—"}</td><td>{money(Number(payment.amount))}</td><td><Link className="table-action" href={`/occupancy/check-in?paymentId=${payment.id}`}>Allocate <ArrowRight size={14} /></Link></td></tr>)}</tbody></table></div> : <div className="inline-empty"><Banknote size={25} /><strong>No paid student awaiting allocation</strong><p>Register a student and record the initial payment first.</p></div>}
         </section>
       </div>
     );
