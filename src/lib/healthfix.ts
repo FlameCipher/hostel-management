@@ -58,6 +58,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   await read("tenant-login", "Student login", () => db.student.count({ where: scope }), [configuration("session", "Session signing secret configured", (env.SESSION_SECRET?.length ?? 0) >= 16), unknown("login", "Student sign-in flow not probed")]);
   await read("bookings", "Rooms and allocations", () => db.occupancy.count({ where: scope }), [unknown("booking", "Booking completion not probed")]);
   await read("payments", "Rent and payments", () => Promise.all([db.charge.count({ where: scope }), db.payment.count({ where: scope })]), [unknown("reconciliation", "Financial reconciliation not performed")]);
+  await read("website", "Property website and pictures", () => Promise.all([db.property.count({ where: scope }), db.propertyPhoto.count({ where: scope })]), [configuration("storage", "Public picture storage configured", Boolean(env.BLOB_READ_WRITE_TOKEN)), unknown("pictures", "Live photo upload and image delivery not independently probed")]);
   await read("terms", "Hostel terms", () => db.studentTermsAcceptance.count({ where: scope }), [unknown("pdf", "PDF generation and download not probed")]);
   await read("communications", "Tenant communications", () => Promise.all([db.tenantMessage.count({ where: scope }), db.tenantConversation.count({ where: scope })]), [unknown("workflow", "Message and reply flows not probed")]);
   await read("invitations", "Account invitations", () => db.tenantPortalInvitation.count({ where: scope }), [unknown("activation", "Account activation not probed")]);
@@ -92,6 +93,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
     warning("email-attention", "Notice emails needing management attention", () => db.tenantMessage.count({ where: { ...scope, emailStatus: { in: ["FAILED", "REVIEW", "MISSING_EMAIL"] } } })),
     warning("email-backlog", "Notice emails queued over 26 hours", () => db.tenantMessage.count({ where: { ...scope, emailStatus: { in: ["QUEUED", "RETRY"] }, publishAt: { lte: overdue } } })),
     warning("invitation-backlog", "Invitations queued over 26 hours", () => db.tenantPortalInvitation.count({ where: { ...scope, usedAt: null, status: { in: ["QUEUED", "RETRY"] }, createdAt: { lte: overdue } } })),
+    warning("photo-uploads", "Website photo uploads without completion after expiry", () => db.propertyPhoto.count({ where: { ...scope, url: null, deletedAt: null, expiresAt: { lte: now } } })),
     warning("receipt-failures", "Recorded receipt delivery failures", () => db.payment.count({ where: { ...scope, reversedAt: null, receiptDeliveryStatus: "FAILED" } })),
   ])));
   return { productCode: "STUDENTSHOSTELS", service: "studentshostels", environment: env.VERCEL_ENV ?? env.NODE_ENV ?? "unknown", observedAt: now.toISOString(), status: modules.some(m => m.status === "DEGRADED") ? "DEGRADED" : modules.some(m => m.status === "UNKNOWN") ? "UNKNOWN" : "HEALTHY", modules };
