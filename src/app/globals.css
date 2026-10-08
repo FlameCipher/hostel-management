@@ -539,3 +539,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .booking-page h1 { font-size: 1.75rem; margin: 1rem 0; }
 .booking-page p, .booking-page label, .booking-page input, .booking-page select, .booking-page button { font-size: 1rem; line-height: 1.5; }
 .booking-page select { max-width: 100%; }
+
+/* Keep management access visible and reachable on phones. */
+.marketing-nav { gap: 12px; }
+.marketing-brand { min-width: 0; }
+.marketing-links .marketing-login { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; white-space: nowrap; background: #344753; border-color: #344753; color: #fff; }
+.portal-access-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.management-menu-button { display: inline-flex; flex-shrink: 0; align-items: center; gap: 8px; min-height: 44px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); padding: 8px 12px; font-size: 13px; font-weight: 650; cursor: pointer; }
+.management-menu-button:focus-visible, .marketing-login:focus-visible { outline: 3px solid #667987; outline-offset: 3px; }
+.sidebar { overflow-y: auto; }
+.mobile-sidebar { overflow-y: auto; overscroll-behavior: contain; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+.mobile-sidebar > *, .sidebar > * { flex-shrink: 0; }
+@media (max-width: 850px) { .marketing-nav { min-height: 78px; height: auto; padding-top: 10px; padding-bottom: 10px; } .marketing-links { flex-shrink: 0; } }
+@media (min-width: 1024px) { .management-menu-button { display: none; } }

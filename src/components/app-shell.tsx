@@ -98,16 +98,17 @@ export function AppShell({ children, organizationName, userName, userRole }: { c
       {mobileOpen ? (
         <div className="mobile-sidebar-wrap">
           <button className="mobile-backdrop" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
-          <aside className="mobile-sidebar">
+          <aside className="mobile-sidebar" id="management-navigation" aria-label="Management menu">
             <div className="flex items-center justify-between"><Brand organizationName={organizationName} /><button className="icon-button" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
             <Navigation onNavigate={() => setMobileOpen(false)} />
+            <form action={logoutAction}><button className="nav-link w-full" type="submit"><LogOut size={19} /><span>Sign out</span></button></form>
           </aside>
         </div>
       ) : null}
 
       <div className="app-main">
         <header className="topbar">
-          <button className="icon-button lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21} /></button>
+          <button className="management-menu-button" type="button" onClick={() => setMobileOpen(true)} aria-label="Open management menu" aria-expanded={mobileOpen} aria-controls={mobileOpen ? "management-navigation" : undefined}><Menu aria-hidden="true" size={21} /><span>Management</span></button>
           <form action="/search" className="topbar-search" method="get" role="search">
             <Search aria-hidden="true" size={18} />
             <input aria-label="Search" name="q" placeholder="Search students, rooms, payments..." />
