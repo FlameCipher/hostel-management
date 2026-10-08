@@ -1,8 +1,10 @@
+import { formatMoney } from "@/lib/currency";
 import "server-only";
 
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 export type ReceiptPdfData = {
+  currency: string;
   organizationName: string;
   ownerName: string;
   organizationPhone: string;
@@ -37,8 +39,6 @@ const paleBlue = rgb(0.93, 0.95, 0.96);
 const border = rgb(0.78, 0.83, 0.86);
 const red = rgb(0.82, 0.12, 0.2);
 
-const money = (value: number) =>
-  `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 function pdfText(value: string) {
   return value
@@ -92,6 +92,7 @@ function drawLabelValue({
 }
 
 export async function generateReceiptPdf(data: ReceiptPdfData) {
+  const money = (value: number) => formatMoney(value, data.currency);
   const document = await PDFDocument.create();
   const page = document.addPage([595.28, 841.89]);
   const regular = await document.embedFont(StandardFonts.Helvetica);
@@ -101,11 +102,11 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   const contentWidth = width - margin * 2;
 
   page.drawRectangle({ x: 0, y: 0, width, height: page.getHeight(), color: rgb(1, 1, 1) });
-  page.drawText("MMAMBUGUA HOSTEL - OFFICIAL RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.91, 0.93, 0.94), rotate: degrees(35) });
+  page.drawText("OFFICIAL PAYMENT RECEIPT", { x: 92, y: 410, size: 26, font: bold, color: rgb(0.91, 0.93, 0.94), rotate: degrees(35) });
   page.drawRectangle({ x: margin, y: 736, width: contentWidth, height: 68, color: paleBlue, borderColor: border, borderWidth: 1 });
   page.drawRectangle({ x: margin + 16, y: 754, width: 34, height: 34, color: blue });
-  page.drawText("MMH", { x: margin + 21, y: 766, size: 9, font: bold, color: rgb(1, 1, 1) });
-  page.drawText(pdfText(data.organizationName), { x: margin + 62, y: 776, size: 16, font: bold, color: navy });
+  page.drawText(pdfText(data.organizationName.split(/\s+/).map(w=>w[0]).join("").slice(0,3)), { x: margin + 21, y: 766, size: 9, font: bold, color: rgb(1, 1, 1) });
+  page.drawText(pdfText(data.organizationName), { x: margin + 62, y: 776, size: Math.min(16, 280 / Math.max(1,bold.widthOfTextAtSize(pdfText(data.organizationName),1))), font: bold, color: navy });
   page.drawText("OFFICIAL PAYMENT RECEIPT", { x: margin + 62, y: 758, size: 7.5, font: bold, color: muted });
   page.drawText("RECEIPT NUMBER", { x: 403, y: 779, size: 6.5, font: bold, color: muted });
   page.drawText(pdfText(data.receiptNumber), { x: 403, y: 760, size: 10.5, font: bold, color: blue });
@@ -128,7 +129,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   page.drawRectangle({ x: margin, y: top - 211, width: contentWidth, height: 88, color: paleBlue, borderColor: border, borderWidth: 1 });
   drawLabelValue({ page, regular, bold, label: "Description", value: data.description, x: margin + 16, y: top - 146, width: 285 });
   page.drawText("AMOUNT RECEIVED", { x: 389, y: top - 146, size: 7, font: bold, color: muted });
-  page.drawText(money(data.amountReceived), { x: 389, y: top - 174, size: 17, font: bold, color: blue });
+  page.drawText(money(data.amountReceived), { x: 389, y: top - 174, size: Math.min(17, 142 / bold.widthOfTextAtSize(money(data.amountReceived),1)), font: bold, color: blue });
 
   const detailTop = top - 258;
   const details = [
@@ -164,7 +165,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   document.setTitle(`Receipt ${pdfText(data.receiptNumber)}`);
   document.setAuthor(pdfText(data.organizationName));
   document.setSubject("Payment receipt");
-  document.setCreator("MMAMBUGUA HOSTEL Management System");
+  document.setCreator("StudentsHostels");
 
   return document.save();
 }

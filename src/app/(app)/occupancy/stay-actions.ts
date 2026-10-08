@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
+import { validAmount, formatMoney, roundCurrency } from "@/lib/currency";
+import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/rent-calculation";
@@ -21,9 +23,11 @@ const checkInSchema = z.object({ paymentId: z.string().optional(), studentId: z.
 
 export async function checkInStudentAction(_state: StayFormState, formData: FormData): Promise<StayFormState> {
   const session = await requireManager();
+  const currency = await organizationCurrency(session.organizationId);
   const customValue = formData.get("customRent");
   const parsed = checkInSchema.safeParse({ paymentId: formData.get("paymentId") || undefined, studentId: formData.get("studentId"), semesterId: formData.get("semesterId"), roomId: formData.get("roomId"), checkInAt: formData.get("checkInAt"), dueDate: formData.get("dueDate"), expectedCheckoutAt: formData.get("expectedCheckoutAt") || undefined, checkInCondition: formData.get("checkInCondition") || undefined, rentMethod: formData.get("rentMethod"), customRent: customValue === "" || customValue === null ? undefined : customValue, rentAdjustmentReason: formData.get("rentAdjustmentReason") || undefined });
   if (!parsed.success) return { error: "Select a student, active semester, available room and valid dates." };
+  if (parsed.data.customRent !== undefined && !validAmount(parsed.data.customRent, currency)) return {error:"Use the decimal places supported by your currency."};
   if (parsed.data.rentMethod === "CUSTOM" && parsed.data.customRent === undefined) return { error: "Enter the agreed final semester rent." };
   if (parsed.data.rentMethod === "CUSTOM" && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can enter custom final rent." };
   if (parsed.data.rentMethod !== "KEEP_FULL" && (!parsed.data.rentAdjustmentReason || parsed.data.rentAdjustmentReason.length < 5)) return { error: "Provide a reason for recalculating the student’s rent." };
@@ -63,7 +67,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       if (existingSemesterRecord) throw new Error("SEMESTER_DUPLICATE");
 
       if (existing) {
-        const previousNetPosition = existing.charges.reduce((sum, charge) => sum + Number(charge.amount) - charge.payments.reduce((paid, payment) => paid + Number(payment.amount), 0), 0);
+        const previousNetPosition = roundCurrency(existing.charges.reduce((sum, charge) => sum + Number(charge.amount) - charge.payments.reduce((paid, payment) => paid + Number(payment.amount), 0), 0), currency);
         await tx.occupancy.update({ where: { id: existing.id }, data: { status: "CHECKED_OUT", checkedOutAt: checkInDate, checkoutCondition: `Semester rollover from ${existing.semester.name}`, finalBalance: previousNetPosition, clearanceStatus: "CLEARED" } });
         await tx.occupancyRoomStay.updateMany({ where: { occupancyId: existing.id, endDate: null }, data: { endDate: checkInDate } });
         await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "SEMESTER_OCCUPANCY_ROLLED_OVER", entityType: "Occupancy", entityId: existing.id, metadata: { previousSemesterId: existing.semesterId, newSemesterId: semester.id, previousRoomId: existing.roomId, newRoomId: room.id, carriedBalance: Math.max(0, previousNetPosition), carriedCredit: Math.max(0, -previousNetPosition) } } });
@@ -75,7 +79,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
       await tx.charge.update({ where: { id: initialPayment.charge.id }, data: { occupancyId: occupancy.id, roomTypeId: room.roomTypeId, baseAmount: initialPayment.charge.baseAmount ?? initialPayment.charge.amount, description: `${semester.name} rent · Room ${room.number}`, dueDate: new Date(`${parsed.data.dueDate}T12:00:00.000Z`) } });
       let rentAdjustment: Awaited<ReturnType<typeof applyChargeAmount>> | null = null;
       if (parsed.data.rentMethod !== "KEEP_FULL") {
-        const calculation = parsed.data.rentMethod === "ACTUAL_DAYS" ? calculateActualDaysRent({ semesterStart: semester.startDate, semesterEnd: semester.endDate, segments: [{ roomId: room.id, roomTypeId: room.roomTypeId, startDate: checkInDate, endDate: addUtcDays(semester.endDate, 1), semesterRate: Number(room.roomType.semesterRate) }] }) : null;
+        const calculation = parsed.data.rentMethod === "ACTUAL_DAYS" ? calculateActualDaysRent({ currency, semesterStart: semester.startDate, semesterEnd: semester.endDate, segments: [{ roomId: room.id, roomTypeId: room.roomTypeId, startDate: checkInDate, endDate: addUtcDays(semester.endDate, 1), semesterRate: Number(room.roomType.semesterRate) }] }) : null;
         const newAmount = calculation?.amount ?? parsed.data.customRent ?? Number(initialPayment.charge.amount);
         rentAdjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: initialPayment.charge.id, createdById: session.userId, reason: "LATE_CHECK_IN", calculationMethod: parsed.data.rentMethod, newAmount, effectiveDate: checkInDate, explanation: parsed.data.rentAdjustmentReason ?? "Approved late check-in rent recalculation", calculationData: calculation ? { totalDays: calculation.totalDays, checkInDate: checkInDate.toISOString(), semesterRate: Number(room.roomType.semesterRate), occupiedDays: calculation.lines[0]?.days ?? 0 } : { customRent: parsed.data.customRent ?? null } });
       }
@@ -106,9 +110,11 @@ const transferSchema = z.object({
 });
 export async function transferRoomAction(occupancyId: string, _state: StayFormState, formData: FormData): Promise<StayFormState> {
   const session = await requireManager();
+  const currency = await organizationCurrency(session.organizationId);
   const customValue = formData.get("customRent");
   const parsed = transferSchema.safeParse({ targetRoomId: formData.get("targetRoomId"), transferDate: formData.get("transferDate"), rentMethod: formData.get("rentMethod"), customRent: customValue === "" || customValue === null ? undefined : customValue, reason: formData.get("reason") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Select a room, transfer date and rent calculation method." };
+  if (parsed.data.customRent !== undefined && !validAmount(parsed.data.customRent, currency)) return {error:"Use the decimal places supported by your currency."};
   if (parsed.data.rentMethod === "CUSTOM" && parsed.data.customRent === undefined) return { error: "Enter the agreed final semester rent." };
   if (parsed.data.rentMethod === "CUSTOM" && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can enter a custom final rent." };
   const transferDate = new Date(`${parsed.data.transferDate}T12:00:00.000Z`);
@@ -141,7 +147,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       let calculation: ReturnType<typeof calculateActualDaysRent> | null = null;
       let newAmount = Number(charge.amount);
       if (parsed.data.rentMethod === "ACTUAL_DAYS") {
-        calculation = calculateActualDaysRent({
+        calculation = calculateActualDaysRent({ currency,
           semesterStart: occupancy.semester.startDate,
           semesterEnd: occupancy.semester.endDate,
           segments: [
@@ -172,9 +178,11 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
 const checkoutSchema = z.object({ checkedOutAt: z.string().date(), checkoutCondition: z.string().trim().min(3).max(500), rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "CUSTOM"]), customRent: z.coerce.number().min(0).max(4_000_000).optional(), rentAdjustmentReason: z.string().trim().max(300).optional(), overrideBalance: z.boolean(), overrideReason: z.string().trim().max(300).optional() });
 export async function checkoutStudentAction(occupancyId: string, _state: StayFormState, formData: FormData): Promise<StayFormState> {
   const session = await requireManager();
+  const currency = await organizationCurrency(session.organizationId);
   const customValue = formData.get("customRent");
   const parsed = checkoutSchema.safeParse({ checkedOutAt: formData.get("checkedOutAt"), checkoutCondition: formData.get("checkoutCondition"), rentMethod: formData.get("rentMethod"), customRent: customValue === "" || customValue === null ? undefined : customValue, rentAdjustmentReason: formData.get("rentAdjustmentReason") || undefined, overrideBalance: formData.get("overrideBalance") === "on", overrideReason: formData.get("overrideReason") || undefined });
   if (!parsed.success) return { error: "Enter the checkout date and room condition." };
+  if (parsed.data.customRent !== undefined && !validAmount(parsed.data.customRent, currency)) return {error:"Use the decimal places supported by your currency."};
   if (parsed.data.rentMethod === "CUSTOM" && parsed.data.customRent === undefined) return { error: "Enter the agreed final semester rent." };
   if (parsed.data.rentMethod === "CUSTOM" && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can enter custom final rent." };
   if (parsed.data.rentMethod !== "KEEP_FULL" && (!parsed.data.rentAdjustmentReason || parsed.data.rentAdjustmentReason.length < 5)) return { error: "Provide a reason for recalculating the rent." };
@@ -196,7 +204,7 @@ export async function checkoutStudentAction(occupancyId: string, _state: StayFor
         if (parsed.data.rentMethod === "ACTUAL_DAYS") {
           const checkoutEndExclusive = addUtcDays(checkoutDate, 1);
           const stays = occupancy.roomStays.length ? occupancy.roomStays : [{ id: "opening", roomId: occupancy.roomId, roomTypeId: occupancy.room.roomTypeId, startDate: occupancy.checkInAt, endDate: null, semesterRateSnapshot: occupancy.room.roomType.semesterRate }];
-          calculation = calculateActualDaysRent({ semesterStart: occupancy.semester.startDate, semesterEnd: occupancy.semester.endDate, segments: stays.map((stay) => ({ roomId: stay.roomId, roomTypeId: stay.roomTypeId, startDate: stay.startDate, endDate: stay.endDate && stay.endDate < checkoutEndExclusive ? stay.endDate : checkoutEndExclusive, semesterRate: Number(stay.semesterRateSnapshot) })) });
+          calculation = calculateActualDaysRent({ currency, semesterStart: occupancy.semester.startDate, semesterEnd: occupancy.semester.endDate, segments: stays.map((stay) => ({ roomId: stay.roomId, roomTypeId: stay.roomTypeId, startDate: stay.startDate, endDate: stay.endDate && stay.endDate < checkoutEndExclusive ? stay.endDate : checkoutEndExclusive, semesterRate: Number(stay.semesterRateSnapshot) })) });
           newAmount = calculation.amount;
         } else newAmount = parsed.data.customRent ?? newAmount;
         rentResult = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: rentCharge.id, createdById: session.userId, reason: "EARLY_CHECKOUT", calculationMethod: parsed.data.rentMethod, newAmount, effectiveDate: checkoutDate, explanation: parsed.data.rentAdjustmentReason ?? "Approved checkout rent recalculation", calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : { customRent: parsed.data.customRent ?? null } });
@@ -204,7 +212,7 @@ export async function checkoutStudentAction(occupancyId: string, _state: StayFor
       const checkoutEndExclusive = addUtcDays(checkoutDate, 1);
       await tx.occupancyRoomStay.updateMany({ where: { occupancyId: occupancy.id, endDate: null }, data: { endDate: checkoutEndExclusive } });
       const charges = await tx.charge.findMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, status: { not: "WAIVED" } }, include: { payments: { where: { reversedAt: null } } } });
-      const netPosition = charges.reduce((sum, charge) => sum + Number(charge.amount) - charge.payments.reduce((paid, item) => paid + Number(item.amount), 0), 0);
+      const netPosition = roundCurrency(charges.reduce((sum, charge) => sum + Number(charge.amount) - charge.payments.reduce((paid, item) => paid + Number(item.amount), 0), 0), currency);
       const balance = Math.max(0, netPosition);
       const credit = Math.max(0, -netPosition);
       if (balance > 0 && !parsed.data.overrideBalance) throw new Error(`OUTSTANDING_BALANCE:${balance}`);
@@ -220,7 +228,7 @@ export async function checkoutStudentAction(occupancyId: string, _state: StayFor
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    if (code.startsWith("OUTSTANDING_BALANCE:")) return { error: `Outstanding balance is KES ${Number(code.split(":")[1]).toLocaleString("en-KE")}. Record payment or use an authorised override.` };
+    if (code.startsWith("OUTSTANDING_BALANCE:")) return { error: `Outstanding balance is ${formatMoney(Number(code.split(":")[1]), currency)}. Record payment or use an authorised override.` };
     if (code === "BALANCE_OVERRIDE_FORBIDDEN") return { error: "Only Owner or Admin can clear a student with an outstanding balance." };
     if (code === "OVERRIDE_REASON_REQUIRED") return { error: "Provide an override reason of at least 8 characters." };
     throw error;

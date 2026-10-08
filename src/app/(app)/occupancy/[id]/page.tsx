@@ -1,12 +1,15 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRightLeft, BedDouble, LogOut, Phone, ReceiptText, UserRound } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { maximumFractionDigits: 2 })}`;
 
 export default async function OccupancyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   const { id } = await params;
   const occupancy = await db.occupancy.findFirst({

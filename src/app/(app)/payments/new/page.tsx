@@ -1,9 +1,13 @@
+import { formatMoney, roundCurrency } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import { redirect } from "next/navigation";
 import { ChargeForm, PaymentForm } from "@/components/payment-forms";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ mode?: string; chargeId?: string; intake?: string; semesterId?: string }> }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   if (session.role === "CARETAKER") redirect("/payments");
   const params = await searchParams;
@@ -13,9 +17,9 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
     db.roomType.findMany({ where: { organizationId: session.organizationId, active: true }, orderBy: { name: "asc" } }),
     db.charge.findMany({ where: { organizationId: session.organizationId, status: { notIn: ["FULLY_PAID", "WAIVED"] } }, include: { student: true, semester: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
   ]);
-  const chargeOptions = charges.map((charge) => ({ id: charge.id, label: `${charge.student.fullName} · ${charge.semester?.name ?? "Other charge"} · ${charge.description}`, balance: Math.max(0, Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0)) })).filter((item) => item.balance > 0);
+  const chargeOptions = charges.map((charge) => ({ id: charge.id, label: `${charge.student.fullName} · ${charge.semester?.name ?? "Other charge"} · ${charge.description}`, balance: Math.max(0, roundCurrency(Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0), currency)) })).filter((item) => item.balance > 0);
   const options = students.map((student) => ({ id: student.id, label: student.fullName }));
   const semesterOptions = semesters.map((semester) => ({ id: semester.id, label: `${semester.name} · ${semester.status}` }));
   const intake = params.intake === "1";
-  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Add student to semester" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Use the student’s existing record and create the appropriate semester charge." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to any outstanding charge, including balances from previous semesters."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · KES ${Number(type.semesterRate).toLocaleString("en-KE")}` }))} selectedSemesterId={params.semesterId} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} intake={intake} selectedChargeId={params.chargeId} />}</div>;
+  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Add student to semester" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Use the student’s existing record and create the appropriate semester charge." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to any outstanding charge, including balances from previous semesters."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · ${money(Number(type.semesterRate))}` }))} selectedSemesterId={params.semesterId} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} intake={intake} selectedChargeId={params.chargeId} />}</div>;
 }

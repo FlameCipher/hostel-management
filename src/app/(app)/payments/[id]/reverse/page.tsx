@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
@@ -5,9 +7,10 @@ import { PaymentReversalForm } from "@/components/payment-reversal-form";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-const money = (value: number) => `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 export default async function ReversePaymentPage({ params }: { params: Promise<{ id: string }> }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   if (!(["OWNER", "ADMIN"] as string[]).includes(session.role)) redirect("/payments");
   const { id } = await params;

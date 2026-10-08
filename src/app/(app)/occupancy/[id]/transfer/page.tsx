@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import { notFound, redirect } from "next/navigation";
 import { TransferForm } from "@/components/occupancy-forms";
 import { requireSession } from "@/lib/auth/session";
@@ -5,6 +7,8 @@ import { db } from "@/lib/db";
 import { compareRooms } from "@/lib/natural-sort";
 
 export default async function TransferPage({ params }: { params: Promise<{ id: string }> }) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   if (session.role === "CARETAKER") redirect("/occupancy");
   const { id } = await params;
@@ -29,7 +33,7 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
   rooms.sort(compareRooms);
   const options = rooms.filter((room) => room.id !== occupancy.roomId).map((room) => ({
     id: room.id,
-    label: `Room ${room.number} · ${room.floor || "Floor unspecified"} · ${room.roomType.name} · ${new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]).size}/${room.capacityOverride ?? room.roomType.defaultCapacity} · KES ${Number(room.roomType.semesterRate).toLocaleString("en-KE")}`,
+    label: `Room ${room.number} · ${room.floor || "Floor unspecified"} · ${room.roomType.name} · ${new Set([...room.occupancies.map((item) => item.studentId), ...room.breakReservations.map((item) => item.studentId)]).size}/${room.capacityOverride ?? room.roomType.defaultCapacity} · ${money(Number(room.roomType.semesterRate))}`,
     semesterRate: Number(room.roomType.semesterRate),
   }));
   const stays = occupancy.roomStays.length ? occupancy.roomStays : [{ startDate: occupancy.checkInAt, endDate: null, semesterRateSnapshot: occupancy.room.roomType.semesterRate }];

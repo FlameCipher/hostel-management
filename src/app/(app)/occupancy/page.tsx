@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { Archive, CalendarDays, CircleCheck, Eye, RotateCcw, UserPlus } from "lucide-react";
 import { BreakDecisionForm, BreakPeriodForm } from "@/components/break-forms";
@@ -11,6 +13,8 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function OccupancyPage() {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   const canManage = session.role !== "CARETAKER";
   const [periods, occupancies, reservations, organization] = await Promise.all([
@@ -30,7 +34,7 @@ export default async function OccupancyPage() {
       const occupancyId = activeOccupancyByStudent.get(item.studentId);
       const canConfirm = item.status === "RESERVED_FREE" || item.status === "CHARGED";
       const needsCheckout = ["RESERVED_FREE", "CHARGED", "CLEARANCE_REQUIRED"].includes(item.status) && occupancyId;
-      return <tr key={item.id}><td><strong>{item.student.fullName}</strong></td><td>Room {item.room.number}</td><td>{item.breakPeriod.name}</td><td>{item.belongingsStored ? "Stored" : "None"}</td><td>{item.charge ? `KES ${Number(item.charge.amount).toLocaleString("en-KE")}` : "None"}</td><td><span className={`status-pill ${item.status === "CHARGED" ? "status-due" : item.status === "VACATED_CLEARED" || item.status === "RETURN_CONFIRMED" ? "status-paid" : "status-partial"}`}>{statusLabel[item.status]}</span></td>{canManage ? <td><div className="row-actions">{canConfirm ? <form action={confirmBreakReturnAction}><input name="reservationId" type="hidden" value={item.id} /><button className="table-action" type="submit"><CircleCheck size={14} /> Confirm return</button></form> : null}{needsCheckout ? <Link className="table-action danger-link" href={`/occupancy/${occupancyId}/checkout`}>Complete checkout</Link> : null}{item.charge ? <span className="muted-note">Charge created</span> : null}</div></td> : null}</tr>;
+      return <tr key={item.id}><td><strong>{item.student.fullName}</strong></td><td>Room {item.room.number}</td><td>{item.breakPeriod.name}</td><td>{item.belongingsStored ? "Stored" : "None"}</td><td>{item.charge ? `${money(Number(item.charge.amount))}` : "None"}</td><td><span className={`status-pill ${item.status === "CHARGED" ? "status-due" : item.status === "VACATED_CLEARED" || item.status === "RETURN_CONFIRMED" ? "status-paid" : "status-partial"}`}>{statusLabel[item.status]}</span></td>{canManage ? <td><div className="row-actions">{canConfirm ? <form action={confirmBreakReturnAction}><input name="reservationId" type="hidden" value={item.id} /><button className="table-action" type="submit"><CircleCheck size={14} /> Confirm return</button></form> : null}{needsCheckout ? <Link className="table-action danger-link" href={`/occupancy/${occupancyId}/checkout`}>Complete checkout</Link> : null}{item.charge ? <span className="muted-note">Charge created</span> : null}</div></td> : null}</tr>;
     })}</tbody></table></div> : <div className="inline-empty"><CalendarDays size={25} /><strong>No break decisions recorded</strong><p>Create a break period and record each active student’s intention.</p></div>}</section>
   </div>;
 }

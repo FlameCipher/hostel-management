@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
 import { BedDouble, Building2, DoorOpen, Eye, Pencil, Plus, Search, Trash2, Users, Wrench } from "lucide-react";
@@ -13,15 +15,10 @@ type RoomsPageProps = {
 
 const validStatuses = new Set<string>(Object.values(RoomStatus));
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-KE", {
-    style: "currency",
-    currency: "KES",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 export default async function RoomsPage({ searchParams }: RoomsPageProps) {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
   const filters = await searchParams;
   const query = filters.q?.trim() ?? "";
@@ -129,7 +126,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           {roomTypes.map((type) => (
             <article className="rate-card" key={type.id}>
               <div><strong>{type.name}</strong><span>{type.sharingMode === "PRIVATE" ? "Private" : "Shared"} · Capacity {type.defaultCapacity}</span></div>
-              <div className="rate-values"><span>{formatCurrency(Number(type.monthlyRate))}<small>/month</small></span><strong>{formatCurrency(Number(type.semesterRate))}<small>/semester</small></strong></div>
+              <div className="rate-values"><span>{money(Number(type.monthlyRate))}<small>/month</small></span><strong>{money(Number(type.semesterRate))}<small>/semester</small></strong></div>
             </article>
           ))}
         </div>
@@ -175,7 +172,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                       <td><strong>{room.roomType.name}</strong><small className="table-subtext">{room.roomType.sharingMode === "PRIVATE" ? "Private" : "Shared"}</small></td>
                       <td>{occupantCount} / {capacity}</td>
                       <td>{room.occupancies.length || breakOnlyReservations.length ? <>{room.occupancies.map((occupancy) => occupancy.student.fullName).join(", ")}{room.occupancies.length && breakOnlyReservations.length ? "; " : ""}{breakOnlyReservations.map((reservation) => `${reservation.student.fullName} (break reserved)`).join(", ")}</> : <span className="muted-note">No occupants</span>}</td>
-                      <td><strong>{formatCurrency(Number(room.roomType.monthlyRate))}</strong><small className="table-subtext">per person</small></td>\n                      <td><strong>{formatCurrency(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
+                      <td><strong>{money(Number(room.roomType.monthlyRate))}</strong><small className="table-subtext">per person</small></td>\n                      <td><strong>{money(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
                       <td><span className={`status-pill ${roomStatusTone[effectiveStatus]}`}>{roomStatusLabels[effectiveStatus]}</span></td>
                       {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`View room ${room.number}`} className="room-view-button" href={`/rooms/${room.id}/edit`}><Eye size={14} /> View</Link><Link aria-label={`Edit room ${room.number}`} className="room-edit-button" href={`/rooms/${room.id}/edit`}><Pencil size={14} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number} · ${room.floor || "Floor unspecified"}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
                     </tr>

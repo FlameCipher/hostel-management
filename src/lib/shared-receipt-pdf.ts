@@ -1,3 +1,4 @@
+import { roundCurrency } from "@/lib/currency";
 import { db } from "@/lib/db";
 import { generateReceiptPdf } from "@/lib/receipt-pdf";
 
@@ -23,8 +24,9 @@ export async function sharedReceiptPdfResponse(paymentId: string, organizationId
   if (!payment) return new Response("Receipt not found.", { status: 404 });
 
   const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
-  const balance = Math.max(0, Number(payment.charge.amount) - paid);
+  const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
   const pdf = await generateReceiptPdf({
+    currency: payment.currency,
     organizationName: payment.organization.name,
     ownerName: payment.organization.ownerName,
     organizationPhone: payment.organization.phone,

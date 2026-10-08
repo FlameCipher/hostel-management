@@ -136,6 +136,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
     });
     const charge = await tx.charge.create({
       data: {
+        currency: roomType.currency,
         organizationId: session.organizationId,
         studentId: student.id,
         semesterId: semester.id,

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
+import { validAmount } from "@/lib/currency";
+import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 import { propertyLocationSchema } from "@/lib/property-location";
 import { RENT_PAYMENT_OPTIONS } from "@/lib/landlord-commercial-policy";
@@ -46,6 +48,8 @@ export async function updateAccommodationRatesAction(_state: SettingsFormState, 
   if (invalid && !invalid.success) return { error: invalid.error.issues[0]?.message ?? "Check the accommodation rates.", message: "" };
   const values = entries.flatMap((entry) => entry.success ? [entry.data] : []);
   if (!values.length) return { error: "No accommodation types were submitted.", message: "" };
+  const currency = await organizationCurrency(session.organizationId);
+  if (formData.get("currency") !== currency || values.some(v => !validAmount(v.monthlyRate, currency) || !validAmount(v.semesterRate, currency))) return {error:"Reload this page and enter amounts using the workspace currency’s decimal places.",message:""};
   const effectiveAtValue = String(formData.get("effectiveAt") ?? "");
   const reason = String(formData.get("rateChangeReason") ?? "").trim();
   const effectiveAt = new Date(`${effectiveAtValue}T12:00:00.000Z`);

@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/currency";
+import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { ExternalLink, Share2 } from "lucide-react";
 import { VacancyShareActions } from "@/components/vacancy-share-actions";
@@ -6,8 +8,9 @@ import { db } from "@/lib/db";
 import { requestPropertyContext } from "@/lib/property-host";
 import { publishedWhere } from "@/lib/property-host-policy";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
-const money=(value:number)=>new Intl.NumberFormat("en-KE",{style:"currency",currency:"KES",maximumFractionDigits:0}).format(value);
 export default async function VacancyCardPage() {
+  const currency = await managementCurrency();
+  const money = (value: number) => formatMoney(value, currency);
  const session=await requireSession();const context=await requestPropertyContext();
  const org=await db.organization.findUniqueOrThrow({where:{id:session.organizationId}});
  const property=await db.property.findFirst({where:{...publishedWhere(),organizationId:session.organizationId,...(context.property?{id:context.property.id}:{})},orderBy:{createdAt:"asc"}});
