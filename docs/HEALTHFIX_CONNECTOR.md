@@ -16,3 +16,9 @@ Within an organization-scoped transaction, with an advisory lock:
 No account access, password, financial data, charges, payment allocations, receipt contents or signed acceptance is modified. A late provider response cannot overwrite REVIEW because sender completion updates require SENDING. HealthFix never guesses delivery success, resets attempts or queues an uncertain retry. Review/reconciliation of ambiguous email remains a management/provider task.
 
 This is limited automatic maintenance, not unrestricted self-repair or complete synthetic monitoring. The daily worker is scheduled at 08:00 Africa/Nairobi; deployed code does not itself prove the scheduler ran. Repairs/history can be checked manually. Database outage alerts require the external collector; this page cannot serve through a complete authenticated database outage. No native Android/iOS probes, automatic deployment fixes, credential changes, financial repairs or support chatbot are added by this change.
+
+## Daily maintenance run receipts
+
+Every active organization receives a `HEALTHFIX_MAINTENANCE_RUN` audit record before daily repairs start. The worker updates it to `COMPLETED` with repair counts (including zero), or `FAILED` with a sanitized completion warning. A process interruption leaves `RUNNING` visible; the management page flags it after 15 minutes. The page also flags no recent attempt after 26 hours. No history means execution is unverified.
+
+Start-receipt persistence failure prevents that organization's repairs. Completion persistence failure may occur after committed repairs; review the separate repair audit rather than assuming rollback. Each invocation has its own receipt, and the existing per-organization transaction lock still serializes repairs. No schema migration is required.
