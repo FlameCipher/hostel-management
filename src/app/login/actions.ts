@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { compare } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -48,7 +49,7 @@ export async function loginAction(
     role: user.role,
   });
 
-  redirect("/dashboard");
+  redirect((await cookies()).get("hostel_sso_code") ? "/platform/connection" : "/dashboard");
 }
 
 export async function logoutAction() {

@@ -28,6 +28,7 @@ export default async function LoginPage() {
           <h2 className="mt-12 text-3xl font-semibold tracking-tight text-slate-950">Welcome back</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">Sign in to manage rooms, students and semester payments.</p>
           <LoginForm />
+          <p className="mt-5"><a className="secondary-button" href="/api/platform/sso/start">Sign in with SYSTEM IN ONE</a></p>
           <p className="mt-8 text-center text-xs text-slate-400">Authorized users only. Contact the owner for account access.</p>
         </div>
       </section>
