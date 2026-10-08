@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && npm run test:invitations && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && npm run test:invitations && npm run test:healthfix && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -21,7 +21,8 @@
     "test:terms": "node --import tsx --test scripts/test-student-terms.ts",
     "test:communications": "node --import tsx --test scripts/test-communications.ts",
     "test:contact": "node --import tsx --test scripts/test-tenant-contact.ts",
-    "test:invitations": "node --import tsx --test scripts/test-portal-invitations.ts"
+    "test:invitations": "node --import tsx --test scripts/test-portal-invitations.ts",
+    "test:healthfix": "node --import tsx --test scripts/test-healthfix.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

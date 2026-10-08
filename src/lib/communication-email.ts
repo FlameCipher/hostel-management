@@ -28,8 +28,8 @@ export async function sendCommunicationEmails(db:PrismaClient,now=new Date(),fet
  result=emailResult(response.status,providerId);
  if(result.status==="RETRY"&&item.emailAttempts>=3)result={status:"FAILED",error:"Email retry limit reached. Management review required."};
  }catch{/* Ambiguous network results are never retried automatically. */}
- await db.tenantMessage.update({where:{id:item.id},data:{emailStatus:result.status,emailProviderId:providerId,emailError:result.error}});
- if(result.status==="PROVIDER_ACCEPTED")accepted++;
+ const completed=await db.tenantMessage.updateMany({where:{id:item.id,emailStatus:"SENDING",emailGeneration:item.emailGeneration,emailAttempts:item.emailAttempts,emailAttemptAt:item.emailAttemptAt},data:{emailStatus:result.status,emailProviderId:providerId,emailError:result.error}});
+ if(completed.count===1&&result.status==="PROVIDER_ACCEPTED")accepted++;
  }
  return{accepted,configured:true};
 }

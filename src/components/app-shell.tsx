@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
   { label: "Check-in / Check-out", href: "/occupancy", icon: ClipboardCheck },
   { label: "Student Property", href: "/student-property", icon: PackageSearch },
   { label: "Hostel Assets", href: "/assets", icon: Wrench },
+  { label: "HealthFix", href: "/healthfix", icon: ShieldCheck },
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Users & Permissions", href: "/users", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings },
