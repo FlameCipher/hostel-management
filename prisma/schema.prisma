@@ -372,7 +372,9 @@ model Property {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rooms        Room[]
+  photos       PropertyPhoto[]
 
+  @@unique([id, organizationId])
   @@unique([organizationId, slug])
   @@index([organizationId, active])
 }
@@ -1070,4 +1072,22 @@ model PlatformSsoGrant {
   consumedAt DateTime?
   createdAt DateTime @default(now())
   @@index([expiresAt])
+}
+
+model PropertyPhoto {
+  id             String @id @default(cuid())
+  organizationId String
+  propertyId     String
+  uploadedById   String
+  pathname       String @unique
+  url            String?
+  caption        String @default("")
+  visible        Boolean @default(false)
+  isCover        Boolean @default(false)
+  expiresAt      DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  property Property @relation(fields: [propertyId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  @@index([organizationId, propertyId, deletedAt])
 }

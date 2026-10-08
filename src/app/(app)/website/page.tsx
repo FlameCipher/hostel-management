@@ -1,0 +1,12 @@
+import Link from "next/link";
+import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { PropertyProfileForm } from "@/components/property-profile-form";
+import { PropertyPhotoManager } from "@/components/property-photo-manager";
+export const dynamic = "force-dynamic";
+export default async function WebsitePage() {
+  const session = await requireSession();
+  if (!["OWNER", "ADMIN"].includes(session.role)) return <section className="panel"><h1>My Website</h1><p>Only the owner or an administrator can edit the public website.</p></section>;
+  const properties = await db.property.findMany({ where: { organizationId: session.organizationId, active: true }, select: { id:true,name:true,physicalAddress:true,phone:true,email:true,publicDescription:true,customDomain:true,publicListing:true,photos: { select:{id:true,url:true,caption:true,visible:true,isCover:true,deletedAt:true},where: { OR: [{ deletedAt: null }, { url: { not: null } }] }, orderBy: [{deletedAt:{sort:"asc",nulls:"first"}},{createdAt:"asc"}], take: 24 } }, orderBy: { name: "asc" } });
+  return <div className="settings-stack"><div className="page-heading-row"><div><p className="eyebrow">Your advertising website</p><h1>My Website</h1><p>Edit your hostel name, description, public contacts and pictures. Your own name appears on your public page.</p><p><Link href="/settings">Room prices & operational settings</Link> · <Link href="/setup">Publication controls</Link> · <Link href="/account">Login email & password</Link></p></div></div>{properties.map(property => <section className="settings-stack" key={property.id}>{property.customDomain && <p><a className="secondary-button" href={`https://${property.customDomain}`} target="_blank" rel="noreferrer">View {property.name} website</a></p>}<PropertyProfileForm property={property}/><PropertyPhotoManager propertyId={property.id} organizationId={session.organizationId} photos={property.photos.map(photo => ({ id: photo.id, url: photo.url, caption: photo.caption, visible: photo.visible, isCover: photo.isCover, removed: Boolean(photo.deletedAt) }))} configured={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}/></section>)}{!properties.length && <p>No active property is available. Complete hostel setup first.</p>}</div>;
+}

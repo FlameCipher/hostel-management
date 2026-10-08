@@ -10,6 +10,7 @@ import {
   Bell,
   CalendarDays,
   Building2,
+  Globe,
   ClipboardCheck,
   CreditCard,
   CircleDollarSign,
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Users & Permissions", href: "/users", icon: ShieldCheck },
   { label: "Hostel Setup", href: "/setup", icon: Building2 },
+  { label: "My Website", href: "/website", icon: Globe },
   { label: "My Account", href: "/account", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

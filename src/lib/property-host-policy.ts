@@ -1,5 +1,5 @@
 export const DIRECTORY_HOST = "studentshostels.com";
-export const MMAMBUGUA_HOST = "mmabugua.studentshostels.com";
+export const MMAMBUGUA_HOST = "mmambugua.studentshostels.com";
 export function normalizeHost(value: string | null): string | null {
   if (!value || value.length > 260) return null;
   const match = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::[0-9]{1,5})?$/i.exec(value);
@@ -15,4 +15,8 @@ export function isLegacyHost(host: string | null) {
 export function publishedWhere() { return {active:true,publicListing:true,organization:{status:"ACTIVE" as const}}; }
 export function accountScopeAllowed(host: string | null, propertyOrganizationId: string | null, sessionOrganizationId: string) {
   return isSharedHost(host) || (!!propertyOrganizationId && propertyOrganizationId === sessionOrganizationId);
+}
+
+export function isPreviousMmambuguaHost(host: string | null) {
+  return host === "mmabugua.studentshostels.com" || host === "mmambuguahostel.studentshostels.com";
 }
