@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {PrismaClient} from '../src/generated/prisma/client';
-import {collectHealthfix,healthfixAuthorized,healthfixManager,repairHealthfix,runHealthfixMaintenance} from '../src/lib/healthfix';
+import {maintenanceRunStatus,maintenanceScheduleCheck,collectHealthfix,healthfixAuthorized,healthfixManager,repairHealthfix,runHealthfixMaintenance} from '../src/lib/healthfix';
 const now=new Date('2026-10-08T04:00:00Z');
 const env={NODE_ENV:'production',VERCEL_ENV:'production',SESSION_SECRET:'fake-long-session-secret',PLATFORM_PROVISIONING_SECRET:'fake',RESEND_API_KEY:'fake',RECEIPT_EMAIL_FROM:'hostel@example.invalid',CRON_SECRET:'fake'};
-function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR')}};for(const model of ['student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
+function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR');return [{count:0}]},organization:{findMany:async()=>[{id:'one',createdAt:new Date('2026-10-01')}]},auditLog:{findMany:async()=>[{organizationId:'one',createdAt:now,metadata:{status:'COMPLETED'}}]}};for(const model of ['student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
 test('connector authentication rejects missing and wrong secrets',()=>{assert.equal(healthfixAuthorized(undefined,'x'),false);assert.equal(healthfixAuthorized('x',null),false);assert.equal(healthfixAuthorized('x','xx'),false);assert.equal(healthfixAuthorized('x','x'),true)});
 test('healthy configuration does not claim unverified workflows healthy',async()=>{const f=reads();const report=await collectHealthfix(f.db,'one',now,env);assert.equal(report.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='email')?.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='provisioning')?.status,'UNKNOWN');for(const call of f.calls)assert.equal(call.where.organizationId,'one');assert.ok(report.modules.every(m=>m.status!=='HEALTHY'||m.checks.every(c=>c.status==='PASSING')))});
 test('failed module read preserves other checks without leaking database details',async()=>{const report=await collectHealthfix(reads('occupancy').db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='bookings')?.status,'DEGRADED');assert.equal(report.modules.find(m=>m.code==='database')?.status,'HEALTHY');assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(report).includes('PRIVATE_DATABASE_ERROR'))});
@@ -35,4 +35,29 @@ test('failed repairs persist sanitized failure and continue processing',async()=
 test('unavailable start receipt prevents unrecorded repairs',async()=>{
  let repaired=false;const db={organization:{findMany:async()=>[{id:'one'}]},auditLog:{create:async()=>{throw Error('unavailable')}},$transaction:async()=>{repaired=true}} as unknown as PrismaClient;
  assert.deepEqual(await runHealthfixMaintenance(db,now),{checked:1,changed:0,failed:1});assert.equal(repaired,false);
+});
+
+test('daily receipt checks use Nairobi schedule and grace, including first missing run',()=>{
+ const created=new Date('2026-10-01');
+ assert.equal(maintenanceRunStatus(created,undefined,new Date('2026-10-08T07:00:00Z')),'WARNING');
+ const yesterday={createdAt:new Date('2026-10-07T05:00:00Z'),metadata:{status:'COMPLETED'}};
+ assert.equal(maintenanceRunStatus(created,yesterday,new Date('2026-10-08T06:59:59Z')),'PASSING');
+ assert.equal(maintenanceRunStatus(created,yesterday,new Date('2026-10-08T07:00:00Z')),'WARNING');
+ assert.equal(maintenanceRunStatus(new Date('2026-10-08T06:00:00Z'),undefined,new Date('2026-10-08T07:00:00Z')),'PASSING');
+ for(const [metadata,expected] of [[{status:'FAILED'},'FAILING'],[{status:'RUNNING'},'WARNING'],[{status:'INVALID'},'UNKNOWN'],[{status:'COMPLETED'},'PASSING']] as const)
+ assert.equal(maintenanceRunStatus(created,{createdAt:new Date('2026-10-08T05:00:00Z'),metadata},new Date('2026-10-08T07:00:00Z')),expected);
+});
+test('schedule report isolates landlords and fails unknown when receipt reads fail',async()=>{
+ let orgWhere:unknown,runWhere:unknown;
+ const db={organization:{findMany:async(a:{where:unknown})=>{orgWhere=a.where;return[{id:'one',createdAt:new Date('2026-10-01')}]}},auditLog:{findMany:async(a:{where:unknown})=>{runWhere=a.where;return[]}}} as unknown as PrismaClient;
+ assert.equal((await maintenanceScheduleCheck(db,'one',now)).status,'WARNING');
+ assert.deepEqual(orgWhere,{status:'ACTIVE',id:'one'});assert.deepEqual(runWhere,{organizationId:{in:['one']},action:'HEALTHFIX_MAINTENANCE_RUN'});
+ const failing={organization:{findMany:async()=>{throw Error('PRIVATE')}}} as unknown as PrismaClient;
+ assert.equal((await maintenanceScheduleCheck(failing,'one',now)).status,'UNKNOWN');
+});
+test('integrity anomalies warn without exposing record identities',async()=>{
+ const f=reads();f.db.$queryRaw=(async(strings:TemplateStringsArray,...values:unknown[])=>{if(strings.join('').includes('COUNT')){assert.deepEqual(values,['one','one']);return[{count:1}]};return[]}) as typeof f.db.$queryRaw;
+ const report=await collectHealthfix(f.db,'one',now,env);
+ assert.equal(report.modules.find(m=>m.code==='record-integrity')?.status,'DEGRADED');
+ assert.ok(!JSON.stringify(report).includes('studentId'));
 });
