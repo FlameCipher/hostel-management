@@ -13,7 +13,8 @@ export async function GET(request:Request){
  const grant=await pendingSso(db,code,verifier);if(!grant)return fail();
  const identity=await platformIdentity(grant);if(!identity)return fail();
  const linked=await db.user.findFirst({where:{platformUserId:identity.platformUserId,active:true,organization:{platformOrganizationId:identity.platformOrganizationId,platformProductCode:'STUDENTSHOSTELS',status:'ACTIVE'}},select:{id:true}});
- const r=NextResponse.redirect(new URL(linked?'/dashboard':'/platform/connection','https://studentshostels.com'));r.headers.set('cache-control','no-store');r.headers.set('referrer-policy','no-referrer');
+ const fresh=!linked && identity.role==='OWNER' ? await db.organization.findFirst({where:{platformOrganizationId:identity.platformOrganizationId,platformProductCode:'STUDENTSHOSTELS',status:'ACTIVE',platformBootstrapAllowed:true,users:{none:{}}},select:{id:true}}) : null;
+ const r=NextResponse.redirect(new URL(linked?'/dashboard':fresh?'/platform/new-owner':'/platform/connection','https://studentshostels.com'));r.headers.set('cache-control','no-store');r.headers.set('referrer-policy','no-referrer');
  if(linked){await createSession(await consumeSso(db,code,verifier,identity));for(const name of ['hostel_sso_state','hostel_sso_verifier','hostel_sso_code'])r.cookies.delete(name);}
  else r.cookies.set('hostel_sso_code',code,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:300});
  return r;

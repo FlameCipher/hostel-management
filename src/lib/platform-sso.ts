@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { compare } from 'bcryptjs';
+import {bootstrapOwnerAllowed} from '@/lib/landlord-onboarding-policy';
+import { compare, hash } from 'bcryptjs';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { SessionPayload } from '@/lib/auth/session';
 export type PlatformSubject = { platformUserId: string; platformOrganizationId: string; sessionVersion: number };
@@ -27,14 +28,14 @@ export async function platformIdentity(subject: PlatformSubject, fetcher: typeof
 export async function issueSsoGrant(db: PrismaClient, subject: PlatformSubject, challenge: string, now = new Date()) {
   if (!validSubject(subject) || !validOpaque(challenge)) throw Error('SSO_DENIED');
   const code = randomBytes(32).toString('base64url');
-  await db.platformSsoGrant.create({ data:{ ...subject, challenge, tokenHash:ssoHash(code), expiresAt:new Date(now.getTime()+5*60000) } });
+  await db.platformSsoGrant.create({ data:{ platformUserId:subject.platformUserId, platformOrganizationId:subject.platformOrganizationId, sessionVersion:subject.sessionVersion, challenge, tokenHash:ssoHash(code), expiresAt:new Date(now.getTime()+5*60000) } });
   return code;
 }
 export async function pendingSso(db: PrismaClient, code: string, verifier: string, now = new Date()) {
   if (!validOpaque(code) || !validOpaque(verifier)) return null;
   return db.platformSsoGrant.findFirst({ where:{tokenHash:ssoHash(code),challenge:ssoHash(verifier),consumedAt:null,expiresAt:{gt:now},attempts:{lt:5}} });
 }
-export async function consumeSso(db: PrismaClient, code: string, verifier: string, identity: PlatformIdentity, proof?: {userId:string;organizationId:string;password:string}, now = new Date()): Promise<SessionPayload> {
+export async function consumeSso(db: PrismaClient, code: string, verifier: string, identity: PlatformIdentity, proof?: {userId:string;organizationId:string;password:string} | {bootstrap:true}, now = new Date()): Promise<SessionPayload> {
   if (!validOpaque(code) || !validOpaque(verifier)) throw Error('SSO_DENIED');
   const attempt = await db.platformSsoGrant.updateMany({where:{tokenHash:ssoHash(code),challenge:ssoHash(verifier),consumedAt:null,expiresAt:{gt:now},attempts:{lt:5}},data:{attempts:{increment:1}}});
   if (attempt.count !== 1) throw Error('SSO_DENIED');
@@ -44,7 +45,18 @@ export async function consumeSso(db: PrismaClient, code: string, verifier: strin
     if (!grant || !validSubject(identity) || grant.platformUserId !== identity.platformUserId || grant.platformOrganizationId !== identity.platformOrganizationId || grant.sessionVersion !== identity.sessionVersion) throw Error('SSO_DENIED');
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"hostel-platform:"+identity.platformOrganizationId}))`;
     let user = await tx.user.findFirst({ where:{platformUserId:identity.platformUserId,active:true,organization:{platformOrganizationId:identity.platformOrganizationId,platformProductCode:'STUDENTSHOSTELS',status:'ACTIVE'}},include:{organization:true} });
-    if (!user && proof) {
+    if (!user && proof && 'bootstrap' in proof) {
+      const org=await tx.organization.findUnique({where:{platformOrganizationId:identity.platformOrganizationId}});
+      if(!org)throw Error('SSO_DENIED');
+      await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${org.id} FOR UPDATE`;
+      const current=await tx.organization.findUniqueOrThrow({where:{id:org.id}});
+      const users=await tx.user.count({where:{organizationId:org.id}});
+      if(!bootstrapOwnerAllowed({enabled:current.platformBootstrapAllowed,active:current.status==='ACTIVE',product:current.platformProductCode,role:identity.role,users}))throw Error('SSO_DENIED');
+      user=await tx.user.create({data:{organizationId:org.id,platformUserId:identity.platformUserId,name:identity.userName,email:identity.email.toLowerCase(),role:'OWNER',active:true,passwordHash:await hash(randomBytes(48).toString('base64url'),12)},include:{organization:true}});
+      await tx.organization.update({where:{id:org.id},data:{platformBootstrapAllowed:false,ownerName:identity.userName}});
+      await tx.auditLog.create({data:{organizationId:org.id,actorUserId:user.id,action:'PLATFORM_FIRST_OWNER_CREATED',entityType:'User',entityId:user.id}});
+    }
+    if (!user && proof && !('bootstrap' in proof)) {
       if (proof.password.length < 8 || proof.password.length > 128) throw Error('SSO_DENIED');
       user = await tx.user.findFirst({where:{id:proof.userId,organizationId:proof.organizationId,active:true,organization:{status:'ACTIVE'}},include:{organization:true}});
       if (!user || !await compare(proof.password,user.passwordHash)) throw Error('SSO_DENIED');

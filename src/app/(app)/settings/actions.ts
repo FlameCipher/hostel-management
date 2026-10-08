@@ -84,5 +84,5 @@ export async function updatePropertyProfileAction(_state:SettingsFormState,formD
  if(result.count!==1)throw Error("PROPERTY_UNAVAILABLE");
  await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"PROPERTY_PUBLIC_PROFILE_UPDATED",entityType:"Property",entityId:id}});
  }); }catch{return{error:"Property unavailable or changes could not be saved.",message:""};}
- revalidatePath("/");revalidatePath("/settings");return{error:"",message:"Property website details saved."};
+ revalidatePath("/");revalidatePath("/settings");revalidatePath("/setup");return{error:"",message:"Property website details saved."};
 }
