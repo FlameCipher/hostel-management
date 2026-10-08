@@ -19,9 +19,19 @@
 - Public landlord setup pricing USD 40.00, separated from student accommodation charges.
 - Expanded property information, room rates, booking process, viewing questions, FAQs and contact/portal navigation without inventing facilities.
 
-## Payment activation work still required
+## Interim manual payments (approved 8 October 2026)
 
-The existing access model uses commercial approval and entitlements; it does not yet prove that an invoice has been paid. No live platform payment collection is enabled by this website update.
+Automatic gateway integration is deferred at the owner's request. Manual M-Pesa uses **0726717120** (international **+254726717120**), also the intended WhatsApp Business contact. The earlier ending 129 was corrected to 120; do not use the superseded number.
+
+- Keep setup at USD40. Agree on the exact KES quote and any separate subscription charges before the customer pays; there is no automatic exchange-rate conversion or invented recurring price.
+- Customer creates an account, verifies email, requests access, confirms the amount/recipient, uses M-Pesa Send Money and shares the reference, amount and business name through WhatsApp.
+- Platform administrator checks the actual receiving account. New StudentsHostels activations require the reference, identical agreed/received KES amounts and explicit verification. Record the verifier and payment details in the audit transaction; reject reused references across organizations.
+- A pending organization and its approved access are activated by the administrator. Provisioning remains a separate existing administrative step. No customer checkbox, message or uploaded screenshot activates access.
+- This contact is for platform fees and support, never a universal tenant-rent recipient. WhatsApp Business registration is handled by the owner separately; publishing a contact link does not configure the account.
+
+## Later automatic payment activation work
+
+The existing access model uses commercial approval and entitlements; it does not yet prove that an invoice has been paid. The interim route is manual Send Money and administrator verification; no live gateway collection or automatic payment verification is enabled.
 
 1. Connect the platform's own payment merchant account and approved settlement currency/countries. Do not reuse a landlord's rent collection credentials.
 2. Create server-priced orders with immutable currency and integer minor-unit amounts, organization, product, plan, fee line items and merchant identity. Price the setup fee once per entitled organization/product using a unique billing record. Reuse an open checkout for retries rather than charging twice.

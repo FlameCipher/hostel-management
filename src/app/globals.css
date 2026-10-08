@@ -624,3 +624,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hostel-directory-search label { display: grid; gap: 8px; font-weight: 600; flex: 1 1 210px; min-width: 0; }
 .hostel-directory-search input, .hostel-directory-search select { width: 100%; border: 1px solid #bcc8be; background: #fff; color: #173629; border-radius: 8px; padding: 13px 12px; font: inherit; }
 .hostel-directory-search :is(input,select):focus-visible { outline: 3px solid #bf8c38; outline-offset: 3px; }
+
+.hostel-manual-payment { margin-top: 28px; padding: 28px; border: 1px solid #c9d4cc; border-radius: 18px; background: #f2f5f1; }
+.hostel-manual-payment h3 { margin-top: 0; font-size: 24px; }
+.hostel-manual-payment p, .hostel-manual-payment li { line-height: 1.75; }
+.hostel-manual-payment ol { padding-left: 22px; display: grid; gap: 10px; }
+.hostel-manual-payment a { overflow-wrap: anywhere; }
+@media(max-width:600px) { .hostel-manual-payment { padding: 22px 18px; } }
