@@ -377,6 +377,8 @@ model Property {
   @@unique([id, organizationId])
   @@unique([organizationId, slug])
   @@index([organizationId, active])
+  bookingRequests BookingRequest[]
+
 }
 
 model User {
@@ -446,6 +448,9 @@ model RoomType {
   roomStays    OccupancyRoomStay[]
 
   @@unique([organizationId, name])
+  bookingRequests BookingRequest[]
+  @@unique([id, organizationId])
+
 }
 
 model Room {
@@ -1090,4 +1095,26 @@ model PropertyPhoto {
   updatedAt      DateTime @updatedAt
   property Property @relation(fields: [propertyId, organizationId], references: [id, organizationId], onDelete: Cascade)
   @@index([organizationId, propertyId, deletedAt])
+}
+
+model BookingRequest {
+  id String @id @default(cuid())
+  organizationId String
+  propertyId String
+  roomTypeId String
+  requestId String
+  reference String @unique
+  fullName String
+  phone String
+  email String?
+  preferredMoveIn DateTime @db.Date
+  contactKey String
+  status String @default("REQUESTED")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  property Property @relation(fields: [propertyId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  roomType RoomType @relation(fields: [roomTypeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  @@unique([propertyId, requestId])
+  @@index([organizationId, status, createdAt])
+  @@index([propertyId, contactKey, createdAt])
 }

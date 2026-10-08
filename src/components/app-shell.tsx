@@ -33,6 +33,7 @@ type NavItem = { label: string; href: string; icon: LucideIcon };
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Rooms", href: "/rooms", icon: BedDouble },
+  { label: "Bookings", href: "/bookings", icon: CalendarDays },
   { label: "Students", href: "/students", icon: Users },
   { label: "Student Terms", href: "/student-terms", icon: ClipboardCheck },
   { label: "Semesters", href: "/semesters", icon: CalendarDays },
