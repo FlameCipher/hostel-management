@@ -1,5 +1,5 @@
 export const DIRECTORY_HOST = "studentshostels.com";
-export const MMAMBUGUA_HOST = "mmambuguahostel.studentshostels.com";
+export const MMAMBUGUA_HOST = "mmabugua.studentshostels.com";
 export function normalizeHost(value: string | null): string | null {
   if (!value || value.length > 260) return null;
   const match = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::[0-9]{1,5})?$/i.exec(value);
