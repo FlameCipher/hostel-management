@@ -18,7 +18,7 @@ export async function platformIdentity(subject: PlatformSubject, fetcher: typeof
   const secret = process.env.HOSTEL_SSO_SECRET;
   if (!secret || !validSubject(subject)) return null;
   try {
-    const r = await fetcher('https://systeminone.com/api/hostel/sso/identity', { method:'POST', headers:{'content-type':'application/json','x-hostel-sso-secret':secret}, body:JSON.stringify(subject), cache:'no-store', redirect:'error', signal:AbortSignal.timeout(5000) });
+    const r = await fetcher('https://systeminone.com/api/hostel/sso/identity', { method:'POST', headers:{'content-type':'application/json','x-hostel-sso-secret':secret}, body:JSON.stringify({platformUserId:subject.platformUserId,platformOrganizationId:subject.platformOrganizationId,sessionVersion:subject.sessionVersion}), cache:'no-store', redirect:'error', signal:AbortSignal.timeout(5000) });
     if (!r.ok) return null;
     const v = await r.json() as PlatformIdentity;
     return validSubject(v) && v.platformUserId === subject.platformUserId && v.platformOrganizationId === subject.platformOrganizationId && v.sessionVersion === subject.sessionVersion && typeof v.email === 'string' && typeof v.userName === 'string' && typeof v.organizationName === 'string' && ['OWNER','ADMIN','MEMBER'].includes(v.role) ? v : null;
