@@ -21,6 +21,29 @@ function configuration(code: string, name: string, configured: boolean): Check {
   return { code, name, status: configured ? "PASSING" : "FAILING", checkType: "CONFIGURATION" };
 }
 function unknown(code: string, name: string): Check { return { code, name, status: "UNKNOWN", checkType: "FUNCTIONAL" }; }
+export function maintenanceRunStatus(createdAt: Date, run: { createdAt: Date; metadata: unknown } | undefined, now: Date): CheckStatus {
+  // 08:00 EAT is 05:00 UTC; allow two hours for the daily batch to finish.
+  const expected = new Date(now);
+  expected.setUTCHours(5, 0, 0, 0);
+  if (now.getTime() < expected.getTime() + 2 * 3600000) expected.setUTCDate(expected.getUTCDate() - 1);
+  if (!run) return createdAt > expected ? "PASSING" : "WARNING";
+  const meta = run.metadata && typeof run.metadata === "object" && !Array.isArray(run.metadata) ? run.metadata as Record<string, unknown> : {};
+  if (meta.status === "FAILED") return "FAILING";
+  if (run.createdAt < expected && createdAt <= expected) return "WARNING";
+  if (meta.status === "RUNNING") return now.getTime() - run.createdAt.getTime() > interruptedAfterMs ? "WARNING" : "PASSING";
+  return meta.status === "COMPLETED" ? "PASSING" : "UNKNOWN";
+}
+export async function maintenanceScheduleCheck(db: PrismaClient, organizationId: string | undefined, now: Date): Promise<Check> {
+  let status: CheckStatus = "PASSING";
+  try {
+    const organizations = await db.organization.findMany({ where: { status: "ACTIVE", ...(organizationId ? { id: organizationId } : {}) }, select: { id: true, createdAt: true } });
+    const runs = await db.auditLog.findMany({ where: { organizationId: { in: organizations.map(o => o.id) }, action: "HEALTHFIX_MAINTENANCE_RUN" }, distinct: ["organizationId"], orderBy: { createdAt: "desc" }, select: { organizationId: true, createdAt: true, metadata: true } });
+    const byOrganization = new Map(runs.map(r => [r.organizationId, r]));
+    const statuses = organizations.map(o => maintenanceRunStatus(o.createdAt, byOrganization.get(o.id), now));
+    status = statuses.includes("FAILING") ? "FAILING" : statuses.includes("WARNING") ? "WARNING" : statuses.includes("UNKNOWN") ? "UNKNOWN" : "PASSING";
+  } catch { status = "UNKNOWN"; }
+  return { code: "daily-maintenance", name: "Daily repair receipts: missing, failed or interrupted runs need review (08:00 EAT; two-hour grace)", status, checkType: "DATABASE" };
+}
 // Scoped metadata reads only: no login, external sends, financial writes or customer identities.
 export async function collectHealthfix(db: PrismaClient, organizationId?: string, now = new Date(), env: Record<string, string | undefined> = process.env) {
   const scope = organizationId ? { organizationId } : {};
@@ -39,7 +62,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   await read("communications", "Tenant communications", () => Promise.all([db.tenantMessage.count({ where: scope }), db.tenantConversation.count({ where: scope })]), [unknown("workflow", "Message and reply flows not probed")]);
   await read("invitations", "Account invitations", () => db.tenantPortalInvitation.count({ where: scope }), [unknown("activation", "Account activation not probed")]);
   modules.push(module("email", "Email delivery", [configuration("sender", "Email key and sender configured", Boolean(env.RESEND_API_KEY && env.RECEIPT_EMAIL_FROM)), unknown("delivery", "Mailbox delivery not confirmed")]));
-  modules.push(module("scheduler", "Scheduled processing", [configuration("secret", "Cron authentication configured", Boolean(env.CRON_SECRET)), unknown("execution", "Scheduler execution not independently verified")]));
+  modules.push(module("scheduler", "Scheduled processing", [configuration("secret", "Cron authentication configured", Boolean(env.CRON_SECRET)), await maintenanceScheduleCheck(db, organizationId, now)]));
   modules.push(module("whatsapp", "WhatsApp delivery", [unknown("automatic", "Automatic Business sender not connected")]));
   const old = new Date(now.getTime() - interruptedAfterMs), overdue = new Date(now.getTime() - backlogAfterMs);
   async function warning(code: string, name: string, query: () => Promise<number>): Promise<Check> {
@@ -47,6 +70,21 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
     try { status = await query() ? "WARNING" : "PASSING"; } catch { status = "FAILING"; }
     return { code, name, status, checkType: "DATABASE" };
   }
+  const integrityScope = organizationId ?? null;
+  modules.push(module("record-integrity", "Landlord record integrity", await Promise.all([
+    warning("rooms", "Room property and room type belong to the same landlord", async () => {
+      const rows = await db.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM "Room" r JOIN "Property" p ON p.id=r."propertyId" JOIN "RoomType" t ON t.id=r."roomTypeId" WHERE (${integrityScope}::text IS NULL OR r."organizationId"=${integrityScope}) AND (p."organizationId"<>r."organizationId" OR t."organizationId"<>r."organizationId")`;
+      return rows[0].count;
+    }),
+    warning("allocations", "Allocation student, room and semester belong to the same landlord", async () => {
+      const rows = await db.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM "Occupancy" o JOIN "Student" s ON s.id=o."studentId" JOIN "Room" r ON r.id=o."roomId" JOIN "Semester" t ON t.id=o."semesterId" WHERE (${integrityScope}::text IS NULL OR o."organizationId"=${integrityScope}) AND (s."organizationId"<>o."organizationId" OR r."organizationId"<>o."organizationId" OR t."organizationId"<>o."organizationId")`;
+      return rows[0].count;
+    }),
+    warning("payments", "Payment and charge refer to the same student and landlord", async () => {
+      const rows = await db.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM "Payment" p JOIN "SemesterCharge" c ON c.id=p."chargeId" JOIN "Student" s ON s.id=p."studentId" WHERE (${integrityScope}::text IS NULL OR p."organizationId"=${integrityScope}) AND (c."organizationId"<>p."organizationId" OR s."organizationId"<>p."organizationId" OR c."studentId"<>p."studentId")`;
+      return rows[0].count;
+    }),
+  ])));
   modules.push(module("delivery-queues", "Delivery queues", await Promise.all([
     warning("interrupted-invitations", "Interrupted invitation sends need review", () => db.tenantPortalInvitation.count({ where: { ...scope, usedAt: null, status: "SENDING", OR: [{ attemptedAt: null }, { attemptedAt: { lte: old } }] } })),
     warning("interrupted-email", "Interrupted notice sends need review", () => db.tenantMessage.count({ where: { ...scope, emailStatus: "SENDING", OR: [{ emailAttemptAt: null }, { emailAttemptAt: { lte: old } }] } })),
