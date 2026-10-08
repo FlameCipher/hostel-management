@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
 import { normalizeStudentDocument, normalizeStudentPhone } from "@/lib/student-identifiers";
 import { clearStudentUpdateSession, createStudentUpdateSession, getPublicLookupFingerprint, getStudentUpdateSession } from "@/lib/student-update-session";
@@ -34,8 +35,9 @@ function isPrismaError(error: unknown, code: string) {
 export async function identifyStudentAction(_state: StudentLookupState, formData: FormData): Promise<StudentLookupState> {
   const parsed = lookupSchema.safeParse({ fullName: formData.get("fullName"), phone: formData.get("phone") });
   if (!parsed.success) return { error: "Enter your full name and registered phone number." };
-  const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
-  if (!organization) return { error: "Student detail updates are temporarily unavailable." };
+  const context=await requestPropertyContext();
+  const organization=context.property ? {id:context.property.organizationId} : null;
+  if (!organization) return { error: "Open your hostel website to update your student details." };
 
   const fingerprintHash = await getPublicLookupFingerprint();
   const attemptedAfter = new Date(Date.now() - 15 * 60 * 1000);

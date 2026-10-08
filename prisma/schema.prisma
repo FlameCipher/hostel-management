@@ -362,6 +362,8 @@ model Property {
   physicalAddress String?
   phone          String?
   email          String?
+  publicListing  Boolean  @default(false)
+  publicDescription String?
   customDomain   String?  @unique
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())

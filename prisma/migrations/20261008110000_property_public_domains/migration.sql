@@ -1,0 +1,2 @@
+ALTER TABLE "Property" ADD COLUMN "publicListing" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "publicDescription" TEXT;
+UPDATE "Property" SET "customDomain"='mmambuguahostel.studentshostels.com', "publicListing"=true, "publicDescription"='Affordable private and shared student accommodation approximately 500 metres from JKUAT Gate B, Juja.' WHERE "organizationId"='mama-mbugua-hostel' AND slug='mmambugua-hostel' AND ("customDomain" IS NULL OR "customDomain"='mmambuguahostel.studentshostels.com');

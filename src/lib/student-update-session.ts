@@ -1,3 +1,5 @@
+import { requestPropertyContext } from "@/lib/property-host";
+import { accountScopeAllowed } from "@/lib/property-host-policy";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies, headers } from "next/headers";
 import { createHmac } from "node:crypto";
@@ -44,6 +46,8 @@ export async function getStudentUpdateSession(): Promise<StudentUpdateSession | 
     const { payload } = await jwtVerify(token, secretKey());
     if (payload.purpose !== "student-details-update") return null;
     if (typeof payload.studentId !== "string" || typeof payload.organizationId !== "string" || typeof payload.submittedName !== "string" || typeof payload.submittedPhone !== "string") return null;
+    const context=await requestPropertyContext();
+    if(!accountScopeAllowed(context.host,context.property?.organizationId??null,payload.organizationId))return null;
     return { studentId: payload.studentId, organizationId: payload.organizationId, submittedName: payload.submittedName, submittedPhone: payload.submittedPhone };
   } catch {
     return null;

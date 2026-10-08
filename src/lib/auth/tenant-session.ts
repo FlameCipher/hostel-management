@@ -1,3 +1,5 @@
+import { requestPropertyContext } from "@/lib/property-host";
+import { accountScopeAllowed } from "@/lib/property-host-policy";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -24,6 +26,8 @@ export async function getTenantSession(): Promise<TenantSession | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
     if (typeof payload.studentId !== "string" || typeof payload.organizationId !== "string" || typeof payload.name !== "string") return null;
+    const context=await requestPropertyContext();
+    if(!accountScopeAllowed(context.host,context.property?.organizationId??null,payload.organizationId))return null;
     return { studentId: payload.studentId, organizationId: payload.organizationId, name: payload.name };
   } catch { return null; }
 }
