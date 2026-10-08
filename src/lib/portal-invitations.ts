@@ -73,7 +73,7 @@ export async function runPortalInvitations(db:PrismaClient,organizationId?:strin
  if(response.ok){const payload=await response.json();providerId=typeof payload.id==="string"?payload.id:undefined;}
  result=emailResult(response.status,providerId);if(result.status==="RETRY"&&item.row.attempts>=3)result={status:"FAILED",error:"Invitation email retry limit reached."};
  }catch{/* Never retry an ambiguous send automatically. */}
- await db.tenantPortalInvitation.updateMany({where:{id:item.row.id,status:"SENDING",usedAt:null},data:{status:result.status,providerId,error:result.error}});if(result.status==="PROVIDER_ACCEPTED")accepted++;
+ const completed=await db.tenantPortalInvitation.updateMany({where:{id:item.row.id,status:"SENDING",usedAt:null,generation:item.row.generation,attempts:item.row.attempts,attemptedAt:item.row.attemptedAt},data:{status:result.status,providerId,error:result.error}});if(completed.count===1&&result.status==="PROVIDER_ACCEPTED")accepted++;
  }
  }
  return{configured:true,prepared,accepted};
