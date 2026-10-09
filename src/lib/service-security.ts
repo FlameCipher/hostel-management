@@ -17,3 +17,6 @@ export function openServiceSecret(value:string,organizationId:string) {
  const decipher=createDecipheriv("aes-256-gcm",encryptionKey(),Buffer.from(iv,"base64url"));decipher.setAAD(Buffer.from(organizationId));decipher.setAuthTag(Buffer.from(tag,"base64url"));
  return Buffer.concat([decipher.update(Buffer.from(body,"base64url")),decipher.final()]).toString("utf8");
 }
+
+// Authenticated operator diagnostics contain provider messages, never request headers or bodies.
+export function serviceDiagnostic(error:unknown){return (error instanceof Error?error.message:"Service failed").replace(/Bearer\s+[^\s"']+/gi,"Bearer [redacted]").replace(/(?:https?|postgres(?:ql)?):\/\/[^\s"']+/gi,"[service URL]").replace(/[A-Za-z0-9_=-]{40,}/g,"[redacted]").slice(0,500);}

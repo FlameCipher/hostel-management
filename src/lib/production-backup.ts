@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { serviceDiagnostic } from "./service-security";
 import { createHash } from "node:crypto";
 import { gzipSync,gunzipSync } from "node:zlib";
 import { readdir,readFile } from "node:fs/promises";
@@ -52,5 +53,5 @@ export async function runProductionBackup(db:PrismaClient){
   // Retain at least 30 daily snapshots. Cleanup only follows a confirmed new read-back.
   const all=await list({...storageOptions(),prefix:"hostel-backups/",limit:1000});const cutoff=Date.now()-30*86400000;const old=all.blobs.filter(b=>b.uploadedAt.getTime()<cutoff);if(old.length)await del(old.map(b=>b.url),storageOptions()).catch(()=>undefined);
   return {status:"COMPLETED",id:run.id,...stats,readbackVerified:true};
- }catch(error){const code=error instanceof Error?error.name:"Error";await db.operationalRun.update({where:{id:run.id},data:{status:"FAILED",completedAt:new Date(),metadata:{stage,code,reason:"Backup capture or private-storage verification failed. Review deployment configuration; no restore was attempted."}}});return {status:"FAILED",id:run.id,stage,code};}
+ }catch(error){const code=error instanceof Error?error.name:"Error",diagnostic=serviceDiagnostic(error);await db.operationalRun.update({where:{id:run.id},data:{status:"FAILED",completedAt:new Date(),metadata:{stage,code,diagnostic,reason:"Backup capture or private-storage verification failed. Review deployment configuration; no restore was attempted."}}});return {status:"FAILED",id:run.id,stage,code,diagnostic};}
 }
