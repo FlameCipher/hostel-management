@@ -10,6 +10,17 @@ test('healthy configuration does not claim unverified workflows healthy',async()
 test('failed module read preserves other checks without leaking database details',async()=>{const report=await collectHealthfix(reads('occupancy').db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='bookings')?.status,'DEGRADED');assert.equal(report.modules.find(m=>m.code==='database')?.status,'HEALTHY');assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(report).includes('PRIVATE_DATABASE_ERROR'))});
 test('database outage yields degraded report instead of an invented healthy result',async()=>{const report=await collectHealthfix(reads('database').db,undefined,now,env);assert.equal(report.modules.find(m=>m.code==='database')?.status,'DEGRADED');assert.equal(report.status,'DEGRADED')});
 test('missing configuration fails explicitly and report contains no configuration values',async()=>{const report=await collectHealthfix(reads().db,'one',now,{});assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(await collectHealthfix(reads().db,'one',now,env)).includes('fake-long-session-secret'))});
+test('AI health requires the direct key and a receipt for the current provider and model',async()=>{
+ const aiEnv={...env,HOSTEL_AI_ENABLED:'true',HOSTEL_AI_MODEL:'openai/gpt-6-luna'};
+ const check=async(metadata:Record<string,string>,key?:string)=>{
+  const db={...reads().db,operationalRun:{findFirst:async()=>({status:'COMPLETED',createdAt:now,metadata})}} as unknown as PrismaClient;
+  return (await collectHealthfix(db,'one',now,{...aiEnv,OPENAI_API_KEY:key})).modules.find(m=>m.code==='assistant')!;
+ };
+ assert.equal((await check({model:'openai/gpt-6-luna'})).checks.find(c=>c.code==='ai')?.status,'FAILING');
+ assert.equal((await check({model:'openai/gpt-6-luna'},'fixture')).checks.find(c=>c.code==='provider')?.status,'UNKNOWN');
+ assert.equal((await check({provider:'openai',model:'different-model'},'fixture')).checks.find(c=>c.code==='provider')?.status,'UNKNOWN');
+ assert.equal((await check({provider:'openai',model:'gpt-6-luna'},'fixture')).status,'HEALTHY');
+});
 test('interrupted sends create warnings while fresh send cutoff and scope are explicit',async()=>{const f=reads(undefined,true);const report=await collectHealthfix(f.db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='delivery-queues')?.status,'DEGRADED');const q=f.calls.find(c=>c.model==='tenantPortalInvitation'&&c.where.status==='SENDING')!;assert.equal(q.where.usedAt,null);assert.deepEqual(q.where.OR,[{attemptedAt:null},{attemptedAt:{lte:new Date(now.getTime()-900000)}}])});
 function repairs(allowed=true,counts=[1,2,3]){const changes:{where:Record<string,unknown>;data:Record<string,unknown>}[]=[],audits:unknown[]=[];let n=0;const tx={tenantRegistration:{updateMany:async(a:typeof changes[number])=>{changes.push(a);return{count:counts[n++]??0}}},user:{findFirst:async()=>allowed?{id:'owner'}:null},organization:{findFirst:async()=>({id:'one'})},$queryRaw:async()=>[],$executeRaw:async()=>0,tenantPortalInvitation:{updateMany:async(a:typeof changes[number])=>{changes.push(a);return{count:counts[n++]??0}}},tenantMessage:{updateMany:async(a:typeof changes[number])=>{changes.push(a);return{count:counts[n++]??0}}},auditLog:{create:async(a:unknown)=>{audits.push(a)}}};const db={...tx,$transaction:async(fn:(tx:unknown)=>unknown)=>fn(tx)} as unknown as PrismaClient;return{db,changes,audits};}
 const owner={userId:'owner',organizationId:'one',role:'OWNER' as const,name:'Owner'};

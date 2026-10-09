@@ -30,7 +30,7 @@ INSERT INTO "Occupancy" (id,"organizationId","semesterId","studentId","roomId","
 const server = new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:55453,maxConnections:20}); await server.start();
 const db = new PrismaClient({adapter:new PrismaPg({connectionString:'postgresql://fixture:fixture@127.0.0.1:55453/recovery',max:1})});
 
-Object.assign(process.env,{HOSTEL_AI_ENABLED:'true',HOSTEL_AI_MODEL:'fixture',AI_GATEWAY_API_KEY:'fixture',VAPID_PUBLIC_KEY:'fixture',VAPID_PRIVATE_KEY:'fixture',VAPID_SUBJECT:'https://example.invalid',SERVICE_ENCRYPTION_KEY:'11'.repeat(32),WHATSAPP_APP_SECRET:'fixture',WHATSAPP_WEBHOOK_VERIFY_TOKEN:'fixture'});
+Object.assign(process.env,{HOSTEL_AI_ENABLED:'true',HOSTEL_AI_MODEL:'fixture',OPENAI_API_KEY:'fixture',VAPID_PUBLIC_KEY:'fixture',VAPID_PRIVATE_KEY:'fixture',VAPID_SUBJECT:'https://example.invalid',SERVICE_ENCRYPTION_KEY:'11'.repeat(32),WHATSAPP_APP_SECRET:'fixture',WHATSAPP_WEBHOOK_VERIFY_TOKEN:'fixture'});
 const owner={userId:'owner',organizationId:'one',name:'Owner',role:'OWNER',sessionVersion:0};
 let count=0;const pass=name=>{count++;console.log('PASS '+name);};
 try{

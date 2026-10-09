@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
+import { assistantConfiguration } from "./assistant-config";
 type CheckStatus = "PASSING" | "WARNING" | "FAILING" | "UNKNOWN";
 type Check = { code: string; name: string; status: CheckStatus; checkType: string };
 type Module = { code: string; name: string; status: "HEALTHY" | "DEGRADED" | "UNKNOWN"; checks: Check[] };
@@ -72,7 +73,11 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   const receipt=(code:string,name:string,run:typeof backup,maxAge?:number):Check=>({code,name,status:!run?"UNKNOWN":run.status==="FAILED"?"FAILING":run.status!=="COMPLETED"?"WARNING":maxAge&&now.getTime()-run.createdAt.getTime()>maxAge?"WARNING":"PASSING",checkType:"FUNCTIONAL"});
   let sender=false;try{sender=!!await db.whatsAppConnection.findFirst({where:{...(organizationId?{organizationId}:{}),enabled:true,verifiedAt:{not:null}},select:{organizationId:true}});}catch{/* Configuration remains unverified. */}
   modules.push(module("whatsapp", "WhatsApp delivery", [sender?configuration("automatic","Verified business sender enabled",true):unknown("automatic","Automatic sender awaits the hostel's approved Meta connection"),env.WHATSAPP_APP_SECRET?configuration("webhook","Meta webhook signature key configured",true):unknown("webhook","Meta webhook signature key awaits configuration")]));
-  modules.push(module("assistant", "System assistant", [env.HOSTEL_AI_ENABLED==="true"?configuration("ai","AI model configured with bounded usage",Boolean(env.HOSTEL_AI_MODEL)):unknown("ai","AI is disabled; documented guide remains available"),receipt("provider","Latest synthetic AI response",aiProbe)]));
+  const assistant = assistantConfiguration(env);
+  const aiMetadata = aiProbe?.metadata as {provider?:string;model?:string}|null;
+  const currentAIProbe = aiMetadata?.provider === assistant.provider && aiMetadata.model === assistant.model ? aiProbe : null;
+  const aiConfigurationName = assistant.code === "OPENAI_API_KEY_MISSING" ? "Direct OpenAI awaits its server API key" : assistant.code === "OPENAI_MODEL_MISSING_OR_INVALID" ? "Direct OpenAI model is missing or invalid" : "Direct OpenAI model and server key configured with bounded usage";
+  modules.push(module("assistant", "System assistant", [assistant.enabled?configuration("ai",aiConfigurationName,assistant.configured):unknown("ai","AI is disabled; documented guide remains available"),receipt("provider","Latest response from the configured direct OpenAI model",currentAIProbe)]));
   modules.push(module("mobile-notifications", "Background mobile notifications", [env.VAPID_PUBLIC_KEY?configuration("push","Device notification keys configured",Boolean(env.VAPID_PRIVATE_KEY&&env.VAPID_SUBJECT)):unknown("push","Device notification keys await configuration"),receipt("worker","Background delivery worker completed within 20 minutes",deliveryRun,20*60000),unknown("device","Actual closed-app display must be confirmed on the subscriber's device")]));
   modules.push(module("recovery", "Backup and recovery", [receipt("backup","Private daily backup captured and read back within 26 hours",backup,26*3600000),receipt("restore","Latest isolated restore drill",restore,30*86400000)]));
   const old = new Date(now.getTime() - interruptedAfterMs), overdue = new Date(now.getTime() - backlogAfterMs);

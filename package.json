@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -39,9 +39,11 @@
     "test:recovery": "node --import tsx --test scripts/test-password-recovery.ts",
     "test:recovery:database": "node --import tsx scripts/test-recovery-database.mjs",
     "test:services:database": "node --import tsx scripts/test-service-delivery-database.mjs",
-    "backup:verify": "node --import tsx scripts/verify-backup-restore.mjs"
+    "backup:verify": "node --import tsx scripts/verify-backup-restore.mjs",
+    "test:assistant": "node --import tsx --test scripts/test-openai-assistant.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.91",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@vercel/blob": "^2.0.0",
