@@ -1,6 +1,14 @@
 # Assistant, delivery and recovery
 
-The assistant is read-only. It sends the question, role-specific system guide and permitted counts to Vercel AI Gateway; it does not transmit visitor names, room labels or saved message contents. Questions and generated answers are not stored by this application. Provider data handling remains subject to the configured gateway/provider. Per-account, per-hostel and project-wide limits cap usage. The documented guide remains available during outages.
+The assistant is read-only. It sends the question, role-specific system guide and permitted counts directly to OpenAI's Responses API; it does not transmit visitor names, room labels or saved message contents. Questions and generated answers are not stored by this application. Responses are requested with `store: false`; OpenAI's applicable data-handling policies still apply. Per-account, per-hostel and project-wide request limits bound usage. The documented guide remains available during outages.
+
+## Direct OpenAI activation
+
+Use the owner's existing OpenAI organization with a separate hostel project/service-account key. Save `OPENAI_API_KEY` as a server-only Secret in the hostel Vercel project's Production environment; use a separate test credential for Preview when needed. Existing Vercel Secrets cannot be read back or copied from KAI. Do not expose them through a runtime endpoint, print them in logs, or place them in chat or source control.
+
+Set `HOSTEL_AI_ENABLED=true` and `HOSTEL_AI_MODEL=gpt-6-luna`, then redeploy. Existing `openai/` model prefixes are normalized for compatibility. The provider is fixed to `https://api.openai.com/v1`; Gateway keys, Vercel OIDC and other providers cannot silently take over. This integration does not require AI Gateway credits. OpenAI billing and model access must be active independently.
+
+Run the authenticated `ai` operations probe after activation. It uses only a fixed documentation question with no tenant data, and reports `provider: openai` with the configured model. Requests cannot select another model. HealthFix separates configuration from a successful response receipt for that provider/model; an old Gateway result cannot mark the direct connection healthy. A missing key returns `OPENAI_API_KEY_MISSING` without making a provider request. API keys remain server-side. Normal users retain the guide while activation is pending or the provider is unavailable.
 
 Device notifications require each user's explicit permission on their own published hostel domain. Lock-screen copy is generic. The worker rechecks current access and session version before delivery and retires expired subscriptions. Sign-out disables the current device subscription. Browsers and phones control alert display; iOS users must open the installed Home Screen app. Real-device delivery still requires a device acceptance test.
 

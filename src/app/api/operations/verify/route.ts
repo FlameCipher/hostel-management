@@ -3,7 +3,8 @@ import { serviceDiagnostic } from "@/lib/service-security";
 import { db } from "@/lib/db";
 import { healthfixAuthorized } from "@/lib/healthfix";
 import { runProductionBackup,readStoredBackup,captureBackup,validateBackup } from "@/lib/production-backup";
-import { assistantEnabled,generateHostelAnswer } from "@/lib/assistant-service";
+import { generateHostelAnswer } from "@/lib/assistant-service";
+import { assistantConfiguration } from "@/lib/assistant-config";
 import { runServiceDelivery } from "@/lib/service-delivery";
 export const runtime="nodejs";
 export const maxDuration=120;
@@ -13,7 +14,20 @@ export async function POST(request:Request){
  const headers={"Cache-Control":"private, no-store"};
  if(!healthfixAuthorized(process.env.OPERATIONS_VERIFY_SECRET,request.headers.get("authorization")?.replace(/^Bearer /,"")??null))return new Response("Unauthorized",{status:401,headers});
  const body=await request.json().catch(()=>null);
- if(body?.check==="ai"){const model=[process.env.HOSTEL_AI_MODEL,"openai/gpt-5-mini","google/gemini-3.1-flash-lite"].includes(body.model)?body.model:process.env.HOSTEL_AI_MODEL;if(!assistantEnabled())return Response.json({configured:false},{headers});try{const r=await generateHostelAnswer("Where do I change my own hostel password?","MANAGEMENT",null,model);await db.operationalRun.create({data:{kind:"AI_PROBE",status:"COMPLETED",completedAt:new Date(),metadata:{model,inputTokens:r.inputTokens,outputTokens:r.outputTokens}}});return Response.json({configured:true,answered:!!r.text,model,tokens:r.inputTokens+r.outputTokens},{headers});}catch(error){const code=error instanceof Error?error.name:"Error",diagnostic=serviceDiagnostic(error);await db.operationalRun.create({data:{kind:"AI_PROBE",status:"FAILED",metadata:{code,model,diagnostic}}});return Response.json({configured:true,answered:false,code,diagnostic},{status:503,headers});}}
+ if(body?.check==="ai"){
+  const config=assistantConfiguration();
+  if(!config.configured)return Response.json({...config,answered:false},{status:503,headers});
+  const {provider,model}=config;
+  try{
+   const r=await generateHostelAnswer("Where do I change my own hostel password?","MANAGEMENT",null);
+   await db.operationalRun.create({data:{kind:"AI_PROBE",status:"COMPLETED",completedAt:new Date(),metadata:{provider,model,inputTokens:r.inputTokens,outputTokens:r.outputTokens}}});
+   return Response.json({configured:true,answered:!!r.text,provider,model,tokens:r.inputTokens+r.outputTokens},{headers});
+  }catch(error){
+   const code=error instanceof Error?error.name:"Error",diagnostic=serviceDiagnostic(error);
+   await db.operationalRun.create({data:{kind:"AI_PROBE",status:"FAILED",metadata:{code,provider,model,diagnostic}}});
+   return Response.json({configured:true,answered:false,provider,model,code,diagnostic},{status:503,headers});
+  }
+ }
  if(process.env.VERCEL_ENV!=="production")return Response.json({error:"Production backup operations are unavailable here."},{status:403,headers});
  if(body?.check==="backup-capture"){
   const snapshot=await captureBackup(process.env.DB_DATABASE_URL_UNPOOLED??process.env.DB_DATABASE_URL??process.env.DATABASE_URL!);const stats=validateBackup(snapshot);
