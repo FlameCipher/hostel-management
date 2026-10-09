@@ -512,6 +512,7 @@ model Student {
   portalInviteBlocked Boolean @default(false)
   portalEnabled      Boolean       @default(false)
   portalPasswordHash String?
+  portalSessionVersion Int         @default(0)
   portalLastLoginAt  DateTime?
 
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)

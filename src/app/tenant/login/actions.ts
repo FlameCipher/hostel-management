@@ -32,14 +32,15 @@ export async function tenantLoginAction(_state: TenantLoginState, formData: Form
       ELSE regexp_replace(phone, '[^0-9]', '', 'g') END = ${phone} LIMIT 2`;
   const students = await db.student.findMany({
     where: { organization:{status:"ACTIVE"}, ...(organizationId?{organizationId}:{}), ...(isEmail ? {email:{equals:identifier.toLowerCase(),mode:"insensitive" as const}} : {id:{in:(matches??[]).map(x=>x.id)}}), portalEnabled: true, status: { not: "ARCHIVED" } },
-    select: { id: true, organizationId: true, fullName: true, portalPasswordHash: true }, take: 2,
+    select: { id: true, organizationId: true, fullName: true, portalPasswordHash: true, portalSessionVersion: true }, take: 2,
   });
   if (students.length !== 1 || !students[0].portalPasswordHash || !(await compare(parsed.data.password, students[0].portalPasswordHash))) {
     return { error: "The mobile number, email or password is incorrect." };
   }
   const student = students[0];
   await db.student.update({ where: { id: student.id }, data: { portalLastLoginAt: new Date() } });
-  await createTenantSession({ studentId: student.id, organizationId: student.organizationId, name: student.fullName });
+  try { await createTenantSession({ studentId: student.id, organizationId: student.organizationId, name: student.fullName, sessionVersion: student.portalSessionVersion }); }
+  catch { return { error: "Your portal access changed. Sign in again with your current details or contact management." }; }
   redirect(student.organizationId === TERMS_ORGANIZATION_ID ? "/tenant/terms" : "/tenant/account");
 }
 
