@@ -15,7 +15,7 @@
 .navLink:hover { color: var(--navy); background: #f0f4f5; }
 .navLink.active { background: #e9eff1; color: #2f4856; font-weight: 700; }
 .signOut { flex-shrink: 0; border-top: 1px solid #e5eaed; padding-top: 12px; margin-top: 4px; }
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; min-height: 68px; border-bottom: 1px solid #e1e7eb; background: rgba(255,255,255,.97); padding: 10px 16px; }
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; min-height: 68px; border-bottom: 1px solid #e1e7eb; background: #fff; padding: 10px 16px; }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border: 1px solid transparent; border-radius: 11px; background: transparent; color: #526773; cursor: pointer; text-decoration: none; }
 .iconButton:hover { background: #f0f4f5; border-color: #dce4e8; }
 .menuButton { border-color: #e1e7eb; }
@@ -28,6 +28,7 @@
 .profileName { display: none; }
 .search { display: none; }
 .shell .content { max-width: 1600px; min-height: calc(100dvh - 68px); margin-inline: auto; padding: 24px 16px 40px; }
+.content :is(input, select, textarea, button, a, [tabindex]) { scroll-margin-block: 88px 24px; }
 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 100; padding: 12px 18px; border-radius: 8px; background: var(--navy); color: white; }
 .skipLink:focus { top: 10px; }
 .drawer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; padding: 0; margin: 0; border: 0; background: transparent; color: var(--text); }
