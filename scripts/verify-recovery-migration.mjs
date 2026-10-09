@@ -9,6 +9,19 @@ try {
   const applied = await client.query('SELECT finished_at, rolled_back_at FROM "_prisma_migrations" WHERE migration_name=$1 ORDER BY started_at DESC LIMIT 1', [migration]);
   if (applied.rows[0]?.finished_at) console.log('Recovery/name migration already applied.');
   else {
+    const conflicts = await client.query(`
+      WITH names AS (
+        SELECT 'workspace' source,id, id organization, name, NULL::text domain, status::text state FROM "Organization"
+        UNION ALL SELECT 'property',id,"organizationId",name,"customDomain",CASE WHEN active THEN 'ACTIVE' ELSE 'INACTIVE' END FROM "Property"
+      ), keyed AS (SELECT *,lower(regexp_replace(normalize(name,NFKC),'[^[:alnum:]]','','g')) key FROM names), conflicts AS (
+        SELECT key FROM keyed GROUP BY key HAVING COUNT(DISTINCT organization)>1 OR COUNT(*) FILTER (WHERE source='property')>1
+      ) SELECT source,name,domain,state,
+        (SELECT COUNT(*)::int FROM "User" u WHERE u."organizationId"=k.organization) users,
+        (SELECT COUNT(*)::int FROM "Student" s WHERE s."organizationId"=k.organization) students,
+        (SELECT COUNT(*)::int FROM "Room" r WHERE r."organizationId"=k.organization) rooms
+        FROM keyed k JOIN conflicts c USING (key) ORDER BY key,source LIMIT 30
+    `);
+    if (conflicts.rows.length) console.log('HOSTEL_NAME_CONFLICTS',JSON.stringify(conflicts.rows));
     const sql = (await readFile(`prisma/migrations/${migration}/migration.sql`, 'utf8')).replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '');
     await client.query('BEGIN');
     try { await client.query(sql); console.log('Recovery/name migration dry run passed; rolling back verification.'); }
