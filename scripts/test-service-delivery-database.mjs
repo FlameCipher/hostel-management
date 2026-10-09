@@ -56,7 +56,7 @@ try{
  const note={organizationId:'one',studentId:'student',channel:'WHATSAPP',recipientType:'STUDENT',recipientName:'Fixture resident',recipientPhone:'254714000003',message:'Fixture update'};
  await db.notification.create({data:{id:'old',...note,createdAt:new Date(old.getTime()-1000)}});await db.notification.create({data:{id:'wa-one',...note}});
  let sends=0;const send=async()=>{sends++;return 'provider-'+sends;};await runWhatsAppDelivery(db,send,new Date(Date.now()+10000));assert.equal(sends,0);
- await db.whatsAppConsent.create({data:{id:'permission',organizationId:'one',accountId:'student',audience:'tenant',phone:'254714000003',enabled:true,consentText:'Explicit fixture permission',createdAt:old}});
+ await db.whatsAppConsent.create({data:{id:'permission',organizationId:'one',accountId:'student',audience:'tenant',phone:'254714000003',enabled:true,consentText:'Explicit fixture permission',createdAt:old,updatedAt:old}});
  await runWhatsAppDelivery(db,send,new Date(Date.now()+10000));await runWhatsAppDelivery(db,send,new Date(Date.now()+10000));assert.equal(sends,1);assert.equal((await db.notification.findUnique({where:{id:'old'}})).status,'QUEUED');
  assert((await actOnManualNotification(db,owner,'wa-one','OPEN')).error);
  await recordWhatsAppStatus(db,'wrong',{id:'provider-1',recipient_id:'254714000003',status:'read'});assert.equal((await db.whatsAppDelivery.findUnique({where:{providerId:'provider-1'}})).status,'ACCEPTED');
@@ -64,6 +64,7 @@ try{
  await db.notification.create({data:{id:'uncertain',...note}});await runWhatsAppDelivery(db,async()=>{sends++;throw Error('timeout after acceptance');},new Date(Date.now()+10000));await runWhatsAppDelivery(db,send,new Date(Date.now()+10000));assert.equal(sends,2);assert.equal((await db.whatsAppDelivery.findUnique({where:{notificationId:'uncertain'}})).status,'REVIEW');
  await db.notification.create({data:{id:'manual',...note}});assert((await actOnManualNotification(db,owner,'manual','OPEN')).url);await runWhatsAppDelivery(db,send,new Date(Date.now()+10000));assert.equal(sends,2);
  await db.student.update({where:{id:'student'},data:{phone:'0714000099'}});assert.equal(await consentedRecipient(db,note),null);await db.student.update({where:{id:'student'},data:{phone:'0714000003'}});
+ await db.whatsAppConsent.update({where:{id:'permission'},data:{updatedAt:new Date()}});assert.equal(await consentedRecipient(db,{...note,createdAt:old}),null);
  const signature='sha256='+createHmac('sha256','fixture').update('body').digest('hex');assert(webhookSignature('body',signature));assert(!webhookSignature('changed',signature));pass('WhatsApp requires consent, skips historic drafts, avoids uncertain/manual duplicates and validates ordered callbacks');
  const rows=[JSON.stringify({url:'https://fixture.public.blob.vercel-storage.com/photo.jpg'})];const assets=await captureAssets([{name:'PropertyPhoto',rows,checksum:backupChecksum(rows)}],async()=>new Response('photo fixture',{headers:{'content-type':'image/jpeg'}}));assert.equal(assets.length,1);
  await assert.rejects(captureAssets([{name:'PropertyPhoto',rows:[JSON.stringify({url:'http://127.0.0.1/private'})],checksum:''}]),/UNSUPPORTED/);pass('photo backup only downloads approved storage URLs and verifies bytes');

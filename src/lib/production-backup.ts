@@ -42,15 +42,15 @@ export async function readStoredBackup(pathname:string){
 export async function runProductionBackup(db:PrismaClient){
  if(process.env.VERCEL_ENV!=="production")return {status:"SKIPPED",reason:"Backups run only in production."};
  if(!backupConfigured())return {status:"NOT_CONFIGURED"};
- const run=await db.operationalRun.create({data:{kind:"BACKUP",status:"RUNNING"}});
+ const run=await db.operationalRun.create({data:{kind:"BACKUP",status:"RUNNING"}});let stage="capture";
  try{
   const snapshot=await captureBackup(process.env.DB_DATABASE_URL_UNPOOLED??process.env.DB_DATABASE_URL??process.env.DATABASE_URL!);const stats=validateBackup(snapshot);const bytes=gzipSync(JSON.stringify(snapshot));
   const pathname=`hostel-backups/${snapshot.createdAt.replace(/[:.]/g,"-")}-${run.id}.json.gz`;
-  const saved=await put(pathname,bytes,{...storageOptions(),access:"private",addRandomSuffix:false,allowOverwrite:false,contentType:"application/gzip"});
-  const verified=await readStoredBackup(saved.pathname);if(backupChecksum(snapshot.tables.map(t=>t.checksum))!==backupChecksum(verified.snapshot.tables.map(t=>t.checksum)))throw Error("BACKUP_READBACK_MISMATCH");
+  stage="private-storage-write";const saved=await put(pathname,bytes,{...storageOptions(),access:"private",addRandomSuffix:false,allowOverwrite:false,contentType:"application/gzip"});
+  stage="private-storage-readback";const verified=await readStoredBackup(saved.pathname);if(backupChecksum(snapshot.tables.map(t=>t.checksum))!==backupChecksum(verified.snapshot.tables.map(t=>t.checksum)))throw Error("BACKUP_READBACK_MISMATCH");
   await db.operationalRun.update({where:{id:run.id},data:{status:"COMPLETED",completedAt:new Date(),metadata:{pathname:saved.pathname,...stats,bytes:bytes.length,capturedAt:snapshot.createdAt,readbackVerified:true,restoreVerified:false,commit:snapshot.commit}}});
   // Retain at least 30 daily snapshots. Cleanup only follows a confirmed new read-back.
   const all=await list({...storageOptions(),prefix:"hostel-backups/",limit:1000});const cutoff=Date.now()-30*86400000;const old=all.blobs.filter(b=>b.uploadedAt.getTime()<cutoff);if(old.length)await del(old.map(b=>b.url),storageOptions()).catch(()=>undefined);
   return {status:"COMPLETED",id:run.id,...stats,readbackVerified:true};
- }catch{await db.operationalRun.update({where:{id:run.id},data:{status:"FAILED",completedAt:new Date(),metadata:{reason:"Backup capture or private-storage verification failed. Review deployment configuration; no restore was attempted."}}});return {status:"FAILED",id:run.id};}
+ }catch(error){const code=error instanceof Error?error.name:"Error";await db.operationalRun.update({where:{id:run.id},data:{status:"FAILED",completedAt:new Date(),metadata:{stage,code,reason:"Backup capture or private-storage verification failed. Review deployment configuration; no restore was attempted."}}});return {status:"FAILED",id:run.id,stage,code};}
 }
