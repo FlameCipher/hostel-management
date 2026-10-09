@@ -56,5 +56,24 @@ try {
   await assert.rejects(provisionHostel(db,{...identity,productCode:'STUDENTSHOSTELS',phone:'0714000004'},async()=>identity),/HOSTEL_NAME_TAKEN/);assert.equal(await db.organization.count({where:{platformOrganizationId:'platform-org'}}),0);pass('provisioning rejects duplicate names without creating a partial workspace');
   await db.passwordRecovery.updateMany({data:{expiresAt:new Date(Date.now()-32*86400000)}});const cleaned=await prunePasswordRecovery(db);assert(cleaned.oldRecoveryLinks>0);assert.equal(await db.passwordRecovery.count(),0);pass('retention cleanup removes old recovery records without changing accounts');
   const conflict=await PGlite.create();try{for(const name of migrations.slice(0,-1))await conflict.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));await conflict.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('conflict-a','Duplicate Hostel','Owner','1',now()),('conflict-b','duplicate-hostel','Owner','2',now())`);await assert.rejects(conflict.exec(await readFile(`prisma/migrations/${migrations.at(-1)}/migration.sql`,'utf8')),/HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED/);}finally{await conflict.close();}pass('migration stops for existing conflicts instead of renaming or deleting hostels');
+  for (const published of [false,true]) {
+    const setup = await PGlite.create();
+    try {
+      for (const name of migrations.slice(0,-1)) await setup.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));
+      await setup.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('live','MMAMBUGUA HOSTEL','Owner','1',now()),('setup','MMAMBUGUA HOSTEL','Owner','2',now());
+        INSERT INTO "Property" (id,"organizationId",slug,name,"customDomain","publicListing","updatedAt") VALUES ('live-property','live','mmambugua','MMAMBUGUA HOSTEL','mmambugua.studentshostels.com',true,now()),('setup-property','setup','setup','MMAMBUGUA HOSTEL','mmambugua-6c70266ef6.studentshostels.com',${published},now());`);
+      const migrationSql=await readFile(`prisma/migrations/${migrations.at(-1)}/migration.sql`,'utf8');
+      if(published) {
+        await assert.rejects(setup.exec(migrationSql),/HOSTEL_SETUP_HAS_DATA_REVIEW_REQUIRED/);await setup.exec('ROLLBACK');
+        assert.equal((await setup.query(`SELECT name FROM "Property" WHERE id='setup-property'`)).rows[0].name,'MMAMBUGUA HOSTEL');
+      } else {
+        await setup.exec(migrationSql);
+        assert.equal((await setup.query(`SELECT name FROM "Property" WHERE id='live-property'`)).rows[0].name,'MMAMBUGUA HOSTEL');
+        assert.equal((await setup.query(`SELECT name FROM "Property" WHERE id='setup-property'`)).rows[0].name,'MMAMBUGUA HOSTEL — Setup 6c70266ef6');
+        assert.equal((await setup.query(`SELECT COUNT(*)::int n FROM "AuditLog" WHERE action='HOSTEL_SETUP_NAME_DISAMBIGUATED'`)).rows[0].n,1);
+      }
+    } finally { await setup.close(); }
+    pass(published?'published setup duplicate blocks automatic relabeling and rolls back':'known empty duplicate gets a distinct audited setup label while live name is preserved');
+  }
   console.log(`PASS ${checks} isolated database and recovery checks`);
 } finally {await db.$disconnect();await server.stop();await pg.close();}

@@ -14,7 +14,7 @@ Recovery pages use no-store, no-referrer and noindex protection. Tokens are not 
 
 New provisioning, organization settings and public property-name changes all apply the same availability check. PostgreSQL also enforces uniqueness, including writers outside these UI routes. Names compare after Unicode NFKC normalization, punctuation/spacing removal and case folding. Thus `MMA MBUGUA HOSTEL`, `mmambugua hostel` and `MMAMBUGUA-HOSTEL` cannot identify separate hostels. The saved spelling is preserved. An organization's own public property may share its name; two properties cannot claim the same normalized name. Website addresses are unchanged when a name is edited.
 
-The migration runs in a transaction. It stops with HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED if pre-existing names overlap. It does not rename, merge or delete any existing hostel. Resolve any real conflicts with their owners before retrying a failed migration.
+The migration runs in a transaction. It stops with HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED if pre-existing names overlap. A narrowly guarded repair distinguishes the known empty, unpublished duplicate at mmambugua-6c70266ef6.studentshostels.com as “MMAMBUGUA HOSTEL — Setup 6c70266ef6”, preserving its account/address and recording the old name in the audit log. It refuses that repair if operational records or publication have appeared. The operating MMAMBUGUA hostel is unchanged. Other real conflicts require owner review. A build-time dry run always rolls back; it may reconcile only this migration’s failed marker after proving that its schema artifacts are absent and that the corrected dry run succeeds.
 
 ## Verification
 

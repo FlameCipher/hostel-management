@@ -1,8 +1,31 @@
 BEGIN;
--- No existing hostel is renamed or deleted. Conflicts must be reviewed before release.
+-- Preserve operating hostels. A known unused setup duplicate is labelled separately below.
 CREATE FUNCTION hostel_name_key(value text) RETURNS text LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
   SELECT lower(regexp_replace(normalize(value, NFKC), '[^[:alnum:]]', '', 'g'))
 $$;
+-- Earlier provisioning created this second, unused setup workspace. Preserve its
+-- account and address, but distinguish its label from the operating hostel.
+-- Fail closed if it has since been published or gained operational records.
+DO $$ DECLARE duplicate RECORD; BEGIN
+ SELECT p.id,p."organizationId",p."publicListing",p.name INTO duplicate FROM "Property" p
+ WHERE p."customDomain"='mmambugua-6c70266ef6.studentshostels.com' AND hostel_name_key(p.name)=hostel_name_key('MMAMBUGUA HOSTEL');
+ IF FOUND THEN
+  IF duplicate."publicListing"
+   OR NOT EXISTS (SELECT 1 FROM "Property" WHERE "customDomain"='mmambugua.studentshostels.com' AND "organizationId"<>duplicate."organizationId" AND hostel_name_key(name)=hostel_name_key('MMAMBUGUA HOSTEL'))
+   OR (SELECT COUNT(*) FROM "Property" WHERE "organizationId"=duplicate."organizationId")<>1
+   OR EXISTS (SELECT 1 FROM "Student" WHERE "organizationId"=duplicate."organizationId")
+   OR EXISTS (SELECT 1 FROM "Room" WHERE "organizationId"=duplicate."organizationId")
+   OR EXISTS (SELECT 1 FROM "Payment" WHERE "organizationId"=duplicate."organizationId")
+   OR EXISTS (SELECT 1 FROM "BookingRequest" WHERE "organizationId"=duplicate."organizationId")
+   OR EXISTS (SELECT 1 FROM "Expense" WHERE "organizationId"=duplicate."organizationId")
+  THEN RAISE EXCEPTION 'HOSTEL_SETUP_HAS_DATA_REVIEW_REQUIRED: duplicate setup is no longer empty'; END IF;
+  UPDATE "Organization" SET name='MMAMBUGUA HOSTEL — Setup 6c70266ef6',"updatedAt"=CURRENT_TIMESTAMP WHERE id=duplicate."organizationId" AND hostel_name_key(name)=hostel_name_key('MMAMBUGUA HOSTEL');
+  UPDATE "Property" SET name='MMAMBUGUA HOSTEL — Setup 6c70266ef6',"updatedAt"=CURRENT_TIMESTAMP WHERE id=duplicate.id;
+  INSERT INTO "AuditLog" (id,"organizationId",action,"entityType","entityId",metadata)
+  VALUES ('hostel-name-setup-'||duplicate.id,duplicate."organizationId",'HOSTEL_SETUP_NAME_DISAMBIGUATED','Property',duplicate.id,
+    jsonb_build_object('previousName',duplicate.name,'name','MMAMBUGUA HOSTEL — Setup 6c70266ef6','reason','Separate unused setup label from the operating hostel','domainUnchanged',true));
+ END IF;
+END $$;
 DO $$ BEGIN
  IF EXISTS (SELECT hostel_name_key(name) FROM "Property" GROUP BY hostel_name_key(name) HAVING COUNT(*)>1)
  OR EXISTS (SELECT key FROM (SELECT hostel_name_key(name) key,id org FROM "Organization" UNION ALL SELECT hostel_name_key(name),"organizationId" FROM "Property") names GROUP BY key HAVING COUNT(DISTINCT org)>1)
