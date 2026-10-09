@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { assertHostelNameAvailable } from "./hostel-name";
 import { propertyAddress } from "./property-address";
 import { platformIdentity, validSubject } from "./platform-sso";
 
@@ -16,6 +17,7 @@ export async function provisionHostel(database: PrismaClient, input: unknown, id
       if (existing.platformProductCode !== "STUDENTSHOSTELS" || existing.status !== "ACTIVE") throw Error("ACCESS_UNAVAILABLE");
       return { organizationId: existing.id, status: "EXISTING" };
     }
+    await assertHostelNameAvailable(tx, name);
     const address = propertyAddress(name, identity.platformOrganizationId);
     // Serializes different organizations requesting the same website label.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"hostel-address:" + address}))`;

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { PasswordInput } from "@/components/password-input";
 
 
@@ -27,6 +28,7 @@ export function LoginForm() {
           <PasswordInput id="password" name="password" autoComplete="current-password" placeholder="Enter your password" minLength={8} required />
         </div>
       </div>
+      <p><Link href="/forgot-password">Forgot password?</Link></p>
       {state.error ? (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{state.error}</p>
       ) : null}

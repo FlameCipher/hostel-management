@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { PasswordInput } from "@/components/password-input";
 
 import { useActionState } from "react";
@@ -9,6 +10,7 @@ export function TenantLoginForm() {
   return <form action={action} className="panel entity-form">
     <label className="field-group"><span>Mobile number or email *</span><input autoComplete="username" name="email" type="text" required /></label>
     <label className="field-group"><span>Password *</span><PasswordInput autoComplete="current-password" minLength={8} name="password" required /></label>
+    <p><Link href="/forgot-password?account=tenant">Forgot password?</Link></p>
     {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}
     <button className="primary-button" disabled={pending}>{pending ? "Signing in…" : "Student sign in"}</button>
   </form>;

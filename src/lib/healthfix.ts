@@ -55,6 +55,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   }
   await read("database", "Database", () => db.$queryRaw`SELECT 1`);
   modules.push(module("provisioning", "Platform provisioning", [configuration("configuration", "Provisioning secret configured", Boolean(env.PLATFORM_PROVISIONING_SECRET)), unknown("functional", "Provisioning flow not probed")]));
+  await read("password-recovery", "Password recovery", () => db.passwordRecovery.count({where:scope}), [configuration("email", "Recovery email and session secret configured", Boolean(env.RESEND_API_KEY && env.RECEIPT_EMAIL_FROM && (env.SESSION_SECRET?.length ?? 0) >= 16)), unknown("mailbox", "Recovery email arrival is not independently verified")]);
   await read("tenant-login", "Student login", () => db.student.count({ where: scope }), [configuration("session", "Session signing secret configured", (env.SESSION_SECRET?.length ?? 0) >= 16), unknown("login", "Student sign-in flow not probed")]);
   await read("bookings", "Rooms and allocations", () => Promise.all([db.occupancy.count({ where: scope }),db.bookingRequest.count({where:scope})]), [unknown("booking", "Booking completion not probed")]);
   await read("payments", "Rent and payments", () => Promise.all([db.charge.count({ where: scope }), db.payment.count({ where: scope })]), [unknown("reconciliation", "Financial reconciliation not performed")]);
@@ -100,6 +101,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
       return rows[0].count;
     }),
   ])));
+  modules.push(module("password-recovery-delivery", "Password recovery delivery", [await warning("recovery-attention", "Recent failed or uncertain recovery emails need review", () => db.passwordRecovery.count({where:{...scope,createdAt:{gte:new Date(now.getTime()-86400000)},OR:[{deliveryStatus:{in:["FAILED","REVIEW"]}},{deliveryStatus:"SENDING",createdAt:{lte:old}}]}}))]));
   modules.push(module("delivery-queues", "Delivery queues", await Promise.all([
     warning("interrupted-invitations", "Interrupted invitation sends need review", () => db.tenantPortalInvitation.count({ where: { ...scope, usedAt: null, status: "SENDING", OR: [{ attemptedAt: null }, { attemptedAt: { lte: old } }] } })),
     warning("interrupted-email", "Interrupted notice sends need review", () => db.tenantMessage.count({ where: { ...scope, emailStatus: "SENDING", OR: [{ emailAttemptAt: null }, { emailAttemptAt: { lte: old } }] } })),
