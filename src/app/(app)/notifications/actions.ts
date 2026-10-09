@@ -5,12 +5,15 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { communicationManager } from "@/lib/communications";
+import { actOnManualNotification } from "@/lib/whatsapp-communications";
 
 export type ReminderState = { error: string };
 const schema = z.object({ studentId: z.string().min(1), recipientType: z.enum(["STUDENT", "GUARDIAN"]), channel: z.enum(["WHATSAPP", "SMS"]), message: z.string().trim().min(10).max(1000) });
 
 export async function createReminderAction(_state: ReminderState, formData: FormData): Promise<ReminderState> {
   const session = await requireSession();
+  if (!await communicationManager(db, session)) return { error: "Only active management can prepare reminders." };
   const parsed = schema.safeParse({ studentId: formData.get("studentId"), recipientType: formData.get("recipientType"), channel: formData.get("channel"), message: formData.get("message") });
   if (!parsed.success) return { error: "Select a recipient and enter a message of at least 10 characters." };
   const [student, organization] = await Promise.all([
@@ -26,24 +29,13 @@ export async function createReminderAction(_state: ReminderState, formData: Form
   revalidatePath("/notifications"); redirect("/notifications");
 }
 
-export async function openReminderAction(formData: FormData) {
+async function updateReminder(formData: FormData, action: "OPEN" | "SENT" | "CANCEL") {
   const session = await requireSession();
-  const id = String(formData.get("notificationId") ?? "");
-  const item = await db.notification.findFirst({ where: { id, organizationId: session.organizationId } });
-  if (!item) return;
-  await db.notification.update({ where: { id }, data: { status: "OPENED_FOR_SENDING", openedAt: new Date() } });
-  const digits = item.recipientPhone.replace(/\D/g, "").replace(/^0/, "254");
-  redirect(item.channel === "WHATSAPP" ? `https://wa.me/${digits}?text=${encodeURIComponent(item.message)}` : `sms:${item.recipientPhone}?body=${encodeURIComponent(item.message)}`);
+  const result = await actOnManualNotification(db, session, String(formData.get("notificationId") ?? ""), action);
+  revalidatePath("/notifications"); revalidatePath("/communications/whatsapp");
+  if (result.url) redirect(result.url);
+  if (result.error) redirect(`/notifications?error=${encodeURIComponent(result.error)}`);
 }
-
-export async function markReminderSentAction(formData: FormData) {
-  const session = await requireSession();
-  await db.notification.updateMany({ where: { id: String(formData.get("notificationId") ?? ""), organizationId: session.organizationId }, data: { status: "SENT", sentAt: new Date() } });
-  revalidatePath("/notifications");
-}
-
-export async function cancelReminderAction(formData: FormData) {
-  const session = await requireSession();
-  await db.notification.updateMany({ where: { id: String(formData.get("notificationId") ?? ""), organizationId: session.organizationId, status: { not: "SENT" } }, data: { status: "CANCELLED" } });
-  revalidatePath("/notifications");
-}
+export async function openReminderAction(formData: FormData) { await updateReminder(formData, "OPEN"); }
+export async function markReminderSentAction(formData: FormData) { await updateReminder(formData, "SENT"); }
+export async function cancelReminderAction(formData: FormData) { await updateReminder(formData, "CANCEL"); }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -32,7 +32,8 @@
     "test:location": "node --import tsx --test scripts/test-property-location.ts",
     "test:access": "node --import tsx --test scripts/test-platform-access.ts",
     "test:currency": "node --import tsx --test scripts/test-currency.ts",
-    "test:tenant-session": "node --import tsx --test scripts/test-tenant-session.ts"
+    "test:tenant-session": "node --import tsx --test scripts/test-tenant-session.ts",
+    "test:whatsapp": "node --import tsx --test scripts/test-whatsapp.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useState } from "react";
 import { publishAction } from "@/app/(app)/communications/actions";
-const templates={GENERAL:"",EXAM:"We wish you success in your examinations. Prepare well, rest sufficiently and respect quiet study hours. MMAMBUGUA HOSTEL management wishes you all the best.",HOLIDAY:"Please contact management before leaving for the holiday to confirm whether you are returning next semester or vacating, your room reservation and arrangements for your belongings.",BALANCE:"Please check your private account statement and clear outstanding rent arrears by the 10th. Contact management if you need assistance."};
+const templates={GENERAL:"",EXAM:"We wish you success in your examinations. Prepare well, rest sufficiently and respect quiet study hours. Hostel management wishes you all the best.",HOLIDAY:"Please contact management before leaving for the holiday to confirm whether you are returning next semester or vacating, your room reservation and arrangements for your belongings.",BALANCE:"Please check your private account statement and clear outstanding rent arrears by the 10th. Contact management if you need assistance."};
 export function CommunicationForm({students,requestId}:{students:Array<{id:string;fullName:string}>;requestId:string}) {
  const [state,action,pending]=useActionState(publishAction,{});
  const [audience,setAudience]=useState("ALL"),[body,setBody]=useState("");
