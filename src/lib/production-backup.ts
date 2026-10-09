@@ -32,7 +32,7 @@ export async function captureBackup(connectionString:string){
   const snapshot:HostelBackup={format:"hostel-logical-v1",createdAt:new Date().toISOString(),commit:process.env.VERCEL_GIT_COMMIT_SHA??"local",schema,tables,assets:await captureAssets(tables)};validateBackup(snapshot);return snapshot;
  }finally{await client.end();}
 }
-export function backupConfigured(){return Boolean(process.env.BACKUP_BLOB_STORE_ID&&(process.env.VERCEL_OIDC_TOKEN||process.env.BACKUP_BLOB_READ_WRITE_TOKEN));}
+export function backupConfigured(){return Boolean(process.env.BACKUP_BLOB_STORE_ID&&(process.env.VERCEL==="1"||process.env.VERCEL_OIDC_TOKEN||process.env.BACKUP_BLOB_READ_WRITE_TOKEN));}
 function storageOptions(){if(!backupConfigured())throw Error("BACKUP_STORAGE_NOT_CONFIGURED");return {storeId:process.env.BACKUP_BLOB_STORE_ID!,...(process.env.BACKUP_BLOB_READ_WRITE_TOKEN?{token:process.env.BACKUP_BLOB_READ_WRITE_TOKEN}: {})};}
 export async function readStoredBackup(pathname:string){
  if(!/^hostel-backups\/\d{4}-\d{2}-\d{2}T[\d-]+Z-[A-Za-z0-9_-]+\.json\.gz$/.test(pathname))throw Error("INVALID_BACKUP_PATH");

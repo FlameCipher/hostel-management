@@ -34,7 +34,7 @@
     "test:currency": "node --import tsx --test scripts/test-currency.ts",
     "test:tenant-session": "node --import tsx --test scripts/test-tenant-session.ts",
     "test:whatsapp": "node --import tsx --test scripts/test-whatsapp.ts",
-    "test:hostel-app": "node --import tsx --test scripts/test-hostel-app.ts",
+    "test:hostel-app": "node --import tsx --test scripts/test-hostel-app.ts scripts/test-runtime-credentials.ts",
     "test:resident-services": "node --import tsx --test scripts/test-resident-services.ts",
     "test:recovery": "node --import tsx --test scripts/test-password-recovery.ts",
     "test:recovery:database": "node --import tsx scripts/test-recovery-database.mjs",
