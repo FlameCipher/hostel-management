@@ -18,7 +18,7 @@ import { PLATFORM_SETUP_FEE, PLATFORM_MANUAL_PAYMENT } from "@/lib/landlord-comm
 export async function generateMetadata() {
   const { property } = await requestPropertyContext();
   if (!property) return { alternates: { canonical: "https://studentshostels.com/" } };
-  const photo = (await publicPropertyPhotos(property.id, property.organizationId))[0];
+  const photo = (await publicPropertyPhotos(property.id, property.organizationId)).find(photo => photo.category === "EXTERIOR");
   const description = property.publicDescription ?? `Rooms and accommodation at ${property.name}`;
   return {
     title: { absolute: property.name }, description,
@@ -53,6 +53,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
     }) : [],
     p ? publicPropertyPhotos(p.id, p.organizationId) : [],
   ]);
+  const coverPhoto = photos.find(photo => photo.category === "EXTERIOR");
   const rates = new Map<string, { name: string; monthly: number; semester: number; available: number; sharingMode: "PRIVATE" | "SHARED" }>();
   for (const room of rooms) {
     const type = room.roomType;
@@ -87,7 +88,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
         <div className="marketing-actions"><a className="primary-button" href="#rooms"><BedDouble aria-hidden="true" size={18}/>{p ? "View rooms & availability" : "Explore hostels"}</a>{p && phone && <a className="secondary-button" href={`tel:${phone}`}>Call the hostel</a>}</div>
       </div>
       <div className="compound-showcase">
-        {photos[0]?.url ? <div className="property-cover-image"><Image src={photos[0].url} alt={photos[0].caption || title} fill sizes="(max-width: 900px) 100vw, 50vw" unoptimized preload/></div> : p ? <aside className="hostel-at-a-glance" aria-label="Hostel at a glance">
+        {coverPhoto?.url ? <div className="property-cover-image"><Image src={coverPhoto.url} alt={coverPhoto.caption || title} fill sizes="(max-width: 900px) 100vw, 50vw" unoptimized preload/></div> : p ? <aside className="hostel-at-a-glance" aria-label="Hostel at a glance">
           <span>ACCOMMODATION AT A GLANCE</span><h2>Plan your next semester.</h2>
           <dl><div><dt>Room options listed</dt><dd>{rates.size || "Contact management"}</dd></div><div><dt>Student places currently available</dt><dd>{available}</dd></div>{roomOptions.length > 0 && <div><dt>Listed monthly rates from</dt><dd>{money(roomOptions[0][1].monthly)}<small>Check the room type and charges below.</small></dd></div>}{phone && <div><dt>Speak with management</dt><dd><a href={`tel:${phone}`}>{p.phone}</a></dd></div>}</dl>
           <p>Get to know the room before you move in. Contact management to arrange a viewing and confirm the details of your stay.</p><a href="#booking-guide">See how booking works →</a>
@@ -100,6 +101,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
       {!p && <form className="hostel-directory-search" action="/#rooms" method="get"><label>Country or territory<select name="country" defaultValue={country}><option value="">All countries & territories</option>{countryOptions.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label><label>City or town<input name="city" defaultValue={city} maxLength={120} placeholder="Where would you like to live?"/></label><button className="primary-button" type="submit">Find hostels</button>{(country||city)&&<Link href="/#rooms">Clear filters</Link>}</form>}
       <div className="marketing-room-grid">
         {p ? roomOptions.map(([id, row]) => <article className="marketing-room-card hostel-room-detail" key={id}>
+          {photos.some(photo => photo.roomTypeId === id) && <div className="room-type-gallery" aria-label={`${row.name} representative photos`}>{photos.filter(photo => photo.roomTypeId === id).slice(0,4).map(photo => <figure key={photo.id}><div className="property-photo-preview"><Image src={photo.url!} alt={photo.caption || `${row.name} room interior`} fill sizes="(max-width: 700px) 45vw, 20vw" unoptimized/></div></figure>)}<p>Representative interiors for {row.name}. These photos are reused for rooms of this type; confirm your allocated room at viewing.</p></div>}
           <span className="hostel-room-type">{row.sharingMode === "SHARED" ? "Shared accommodation" : "Private accommodation"}</span><h3>{row.name}</h3>
           <p>{row.sharingMode === "SHARED" ? "A student place in shared accommodation. Ask management about sharing arrangements for the available room." : "A private accommodation option. Arrange a viewing to confirm the room layout and facilities."}</p>
           <div className="marketing-prices"><span><small>Monthly{row.sharingMode === "SHARED" ? " / student" : ""}</small><strong>{money(row.monthly)}</strong></span><span><small>Semester{row.sharingMode === "SHARED" ? " / student" : ""}</small><strong>{money(row.semester)}</strong></span></div>
@@ -110,7 +112,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
       {p && !rates.size && <p>Contact management for current room options.</p>}{!p && !listings.length && <p>{country||city?"No published hostels match this location. Try another city or clear the filters.":"Published hostels will appear here."}</p>}
       {p && rates.size > 0 && <p className="hostel-rate-note">Before choosing, confirm the semester dates, deposit, utilities and any other charges with management. Rates shown here come from the hostel&apos;s current room records.</p>}
     </section>
-    {p && photos.length > 0 && <section className="marketing-section" id="photos"><div className="marketing-section-head"><span>PICTURES</span><h2>Explore {p.name}.</h2><p>Browse photographs published by hostel management, then arrange a viewing of your preferred room.</p></div><div className="property-photo-grid">{photos.map(photo => <figure className="property-public-photo" key={photo.id}><div className="property-photo-preview"><Image src={photo.url!} alt={photo.caption || p.name} fill sizes="(max-width: 700px) 100vw, 33vw" unoptimized/></div>{photo.caption && <figcaption>{photo.caption}</figcaption>}</figure>)}</div></section>}
+    {p && photos.length > 0 && <section className="marketing-section" id="photos"><div className="marketing-section-head"><span>PICTURES</span><h2>Explore {p.name}.</h2><p>Actual building and compound photos published by management. Representative room interiors appear with each room type above.</p></div><div className="property-photo-grid">{photos.filter(photo => photo.category !== "ROOM").map(photo => <figure className="property-public-photo" key={photo.id}><div className="property-photo-preview"><Image src={photo.url!} alt={photo.caption || p.name} fill sizes="(max-width: 700px) 100vw, 33vw" unoptimized/></div><figcaption><strong>{photo.category === "EXTERIOR" ? "Full building exterior" : "Hostel compound"}</strong>{photo.caption && ` · ${photo.caption}`}</figcaption></figure>)}</div></section>}
     {p && <><PropertyBookingGuide phone={phone} available={available}/><PropertyViewingChecklist/><PropertyFaq property={p}/>
       <section className="public-split hostel-contact" id="location">
         <div><span className="marketing-chip"><MapPin aria-hidden="true" size={16}/>LOCATION & CONTACT</span><h2>Let&apos;s plan your visit.</h2><h3>{p.name}</h3><p>{p.physicalAddress || "Contact management for directions."}</p>{locationLabel(p)&&<p><strong>{locationLabel(p)}</strong>{p.postalCode&&` · ${p.postalCode}`}</p>}{p.timeZone&&<p>Local time zone: {p.timeZone}</p>}{mapUrl&&<p><a className="secondary-button" href={mapUrl} target="_blank" rel="noreferrer">{p.latitude!=null?"Open map location":"Search address on map"} ↗</a></p>}<p>Get exact directions, agree on a viewing time, or ask about room availability and move-in arrangements.</p>{phone && <a className="primary-button" href={`tel:${phone}`}><Phone aria-hidden="true" size={18}/>{p.phone}</a>}{p.email && <p><a href={`mailto:${p.email}`}>{p.email}</a></p>}</div>

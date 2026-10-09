@@ -1,0 +1,21 @@
+.manager { display: grid; gap: 1.4rem; min-width: 0; padding: clamp(1rem, 3vw, 2rem); }
+.manager h2, .manager h3, .manager p { margin: 0; }
+.manager p { line-height: 1.6; overflow-wrap: anywhere; }
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: .8rem; }
+.rules article { border: 1px solid #dce5eb; border-radius: 14px; padding: 1rem; background: #f5f8fa; }
+.rules p { font-size: .9rem; margin-top: .5rem; color: #526575; }
+.upload { display: grid; gap: 1rem; padding: 1.2rem; border: 1px solid #dce5eb; border-radius: 16px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: .8rem; }
+.check { display: flex; align-items: flex-start; gap: .65rem; line-height: 1.5; font-size: .9rem; }
+.check input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: .2rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px),1fr)); gap: 1rem; margin-top: .85rem; }
+.photo { border: 1px solid #dce5eb; border-radius: 16px; overflow: hidden; min-width: 0; }
+.photoBody { padding: 1rem; }
+.photoBody form { display: grid; gap: .9rem; margin-top: .8rem; }
+.status { color: #31556b; font-size: .82rem; font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.actions button { flex: 1; }
+.remove { min-height: 44px; border: 0; border-radius: 8px; background: #fff3f1; color: #963b30; font: inherit; cursor: pointer; }
+.review { background: #fff8e7; border-radius: 12px; padding: 1rem; }
+.group { min-width: 0; }
+@media(max-width: 700px) { .rules { grid-template-columns: 1fr; } .upload { padding: .9rem; } }

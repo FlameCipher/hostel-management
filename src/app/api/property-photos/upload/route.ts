@@ -12,9 +12,9 @@ export async function POST(request: Request) {
   try {
     const result = await handleUpload({ body, request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = JSON.parse(clientPayload ?? "null") as { propertyId?: unknown; publicConsent?: unknown } | null;
+        const payload = JSON.parse(clientPayload ?? "null") as { propertyId?: unknown; publicConsent?: unknown; category?: unknown; roomTypeId?: unknown; confirmed?: unknown } | null;
         if (!payload || typeof payload.propertyId !== "string") throw Error("PHOTO_DENIED");
-        const ticket = await reservePropertyPhoto(db, session, payload.propertyId, pathname, payload.publicConsent === true);
+        const ticket = await reservePropertyPhoto(db, session, payload.propertyId, pathname, payload.publicConsent === true, payload);
         return { allowedContentTypes: ["image/jpeg", "image/png", "image/webp"], maximumSizeInBytes: PHOTO_MAX_BYTES, addRandomSuffix: false, allowOverwrite: false, validUntil: Date.now() + 5 * 60000, tokenPayload: JSON.stringify(ticket), ...(process.env.VERCEL_ENV === "production" ? {callbackUrl: "https://studentshostels.com/api/property-photos/upload"} : {}) };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => { await completePropertyPhoto(db, JSON.parse(tokenPayload ?? "null"), blob); },

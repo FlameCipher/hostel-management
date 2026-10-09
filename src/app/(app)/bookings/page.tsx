@@ -7,7 +7,7 @@ export default async function BookingsPage({searchParams}:{searchParams:Promise<
  const s=await requireSession();if(!["OWNER","ADMIN","MANAGER"].includes(s.role))return<section className="panel entity-form"><h1>Booking requests</h1><p>An owner, admin or manager account is required.</p></section>;
  const search=await searchParams;const status=["REQUESTED","CONTACTED","CLOSED"].includes(search.status??"")?search.status!:"REQUESTED";
  const page=Math.max(1,Math.min(10000,Number.parseInt(search.page??"1",10)||1));const where={organizationId:s.organizationId,status};
- const [total,requests]=await Promise.all([db.bookingRequest.count({where}),db.bookingRequest.findMany({where,include:{property:{select:{name:true}},roomType:{select:{name:true}}},orderBy:[{createdAt:"desc"},{id:"desc"}],take:30,skip:(page-1)*30})]);
+ const [total,requests]=await Promise.all([db.bookingRequest.count({where}),db.bookingRequest.findMany({where,include:{property:{select:{name:true,timeZone:true}},roomType:{select:{name:true}}},orderBy:[{createdAt:"desc"},{id:"desc"}],take:30,skip:(page-1)*30})]);
  return <div className={styles.page}>
   <div className="page-heading-row"><div>
    <p className="eyebrow">Website requests</p><h1>Bookings</h1>
@@ -31,7 +31,7 @@ export default async function BookingsPage({searchParams}:{searchParams:Promise<
        <td>{r.reference}<br/>{r.property.name}</td>
        <td>{r.fullName}<br/><a href={`tel:${r.phone}`}>{r.phone}</a>{r.email && <><br/><a href={`mailto:${r.email}`}>{r.email}</a></>}</td>
        <td>{r.roomType.name}<br/>{r.preferredMoveIn.toISOString().slice(0,10)}</td>
-       <td>{new Intl.DateTimeFormat("en-KE",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Nairobi"}).format(r.createdAt)} EAT</td>
+       <td>{new Intl.DateTimeFormat("en-KE",{dateStyle:"medium",timeStyle:"short",timeZone:r.property.timeZone ?? "UTC"}).format(r.createdAt)} <small>{r.property.timeZone ?? "UTC"}</small></td>
        <td><form action={updateBookingAction} className={styles.statusForm}>
         <input name="id" type="hidden" value={r.id}/>
         <label className="field-group"><span className="sr-only">Status for {r.reference}</span><select name="status" defaultValue={r.status}><option value="REQUESTED">New request</option><option value="CONTACTED">Contacted</option><option value="CLOSED">Closed</option></select></label>

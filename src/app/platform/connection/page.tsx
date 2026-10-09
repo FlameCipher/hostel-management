@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/password-input";
 import {getSession} from '@/lib/auth/session';
 import {cookies} from 'next/headers';
 import {db} from '@/lib/db';
@@ -22,7 +23,7 @@ export default async function Connection({searchParams}:{searchParams:Promise<{e
     <p id="host-help">Enter your hostel’s StudentsHostels address, or just the name before .studentshostels.com.</p>
     <label>Existing hostel email<input name="email" type="email" autoComplete="username" maxLength={254} required/></label>
    </>}
-   <label>Current hostel password<input name="password" type="password" autoComplete="current-password" minLength={8} maxLength={128} required/></label>
+   <label>Current hostel password<PasswordInput name="password" autoComplete="current-password" minLength={8} maxLength={128} required/></label>
    <label><input name="confirm" type="checkbox" value="yes" required/>Connect this hostel account to the SYSTEM IN ONE account shown above.</label>
    <button className="primary-button">Connect and open hostel</button>
   </form>

@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { updatePropertyProfileAction } from "@/app/(app)/settings/actions";
-import { countryOptions, type PropertyLocation } from "@/lib/property-location";
+import type { PropertyLocation } from "@/lib/property-location";
 import { RENT_PAYMENT_OPTIONS } from "@/lib/landlord-commercial-policy";
 
 type Profile = PropertyLocation & {
@@ -9,7 +9,7 @@ type Profile = PropertyLocation & {
   publicDescription: string | null; customDomain: string | null; publicListing: boolean;
   rentPaymentMethods: string[];
 };
-export function PropertyProfileForm({ property }: { property: Profile }) {
+export function PropertyProfileForm({ property, countries }: { property: Profile; countries: Array<{ code: string; name: string }> }) {
   const [state, action, pending] = useActionState(updatePropertyProfileAction, { error: "", message: "" });
   return <form action={action} className="panel space-y-4">
     <h2 className="text-xl font-semibold">{property.name} · Public website</h2>
@@ -19,7 +19,7 @@ export function PropertyProfileForm({ property }: { property: Profile }) {
     <fieldset className="space-y-4"><legend className="font-semibold">Property location</legend>
       <p className="text-sm">Set the actual property location. Country, city, address and time zone are required before publishing. Add coordinates if you have the exact map position.</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">Country or territory<select className="form-input w-full" name="countryCode" defaultValue={property.countryCode ?? ""}><option value="">Select country or territory</option>{countryOptions.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
+        <label className="block">Country or territory<select className="form-input w-full" name="countryCode" defaultValue={property.countryCode ?? ""}><option value="">Select country or territory</option>{countries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
         <label className="block">City or town<input className="form-input w-full" name="city" defaultValue={property.city ?? ""} maxLength={120}/></label>
         <label className="block">State, region or county<input className="form-input w-full" name="region" defaultValue={property.region ?? ""} maxLength={120}/></label>
         <label className="block">Postal code (optional)<input className="form-input w-full" name="postalCode" defaultValue={property.postalCode ?? ""} maxLength={32}/></label>

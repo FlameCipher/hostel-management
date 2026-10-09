@@ -22,12 +22,6 @@ const roomSchema = z.object({
   ),
   status: z.enum(["VACANT", "PARTIALLY_OCCUPIED", "FULL", "MAINTENANCE", "INACTIVE"]),
   notes: z.string().trim().max(500, "Notes must be 500 characters or fewer.").optional(),
-  insidePhotoUrl: z.string().url().optional().or(z.literal("")),
-  insidePhotoPathname: z.string().optional(),
-  outsidePhotoUrl: z.string().url().optional().or(z.literal("")),
-  outsidePhotoPathname: z.string().optional(),
-  compoundPhotoUrl: z.string().url().optional().or(z.literal("")),
-  compoundPhotoPathname: z.string().optional(),
 });
 
 async function requireRoomManager() {
@@ -44,9 +38,6 @@ function parseRoom(formData: FormData) {
     capacityOverride: formData.get("capacityOverride"),
     status: formData.get("status"),
     notes: formData.get("notes"),
-    insidePhotoUrl: formData.get("insidePhotoUrl"), insidePhotoPathname: formData.get("insidePhotoPathname"),
-    outsidePhotoUrl: formData.get("outsidePhotoUrl"), outsidePhotoPathname: formData.get("outsidePhotoPathname"),
-    compoundPhotoUrl: formData.get("compoundPhotoUrl"), compoundPhotoPathname: formData.get("compoundPhotoPathname"),
   });
 }
 
@@ -98,12 +89,6 @@ export async function createRoomAction(
           notes: parsed.data.notes || null,
         },
       });
-      const photos = [
-        { type: "INSIDE" as const, url: parsed.data.insidePhotoUrl, pathname: parsed.data.insidePhotoPathname },
-        { type: "OUTSIDE" as const, url: parsed.data.outsidePhotoUrl, pathname: parsed.data.outsidePhotoPathname },
-        { type: "COMPOUND" as const, url: parsed.data.compoundPhotoUrl, pathname: parsed.data.compoundPhotoPathname },
-      ].filter((photo) => photo.url);
-      if (photos.length) await tx.roomPhoto.createMany({ data: photos.map((photo) => ({ roomId: room.id, type: photo.type, url: photo.url!, pathname: photo.pathname || null })) });
       await tx.auditLog.create({
         data: {
           organizationId: session.organizationId,
@@ -186,15 +171,6 @@ export async function updateRoomAction(
           notes: parsed.data.notes || null,
         },
       });
-      const photoInputs = [
-        { type: "INSIDE" as const, url: parsed.data.insidePhotoUrl, pathname: parsed.data.insidePhotoPathname },
-        { type: "OUTSIDE" as const, url: parsed.data.outsidePhotoUrl, pathname: parsed.data.outsidePhotoPathname },
-        { type: "COMPOUND" as const, url: parsed.data.compoundPhotoUrl, pathname: parsed.data.compoundPhotoPathname },
-      ];
-      for (const photo of photoInputs) {
-        if (photo.url) await tx.roomPhoto.upsert({ where: { roomId_type: { roomId: room.id, type: photo.type } }, update: { url: photo.url, pathname: photo.pathname || null }, create: { roomId: room.id, type: photo.type, url: photo.url, pathname: photo.pathname || null } });
-        else await tx.roomPhoto.deleteMany({ where: { roomId: room.id, type: photo.type } });
-      }
       await tx.auditLog.create({
         data: {
           organizationId: session.organizationId,

@@ -1,4 +1,6 @@
 "use client";
+import { PasswordInput } from "@/components/password-input";
+
 
 import { useActionState } from "react";
 import { ArrowRight, LoaderCircle, LockKeyhole, Mail } from "lucide-react";
@@ -22,7 +24,7 @@ export function LoginForm() {
         <label htmlFor="password" className="form-label">Password</label>
         <div className="input-shell">
           <LockKeyhole aria-hidden="true" size={18} />
-          <input id="password" name="password" type="password" autoComplete="current-password" placeholder="Enter your password" minLength={8} required />
+          <PasswordInput id="password" name="password" autoComplete="current-password" placeholder="Enter your password" minLength={8} required />
         </div>
       </div>
       {state.error ? (

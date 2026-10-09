@@ -462,6 +462,7 @@ model RoomType {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rooms        Room[]
   charges      Charge[]
+  galleryPhotos PropertyPhoto[]
   rateHistory  RoomRateHistory[]
   roomStays    OccupancyRoomStay[]
 
@@ -1072,6 +1073,7 @@ model TenantConversationEntry {
 }
 
 model TenantPortalInvitation {
+ activationHost String?
  id String @id @default(cuid())
  organizationId String
  studentId String
@@ -1109,6 +1111,10 @@ model PlatformSsoGrant {
 }
 
 model PropertyPhoto {
+  category       String?
+  roomTypeId     String?
+  confirmedAt    DateTime?
+  roomType RoomType? @relation(fields: [roomTypeId, organizationId], references: [id, organizationId], onDelete: Restrict)
   id             String @id @default(cuid())
   organizationId String
   propertyId     String
@@ -1124,6 +1130,7 @@ model PropertyPhoto {
   updatedAt      DateTime @updatedAt
   property Property @relation(fields: [propertyId, organizationId], references: [id, organizationId], onDelete: Cascade)
   @@index([organizationId, propertyId, deletedAt])
+  @@index([propertyId, category, roomTypeId])
 }
 
 model BookingRequest {

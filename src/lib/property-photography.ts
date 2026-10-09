@@ -3,7 +3,8 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { localSessionCurrent } from "@/lib/account-security-policy";
 import { platformIdentity, platformRoleAllows, validSubject } from "@/lib/platform-sso";
-export const PHOTO_LIMIT = 12;
+import { photoClassification, PHOTO_GROUP_LIMIT, PHOTO_PROPERTY_LIMIT } from "@/lib/photo-policy";
+export const PHOTO_LIMIT = PHOTO_PROPERTY_LIMIT;
 export const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 const segment = /^[A-Za-z0-9_-]{1,128}$/;
 export function propertyPhotoPathAllowed(pathname: string, organizationId: string, propertyId: string) {
@@ -19,8 +20,9 @@ async function manager(tx: Prisma.TransactionClient, session: Pick<SessionPayloa
   if (!user || !localSessionCurrent(session.sessionVersion, user.sessionVersion)) throw Error("PHOTO_DENIED");
   return user;
 }
-export async function reservePropertyPhoto(database: PrismaClient, session: SessionPayload | null, propertyId: string, pathname: string, consent: boolean, now = new Date()) {
+export async function reservePropertyPhoto(database: PrismaClient, session: SessionPayload | null, propertyId: string, pathname: string, consent: boolean, classificationInput: { category?: unknown; roomTypeId?: unknown; confirmed?: unknown }, now = new Date()) {
   if (!session || !consent || !propertyPhotoPathAllowed(pathname, session.organizationId, propertyId)) throw Error("PHOTO_DENIED");
+  const classification = photoClassification(classificationInput.category, classificationInput.roomTypeId, classificationInput.confirmed);
   return database.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE id=${session.userId} AND "organizationId"=${session.organizationId} FOR SHARE`;
     const user = await manager(tx, session);
@@ -30,8 +32,9 @@ export async function reservePropertyPhoto(database: PrismaClient, session: Sess
     await tx.propertyPhoto.deleteMany({ where: { organizationId: session.organizationId, propertyId, url: null, deletedAt: null, expiresAt: { lte: now } } });
     const count = await tx.propertyPhoto.count({ where: { organizationId: session.organizationId, propertyId, deletedAt: null } });
     if (count >= PHOTO_LIMIT) throw Error("PHOTO_LIMIT");
+    await validateGroup(tx, session.organizationId, propertyId, classification);
     const expiresAt = new Date(now.getTime() + 15 * 60000);
-    const photo = await tx.propertyPhoto.create({ data: { organizationId: session.organizationId, propertyId, uploadedById: user.id, pathname, caption: property.name, expiresAt } });
+    const photo = await tx.propertyPhoto.create({ data: { organizationId: session.organizationId, propertyId, uploadedById: user.id, pathname, caption: property.name, expiresAt, ...classification, confirmedAt: now } });
     return { photoId: photo.id, userId: user.id, organizationId: session.organizationId, propertyId, sessionVersion: user.sessionVersion, ...(session.platformSubject ? { platformSubject: session.platformSubject } : {}) };
   }, { timeout: 15000 });
 }
@@ -55,12 +58,13 @@ export async function completePropertyPhoto(database: PrismaClient, ticketInput:
     if (!photo || photo.deletedAt) return;
     if (photo.url) { if (photo.url !== blob.url) throw Error("PHOTO_DENIED"); return; }
     if (!photo.expiresAt || photo.expiresAt <= now) throw Error("PHOTO_EXPIRED");
+    if (!photo.category || !photo.confirmedAt) throw Error("PHOTO_CLASSIFICATION_REQUIRED");
     const cover = await tx.propertyPhoto.count({ where: { propertyId: ticket.propertyId, organizationId: ticket.organizationId, deletedAt: null, visible: true, isCover: true } });
-    await tx.propertyPhoto.update({ where: { id: photo.id }, data: { url: blob.url, visible: true, isCover: cover === 0, expiresAt: null } });
+    await tx.propertyPhoto.update({ where: { id: photo.id }, data: { url: blob.url, visible: true, isCover: cover === 0 && photo.category === "EXTERIOR", expiresAt: null } });
     await tx.auditLog.create({ data: { organizationId: ticket.organizationId, actorUserId: user.id, action: "PROPERTY_PHOTO_PUBLISHED", entityType: "PropertyPhoto", entityId: photo.id } });
   }, { timeout: 15000 });
 }
-const editSchema = z.object({ id: z.string().min(1).max(128), operation: z.enum(["caption", "cover", "delete"]), caption: z.string().trim().max(240).optional(), visible: z.boolean().optional() });
+const editSchema = z.object({ id: z.string().min(1).max(128), operation: z.enum(["caption", "cover", "delete"]), caption: z.string().trim().max(240).optional(), visible: z.boolean().optional(), category: z.unknown().optional(), roomTypeId: z.unknown().optional(), confirmed: z.boolean().optional() });
 export async function editPropertyPhoto(database: PrismaClient, session: SessionPayload | null, input: unknown, now = new Date()) {
   if (!session) throw Error("PHOTO_DENIED");
   const parsed = editSchema.safeParse(input); if (!parsed.success) throw Error("PHOTO_DENIED");
@@ -75,11 +79,23 @@ export async function editPropertyPhoto(database: PrismaClient, session: Session
     const { operation } = parsed.data;
     if (operation !== "delete" && (!photo.url || photo.deletedAt)) throw Error("PHOTO_DENIED");
     if (operation === "cover") {
-      if (!photo.visible) throw Error("PHOTO_DENIED");
+      if (!photo.visible || photo.category !== "EXTERIOR" || !photo.confirmedAt) throw Error("PHOTO_DENIED");
       await tx.propertyPhoto.updateMany({ where: { propertyId: photo.propertyId, organizationId: session.organizationId, isCover: true }, data: { isCover: false } });
       await tx.propertyPhoto.update({ where: { id: photo.id }, data: { isCover: true } });
-    } else await tx.propertyPhoto.update({ where: { id: photo.id }, data: operation === "delete" ? { deletedAt: photo.deletedAt ?? now, visible: false, isCover: false } : { caption: parsed.data.caption ?? "", visible: parsed.data.visible === true, ...(parsed.data.visible ? {} : { isCover: false }) } });
+    } else if (operation === "delete") {
+      await tx.propertyPhoto.update({ where: { id: photo.id }, data: { deletedAt: photo.deletedAt ?? now, visible: false, isCover: false } });
+    } else {
+      const classification = photoClassification(parsed.data.category, parsed.data.roomTypeId, parsed.data.confirmed);
+      await validateGroup(tx, session.organizationId, photo.propertyId, classification, photo.id);
+      await tx.propertyPhoto.update({ where: { id: photo.id }, data: { ...classification, confirmedAt: now, caption: parsed.data.caption ?? "", visible: parsed.data.visible === true, ...(!parsed.data.visible || classification.category !== "EXTERIOR" ? { isCover: false } : {}) } });
+    }
     await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: user.id, action: operation === "delete" ? "PROPERTY_PHOTO_REMOVED" : "PROPERTY_PHOTO_UPDATED", entityType: "PropertyPhoto", entityId: photo.id } });
     return { id: photo.id, deletionUrl: operation === "delete" && photo.url && propertyBlobAllowed(photo.url, photo.pathname) ? photo.url : null };
   }, { timeout: 15000 });
+}
+
+async function validateGroup(tx: Prisma.TransactionClient, organizationId: string, propertyId: string, group: ReturnType<typeof photoClassification>, excludeId?: string) {
+  if (group.roomTypeId && !await tx.roomType.findFirst({ where: { id: group.roomTypeId, organizationId, active: true }, select: { id: true } })) throw Error("PHOTO_ROOM_TYPE_DENIED");
+  const count = await tx.propertyPhoto.count({ where: { organizationId, propertyId, deletedAt: null, ...group, ...(excludeId ? { id: { not: excludeId } } : {}) } });
+  if (count >= PHOTO_GROUP_LIMIT) throw Error("PHOTO_GROUP_LIMIT");
 }

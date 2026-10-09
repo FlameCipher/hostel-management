@@ -22,3 +22,11 @@ This is limited automatic maintenance, not unrestricted self-repair or complete 
 Every active organization receives a `HEALTHFIX_MAINTENANCE_RUN` audit record before daily repairs start. The worker updates it to `COMPLETED` with repair counts (including zero), or `FAILED` with a sanitized completion warning. A process interruption leaves `RUNNING` visible; the management page flags it after 15 minutes. The page also flags no recent attempt after 26 hours. No history means execution is unverified.
 
 Start-receipt persistence failure prevents that organization's repairs. Completion persistence failure may occur after committed repairs; review the separate repair audit rather than assuming rollback. Each invocation has its own receipt, and the existing per-organization transaction lock still serializes repairs. No schema migration is required.
+
+## Photograph and integration readiness checks
+
+HealthFix reports unclassified published pictures, owner reviews still pending, non-exterior cover pictures and gallery groups exceeding four photos. These are scoped metadata checks. It does not claim to visually inspect or certify photographs. Old photographs require the owner to categorise and confirm them.
+
+The system separately reports that generative AI, closed-app push and automatic WhatsApp delivery are not connected. Existing in-app alerts and the documented guide continue to work. Configuration or provider acceptance alone must not be labelled delivered.
+
+Production backup restoration remains UNKNOWN until a database-provider backup has been restored into an isolated database and verified. See `docs/RECOVERY_AND_ACCEPTANCE.md`.

@@ -8,8 +8,8 @@ export type PhotoState = { error: string; message: string };
 export async function updatePhotoAction(_state: PhotoState, form: FormData): Promise<PhotoState> {
   const session = await requireSession();
   let result;
-  try { result = await editPropertyPhoto(db, session, { id: form.get("id"), operation: form.get("operation"), caption: form.get("caption") ?? undefined, visible: form.get("visible") === "on" }); }
-  catch { return { error: "This photo is unavailable or could not be updated.", message: "" }; }
+  try { result = await editPropertyPhoto(db, session, { id: form.get("id"), operation: form.get("operation"), caption: form.get("caption") ?? undefined, visible: form.get("visible") === "on", category: form.get("category"), roomTypeId: form.get("roomTypeId"), confirmed: form.get("confirmed") === "on" }); }
+  catch { return { error: "Check the photo category, confirm it meets the rules, and keep no more than four photos in each group.", message: "" }; }
   revalidatePath("/"); revalidatePath("/website");
   if (result.deletionUrl) {
     try { await del(result.deletionUrl); await db.propertyPhoto.updateMany({ where: { id: result.id, organizationId: session.organizationId, deletedAt: { not: null } }, data: { url: null } }); }
