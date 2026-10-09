@@ -1,0 +1,15 @@
+import Link from "next/link";
+import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { residentStaff } from "@/lib/resident-access";
+import { VisitorRecord } from "@/components/visitor-record";
+import styles from "@/components/resident-services.module.css";
+export const dynamic = "force-dynamic";
+export default async function Visitors({ searchParams }: { searchParams: Promise<{ page?: string; filter?: string; q?: string }> }) {
+  const s = await requireSession(); if (!await residentStaff(db, s)) return <p>Visitor register unavailable.</p>;
+  const params = await searchParams, page = Math.min(10000, Math.max(1, Math.floor(Number(params.page) || 1))), filter = ["EXPECTED", "INSIDE", "OVERDUE", "ALL"].includes(params.filter ?? "") ? params.filter! : "EXPECTED", q = (params.q ?? "").trim().slice(0, 120);
+  const where = { organizationId: s.organizationId, ...(filter === "EXPECTED" ? { status: { in: ["REQUESTED", "APPROVED"] } } : filter === "INSIDE" ? { status: "CHECKED_IN" } : filter === "OVERDUE" ? { status: "CHECKED_IN", expectedDeparture: { lt: new Date() } } : {}), ...(q ? { OR: [{ visitorName: { contains: q, mode: "insensitive" as const } }, { student: { fullName: { contains: q, mode: "insensitive" as const } } }, { roomLabel: { contains: q, mode: "insensitive" as const } }] } : {}) };
+  const visits = await db.visitorRequest.findMany({ where, orderBy: filter === "OVERDUE" ? [{ expectedDeparture: "asc" }, { id: "asc" }] : [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * 30, take: 31, include: { student: { select: { fullName: true } }, property: { select: { name: true } } } });
+  const link = (n: number) => `?${new URLSearchParams({ filter, q, page: String(n) })}`;
+  return <div className={styles.page}><div className="page-heading-row"><div><p className="eyebrow">Caretaker / security</p><h1>Visitor register</h1></div><Link className="secondary-button" href="/assistant">System assistant & alerts</Link></div><p>Verify the host and visitor before entry. Record departure only after it is confirmed. Every change is audited under your staff account.</p><section className={`panel ${styles.card}`}><form method="get"><div className={styles.grid}><label className="field-group"><span>View</span><select name="filter" defaultValue={filter}><option value="EXPECTED">Expected / awaiting verification</option><option value="INSIDE">Checked in — no departure recorded</option><option value="OVERDUE">Check-out overdue</option><option value="ALL">All visitor records</option></select></label><label className="field-group"><span>Visitor, host or room</span><input name="q" defaultValue={q} maxLength={120}/></label></div><button className="secondary-button">Show visitors</button></form></section>{visits.length ? visits.slice(0, 30).map(v => <VisitorRecord key={v.id} visit={v}/>) : <section className={`panel ${styles.card}`}><p>No visitor records match this view.</p></section>}<nav className={styles.actions}>{page > 1 && <Link href={link(page - 1)}>Previous</Link>}{visits.length > 30 && <Link href={link(page + 1)}>Next</Link>}</nav></div>;
+}

@@ -61,6 +61,8 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   await read("website", "Property website and pictures", () => Promise.all([db.property.count({ where: scope }), db.propertyPhoto.count({ where: scope })]), [configuration("storage", "Public picture storage configured", Boolean(env.BLOB_READ_WRITE_TOKEN)), unknown("pictures", "Live photo upload and image delivery not independently probed")]);
   await read("terms", "Hostel terms", () => db.studentTermsAcceptance.count({ where: scope }), [unknown("pdf", "PDF generation and download not probed")]);
   await read("communications", "Tenant communications", () => Promise.all([db.tenantMessage.count({ where: scope }), db.tenantConversation.count({ where: scope })]), [unknown("workflow", "Message and reply flows not probed")]);
+  await read("visitors", "Visitor requests and gate records", () => db.visitorRequest.count({ where: scope }), [unknown("verification", "Physical arrivals and departures require staff verification")]);
+  await read("tenant-registration", "Tenant self-registration", () => db.tenantRegistration.count({ where: scope }), [unknown("identity", "Tenant identity is verified by management")]);
   await read("invitations", "Account invitations", () => db.tenantPortalInvitation.count({ where: scope }), [unknown("activation", "Account activation not probed")]);
   modules.push(module("email", "Email delivery", [configuration("sender", "Email key and sender configured", Boolean(env.RESEND_API_KEY && env.RECEIPT_EMAIL_FROM)), unknown("delivery", "Mailbox delivery not confirmed")]));
   modules.push(module("scheduler", "Scheduled processing", [configuration("secret", "Cron authentication configured", Boolean(env.CRON_SECRET)), await maintenanceScheduleCheck(db, organizationId, now)]));
@@ -112,7 +114,8 @@ export async function repairHealthfix(db: PrismaClient, organizationId: string, 
     const invitations = await tx.tenantPortalInvitation.updateMany({ where: { organizationId, usedAt: null, status: "SENDING", OR: [{ attemptedAt: null }, { attemptedAt: { lte: old } }] }, data: { status: "REVIEW", error: "HealthFix detected an interrupted send. Reconcile provider status before sending again." } });
     const emails = await tx.tenantMessage.updateMany({ where: { organizationId, emailStatus: "SENDING", OR: [{ emailAttemptAt: null }, { emailAttemptAt: { lte: old } }] }, data: { emailStatus: "REVIEW", emailError: "HealthFix detected an interrupted send. Reconcile provider status before sending again." } });
     const expired = await tx.tenantPortalInvitation.updateMany({ where: { organizationId, usedAt: null, tokenHash: { not: null }, expiresAt: { lte: now }, status: { not: "ACTIVATED" } }, data: { status: "EXPIRED", tokenHash: null, error: "Invitation expired. Management can issue a new link." } });
-    const result = { interruptedInvitations: invitations.count, interruptedEmails: emails.count, expiredInvitations: expired.count };
+    const registrations = await tx.tenantRegistration.updateMany({ where: { organizationId, status: "PENDING", expiresAt: { lte: now } }, data: { status: "EXPIRED", passwordHash: null } });
+    const result = { expiredRegistrations: registrations.count, interruptedInvitations: invitations.count, interruptedEmails: emails.count, expiredInvitations: expired.count };
     if (Object.values(result).some(Boolean)) await tx.auditLog.create({ data: { organizationId, actorUserId: session?.userId, action: "HEALTHFIX_SAFE_REPAIR", entityType: "Organization", entityId: organizationId, metadata: { ...result, source: session ? "MANAGEMENT" : "DAILY_CRON", version: 1 } } });
     return result;
   }, { timeout: 15000 });
