@@ -22,7 +22,7 @@ export async function reissueInvitationAction(f:FormData){
  await tx.$queryRaw`SELECT id FROM "TenantPortalInvitation" WHERE id=${id} FOR UPDATE`;
  const row=await tx.tenantPortalInvitation.findFirst({where:{id,organizationId:s.organizationId,usedAt:null,status:{in:["FAILED","MISSING_EMAIL","EXPIRED","INELIGIBLE"]}}});if(!row)return;
  const student=await tx.student.findFirst({where:{...inviteCandidateWhere(s.organizationId),id:row.studentId},select:{id:true}});if(!student)return;
- await tx.tenantPortalInvitation.update({where:{id},data:{generation:{increment:1},status:"QUEUED",tokenHash:null,recipient:null,sender:null,expiresAt:null,attempts:0,attemptedAt:null,providerId:null,error:null}});
+ await tx.tenantPortalInvitation.update({where:{id},data:{generation:{increment:1},status:"QUEUED",tokenHash:null,activationHost:null,recipient:null,sender:null,expiresAt:null,attempts:0,attemptedAt:null,providerId:null,error:null}});
  await tx.auditLog.create({data:{organizationId:s.organizationId,actorUserId:s.userId,action:"TENANT_PORTAL_INVITATION_REISSUED",entityType:"Student",entityId:row.studentId,metadata:{invitationId:id}}});
  });revalidatePath("/communications/invitations");
 }

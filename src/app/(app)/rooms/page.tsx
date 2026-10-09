@@ -155,7 +155,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         </form>
 
         {rooms.length ? (
-          <div className="table-scroll room-table-wrap">
+          <div className="table-scroll room-table-wrap" tabIndex={0} role="region" aria-label="Scrollable room register">
             <table className="data-table room-table">
               <thead><tr><th>Room</th><th>Type & accommodation</th><th>Floor</th><th>Capacity</th><th>Current occupants</th><th>Monthly rent</th><th>Semester rent</th><th>Status</th>{canManageRooms ? <th>Actions</th> : null}</tr></thead>
               <tbody>
@@ -170,9 +170,11 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                     <tr key={room.id}>
                       <td><strong>Room {room.number}</strong><small className="table-subtext">{room.floor || "Floor not set"}</small></td>
                       <td><strong>{room.roomType.name}</strong><small className="table-subtext">{room.roomType.sharingMode === "PRIVATE" ? "Private" : "Shared"}</small></td>
+                      <td>{room.floor || "Not set"}</td>
                       <td>{occupantCount} / {capacity}</td>
                       <td>{room.occupancies.length || breakOnlyReservations.length ? <>{room.occupancies.map((occupancy) => occupancy.student.fullName).join(", ")}{room.occupancies.length && breakOnlyReservations.length ? "; " : ""}{breakOnlyReservations.map((reservation) => `${reservation.student.fullName} (break reserved)`).join(", ")}</> : <span className="muted-note">No occupants</span>}</td>
-                      <td><strong>{money(Number(room.roomType.monthlyRate))}</strong><small className="table-subtext">per person</small></td>\n                      <td><strong>{money(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
+                      <td><strong>{money(Number(room.roomType.monthlyRate))}</strong><small className="table-subtext">per person</small></td>
+                      <td><strong>{money(Number(room.roomType.semesterRate))}</strong><small className="table-subtext">per person</small></td>
                       <td><span className={`status-pill ${roomStatusTone[effectiveStatus]}`}>{roomStatusLabels[effectiveStatus]}</span></td>
                       {canManageRooms ? <td><div className="row-actions room-row-actions"><Link aria-label={`View room ${room.number}`} className="room-view-button" href={`/rooms/${room.id}/edit`}><Eye size={14} /> View</Link><Link aria-label={`Edit room ${room.number}`} className="room-edit-button" href={`/rooms/${room.id}/edit`}><Pencil size={14} /> Edit</Link><Link aria-label={`Delete room ${room.number}`} className="room-delete-button" href={`/rooms/${room.id}/delete`} title={`Delete Room ${room.number} · ${room.floor || "Floor unspecified"}`}><Trash2 size={14} /> Delete</Link></div></td> : null}
                     </tr>

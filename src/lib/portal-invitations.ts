@@ -5,6 +5,7 @@ import type { Prisma,PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { tenantWhere } from "@/lib/communications";
 import { emailResult } from "@/lib/communication-email";
+import { managedPropertyHost } from "@/lib/property-host-policy";
 export const invitationLifetime=72*60*60*1000;
 export function invitationHash(token:string){return createHash("sha256").update(token).digest("hex");}
 export function invitationToken(row:{id:string;generation:number;recipient:string|null;expiresAt:Date|null},secret:string){
@@ -17,23 +18,30 @@ export function inviteCandidateWhere(organizationId:string):Prisma.StudentWhereI
 export async function invitationManager(db:Pick<PrismaClient,"user">,s:SessionPayload|null){
  if(!s)return null;return db.user.findFirst({where:{id:s.userId,organizationId:s.organizationId,active:true,role:{in:["OWNER","ADMIN"]}},select:{id:true}});
 }
+export function invitationHost(properties: Array<{ customDomain: string | null }>) {
+ const hosts = [...new Set(properties.map(p => managedPropertyHost(p.customDomain)).filter((host): host is string => !!host))];
+ return hosts.length === 1 ? hosts[0] : null;
+}
+const invitationOccupancies = { where: { status: { in: ["ACTIVE", "RESERVED"] as Array<"ACTIVE" | "RESERVED"> }, room: { property: { active: true, publicListing: true } } }, select: { room: { select: { property: { select: { customDomain: true } } } } } };
 export async function usableInvitation(db:Pick<PrismaClient,"tenantPortalInvitation"|"student">,token:string,now=new Date()){
  if(!/^[a-zA-Z0-9-]{1,64}\.[A-Za-z0-9_-]{43}$/.test(token))return null;
  const row=await db.tenantPortalInvitation.findUnique({where:{tokenHash:invitationHash(token)}});
  if(!row || row.usedAt || !row.expiresAt || row.expiresAt<=now || !row.recipient)return null;
- const student=await db.student.findFirst({where:{...inviteCandidateWhere(row.organizationId),id:row.studentId},select:{id:true,email:true}});
+ const student=await db.student.findFirst({where:{...inviteCandidateWhere(row.organizationId),id:row.studentId},select:{id:true,email:true,occupancies:invitationOccupancies}});
  if(!student?.email || student.email.trim().toLowerCase()!==row.recipient.toLowerCase())return null;
- return row;
+ const activationHost = invitationHost(student.occupancies.map(o => o.room.property));
+ if (!activationHost || (row.activationHost && row.activationHost !== activationHost)) return null;
+ return {...row, activationHost};
 }
-export async function activateInvitation(db:PrismaClient,input:unknown,now=new Date()){
- const parsed=z.object({token:z.string().max(128),password:z.string().min(10).max(128),confirmation:z.string()}).refine(x=>x.password===x.confirmation).safeParse(input);
- if(!parsed.success)return{error:"Use matching passwords of 10–128 characters."};
- const initial=await usableInvitation(db,parsed.data.token,now);if(!initial)return{error:"This invitation is unavailable, expired or already used. Contact management for a new link."};
+export async function activateInvitation(db:PrismaClient,input:unknown,host:string|null,now=new Date()){
+ const parsed=z.object({token:z.string().max(128),password:z.string().min(10).max(128).refine(value => Buffer.byteLength(value, "utf8") <= 72),confirmation:z.string()}).refine(x=>x.password===x.confirmation).safeParse(input);
+ if(!parsed.success)return{error:"Use matching passwords of at least 10 characters, up to 72 UTF-8 bytes."};
+ const initial=await usableInvitation(db,parsed.data.token,now);if(!initial || host !== initial.activationHost)return{error:"This invitation is unavailable, expired or already used. Contact management for a new link."};
  const passwordHash=await hash(parsed.data.password,12);
  return db.$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${initial.studentId} AND "organizationId"=${initial.organizationId} FOR UPDATE`;
  await tx.$queryRaw`SELECT id FROM "TenantPortalInvitation" WHERE id=${initial.id} FOR UPDATE`;
- const row=await usableInvitation(tx,parsed.data.token,new Date());if(!row)return{error:"This invitation is unavailable, expired or already used."};
+ const row=await usableInvitation(tx,parsed.data.token,new Date());if(!row || host !== row.activationHost)return{error:"This invitation is unavailable, expired or already used."};
  const changed=await tx.student.updateMany({where:{...inviteCandidateWhere(row.organizationId),id:row.studentId},data:{portalPasswordHash:passwordHash,portalEnabled:true}});if(changed.count!==1)return{error:"Account activation is unavailable."};
  await tx.tenantPortalInvitation.update({where:{id:row.id},data:{usedAt:new Date(),status:"ACTIVATED",tokenHash:null}});
  await tx.auditLog.create({data:{organizationId:row.organizationId,action:"TENANT_PORTAL_SELF_ACTIVATED",entityType:"Student",entityId:row.studentId,metadata:{invitationId:row.id}}});
@@ -57,19 +65,21 @@ export async function runPortalInvitations(db:PrismaClient,organizationId?:strin
  await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${initial.studentId} AND "organizationId"=${rule.organizationId} FOR UPDATE`;
  await tx.$queryRaw`SELECT id FROM "TenantPortalInvitation" WHERE id=${initial.id} FOR UPDATE`;
  const row=await tx.tenantPortalInvitation.findUnique({where:{id:initial.id}});if(!row || row.usedAt || !["QUEUED","RETRY","MISSING_EMAIL"].includes(row.status)||row.attempts>=3)return null;
- const student=await tx.student.findFirst({where:{...inviteCandidateWhere(rule.organizationId),id:row.studentId},select:{email:true}});
+ const student=await tx.student.findFirst({where:{...inviteCandidateWhere(rule.organizationId),id:row.studentId},select:{email:true,occupancies:invitationOccupancies}});
  if(!student){await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"INELIGIBLE",tokenHash:null,error:"Tenant is no longer eligible for automatic activation."}});return null;}
  const email=student.email?.trim().toLowerCase();if(!email || !z.string().email().safeParse(email).success){await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"MISSING_EMAIL",error:"Add a valid student email for automatic delivery."}});return null;}
  if(row.recipient && row.recipient!==email){await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"FAILED",tokenHash:null,error:"Student email changed. Issue a new invitation."}});return null;}
+ const activationHost=invitationHost(student.occupancies.map(o=>o.room.property));
+ if(!activationHost || (row.activationHost && row.activationHost!==activationHost) || (!row.activationHost && row.attempts>0)) { await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"FAILED",tokenHash:null,error:"Confirm the tenant’s current hostel website and issue a new invitation."}});return null; }
  const expiresAt=row.expiresAt??new Date(now.getTime()+invitationLifetime),recipient=row.recipient??email;
  const token=invitationToken({...row,recipient,expiresAt},config.secret!);
  if(row.tokenHash && row.tokenHash!==invitationHash(token)){await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"FAILED",tokenHash:null,error:"Invitation configuration changed. Issue a new invitation."}});return null;}
- const claimed=await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"SENDING",recipient,sender:row.sender??config.from,expiresAt,tokenHash:invitationHash(token),attempts:{increment:1},attemptedAt:now,error:null}});
+ const claimed=await tx.tenantPortalInvitation.update({where:{id:row.id},data:{status:"SENDING",activationHost,recipient,sender:row.sender??config.from,expiresAt,tokenHash:invitationHash(token),attempts:{increment:1},attemptedAt:now,error:null}});
  return{row:claimed,token};
  });if(!item)continue;
  let result:{status:string;error:string|null}={status:"REVIEW",error:"Email acceptance is uncertain. Review provider status before issuing a new invitation."},providerId:string|undefined;
  try{
- const response=await fetcher("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${config.apiKey}`,"Content-Type":"application/json","Idempotency-Key":`hostel-invite/${item.row.id}/${item.row.generation}`},body:JSON.stringify({from:item.row.sender,to:[item.row.recipient],subject:`Create your ${item.row.hostelName} tenant account`,text:`${item.row.hostelName} invites you to create your registered tenant account.\n\nSet your own password using this private, one-use link:\nhttps://hostel.sampesa.com/tenant/activate/${item.token}\n\nThe link expires at ${item.row.expiresAt!.toISOString()} (UTC). Do not forward it. After activation, sign in with your registered mobile number or email, read and accept the hostel terms, view your statement and contact management. No password is included in this message. If you did not request accommodation, contact hostel management.`}),signal:AbortSignal.timeout(10000)});
+ const response=await fetcher("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${config.apiKey}`,"Content-Type":"application/json","Idempotency-Key":`hostel-invite/${item.row.id}/${item.row.generation}`},body:JSON.stringify({from:item.row.sender,to:[item.row.recipient],subject:`Create your ${item.row.hostelName} tenant account`,text:`${item.row.hostelName} invites you to create your registered tenant account.\n\nSet your own password using this private, one-use link:\nhttps://${item.row.activationHost}/tenant/activate/${item.token}\n\nThe link expires at ${item.row.expiresAt!.toISOString()} (UTC). Do not forward it. After activation, sign in with your registered mobile number or email, read and accept the hostel terms, view your statement and contact management. No password is included in this message. If you did not request accommodation, contact hostel management.`}),signal:AbortSignal.timeout(10000)});
  if(response.ok){const payload=await response.json();providerId=typeof payload.id==="string"?payload.id:undefined;}
  result=emailResult(response.status,providerId);if(result.status==="RETRY"&&item.row.attempts>=3)result={status:"FAILED",error:"Invitation email retry limit reached."};
  }catch{/* Never retry an ambiguous send automatically. */}

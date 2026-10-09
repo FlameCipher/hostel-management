@@ -67,6 +67,9 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   modules.push(module("email", "Email delivery", [configuration("sender", "Email key and sender configured", Boolean(env.RESEND_API_KEY && env.RECEIPT_EMAIL_FROM)), unknown("delivery", "Mailbox delivery not confirmed")]));
   modules.push(module("scheduler", "Scheduled processing", [configuration("secret", "Cron authentication configured", Boolean(env.CRON_SECRET)), await maintenanceScheduleCheck(db, organizationId, now)]));
   modules.push(module("whatsapp", "WhatsApp delivery", [unknown("automatic", "Automatic Business sender not connected")]));
+  modules.push(module("assistant", "System assistant", [unknown("ai", "Documented guide available; generative AI provider not connected")]));
+  modules.push(module("mobile-notifications", "Background mobile notifications", [unknown("push", "Live in-app alerts available; closed-app push delivery not connected")]));
+  modules.push(module("recovery", "Backup and recovery", [unknown("restore", "Production backup restoration requires an isolated provider restore drill")]));
   const old = new Date(now.getTime() - interruptedAfterMs), overdue = new Date(now.getTime() - backlogAfterMs);
   async function warning(code: string, name: string, query: () => Promise<number>): Promise<Check> {
     let status: CheckStatus;
@@ -85,6 +88,15 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
     }),
     warning("payments", "Payment and charge refer to the same student and landlord", async () => {
       const rows = await db.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM "Payment" p JOIN "SemesterCharge" c ON c.id=p."chargeId" JOIN "Student" s ON s.id=p."studentId" WHERE (${integrityScope}::text IS NULL OR p."organizationId"=${integrityScope}) AND (c."organizationId"<>p."organizationId" OR s."organizationId"<>p."organizationId" OR c."studentId"<>p."studentId")`;
+      return rows[0].count;
+    }),
+  ])));
+  modules.push(module("photo-guidelines", "Property photograph checks", await Promise.all([
+    warning("classification", "Published pictures have an owner-confirmed building, compound or room category", () => db.propertyPhoto.count({ where: { ...scope, deletedAt: null, visible: true, OR: [{ category: null }, { confirmedAt: null }, { category: { notIn: ["EXTERIOR", "COMPOUND", "ROOM"] } }] } })),
+    warning("review", "Older photographs awaiting owner classification", () => db.propertyPhoto.count({ where: { ...scope, deletedAt: null, url: { not: null }, category: null } })),
+    warning("cover", "Website covers show building exteriors", () => db.propertyPhoto.count({ where: { ...scope, deletedAt: null, isCover: true, OR: [{ category: null }, { category: { not: "EXTERIOR" } }] } })),
+    warning("group-limits", "No gallery group exceeds four photographs", async () => {
+      const rows = await db.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM (SELECT "propertyId", "category", "roomTypeId" FROM "PropertyPhoto" WHERE "deletedAt" IS NULL AND "category" IS NOT NULL AND (${integrityScope}::text IS NULL OR "organizationId"=${integrityScope}) GROUP BY "propertyId", "category", "roomTypeId" HAVING COUNT(*)>4) groups`;
       return rows[0].count;
     }),
   ])));
