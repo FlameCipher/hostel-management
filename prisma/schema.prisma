@@ -384,6 +384,7 @@ model Property {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  passwordRecoveries PasswordRecovery[]
   visitorRequests VisitorRequest[]
   portalRegistrations TenantRegistration[]
   rooms        Room[]
@@ -412,6 +413,7 @@ model User {
   updatedAt      DateTime @updatedAt
 
   organization                  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  passwordRecoveries PasswordRecovery[]
   paymentsRecorded              Payment[]                     @relation("PaymentRecordedBy")
   paymentsReversed              Payment[]                     @relation("PaymentReversedBy")
   auditLogs                     AuditLog[]
@@ -523,6 +525,7 @@ model Student {
   portalLastLoginAt  DateTime?
 
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  passwordRecoveries PasswordRecovery[]
   guardian              Guardian?
   occupancies           Occupancy[]
   charges               Charge[]
@@ -1207,4 +1210,34 @@ model TenantRegistration {
  @@unique([propertyId,requestId])
  @@index([organizationId,status,createdAt])
  @@index([fingerprint,createdAt])
+}
+
+model PasswordRecovery {
+  id String @id @default(cuid())
+  organizationId String
+  propertyId String
+  kind String
+  userId String?
+  studentId String?
+  sessionVersion Int
+  recipient String
+  host String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  deliveryStatus String @default("SENDING")
+  property Property @relation(fields: [propertyId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([studentId])
+  @@index([expiresAt])
+}
+model RecoveryRateLimit {
+  id String @id
+  attempts Int @default(1)
+  createdAt DateTime @default(now())
+  @@index([createdAt])
 }

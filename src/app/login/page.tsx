@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { getSession } from "@/lib/auth/session";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ accountUpdated?: string; sharedLogin?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ accountUpdated?: string; sharedLogin?: string; passwordReset?: string }> }) {
   const params = await searchParams;
   const updated = params.accountUpdated === "1";
   const context=await requestPropertyContext();
@@ -35,6 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="mt-2 text-sm leading-6 text-slate-500">Sign in to manage rooms, students and semester payments.</p>
           {updated && <p role="status" className="mt-5">Your hostel account was updated. Previous hostel sessions are signed out. Sign in with your updated hostel credentials or use SYSTEM IN ONE.</p>}
           <p className="mt-4 text-sm"><Link href="/install">Install hostel app</Link></p>
+          {params.passwordReset === "1" && <p role="status" className="mt-5">Your password has been reset. Previous hostel sessions are signed out. Sign in with your new password.</p>}
           <LoginForm />
           {params.sharedLogin === "expired" ? <p role="alert" className="mt-5">Your shared sign-in could not be confirmed. Use the SYSTEM IN ONE button below to start again.</p> : null}
           <p className="mt-5"><a className="secondary-button" href="/api/platform/sso/start">Sign in with SYSTEM IN ONE</a></p>

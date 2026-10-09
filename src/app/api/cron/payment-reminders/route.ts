@@ -1,3 +1,4 @@
+import { prunePasswordRecovery } from "@/lib/password-recovery";
 import { NextResponse } from "next/server";
 import { runPortalInvitations } from "@/lib/portal-invitations";
 import { sendCommunicationEmails } from "@/lib/communication-email";
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
+  await prunePasswordRecovery(db);
   const healthfix = await runHealthfixMaintenance(db);
   const communications = await runCommunications(db);
   const email = await sendCommunicationEmails(db);

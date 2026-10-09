@@ -1,5 +1,6 @@
 "use server";
 
+import { assertHostelNameAvailable, isHostelNameConflict, hostelNameTaken } from "@/lib/hostel-name";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
@@ -30,10 +31,11 @@ export async function updateOrganizationSettingsAction(_state: SettingsFormState
   if (!session) return { error: "Only the Owner or an Admin can change settings.", message: "" };
   const parsed = profileSchema.safeParse({ name: formData.get("name"), ownerName: formData.get("ownerName"), phone: formData.get("phone"), email: formData.get("email"), physicalAddress: formData.get("physicalAddress"), receiptPrefix: formData.get("receiptPrefix"), defaultSemesterMonths: formData.get("defaultSemesterMonths"), defaultBreakMonths: formData.get("defaultBreakMonths"), reminderDaysBefore: formData.get("reminderDaysBefore"), mpesaShortcode: formData.get("mpesaShortcode"), mpesaAccountName: formData.get("mpesaAccountName") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the settings.", message: "" };
-  await db.$transaction([
-    db.organization.update({ where: { id: session.organizationId }, data: { ...parsed.data, email: parsed.data.email || null, physicalAddress: parsed.data.physicalAddress || null, mpesaShortcode: parsed.data.mpesaShortcode || null, mpesaAccountName: parsed.data.mpesaAccountName || null, whatsappEnabled: formData.get("whatsappEnabled") === "on", smsEnabled: formData.get("smsEnabled") === "on" } }),
-    db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ORGANIZATION_SETTINGS_UPDATED", entityType: "Organization", entityId: session.organizationId, metadata: { receiptPrefix: parsed.data.receiptPrefix, defaultSemesterMonths: parsed.data.defaultSemesterMonths, defaultBreakMonths: parsed.data.defaultBreakMonths } } }),
-  ]);
+  try { await db.$transaction(async tx => {
+    await assertHostelNameAvailable(tx, parsed.data.name, session.organizationId);
+    await tx.organization.update({ where: { id: session.organizationId }, data: { ...parsed.data, email: parsed.data.email || null, physicalAddress: parsed.data.physicalAddress || null, mpesaShortcode: parsed.data.mpesaShortcode || null, mpesaAccountName: parsed.data.mpesaAccountName || null, whatsappEnabled: formData.get("whatsappEnabled") === "on", smsEnabled: formData.get("smsEnabled") === "on" } });
+    await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ORGANIZATION_SETTINGS_UPDATED", entityType: "Organization", entityId: session.organizationId, metadata: { receiptPrefix: parsed.data.receiptPrefix, defaultSemesterMonths: parsed.data.defaultSemesterMonths, defaultBreakMonths: parsed.data.defaultBreakMonths } } });
+  }); } catch (error) { return {error:isHostelNameConflict(error)?hostelNameTaken:"Hostel settings could not be saved.",message:""}; }
   revalidatePath("/", "layout"); revalidatePath("/settings");
   return { error: "", message: "Hostel settings saved successfully." };
 }
@@ -86,9 +88,10 @@ export async function updatePropertyProfileAction(_state:SettingsFormState,formD
  if(!parsed.success)return{error:parsed.error.issues[0]?.message??"Check property details.",message:""};
  const {id,...profile}=parsed.data;
  try { await db.$transaction(async tx=>{
+ await assertHostelNameAvailable(tx, profile.name, session.organizationId, id);
  const result=await tx.property.updateMany({where:{id,organizationId:session.organizationId,active:true},data:{...profile,countryCode:profile.countryCode||null,city:profile.city||null,region:profile.region||null,postalCode:profile.postalCode||null,timeZone:profile.timeZone||null,phone:profile.phone||null,email:profile.email||null,physicalAddress:profile.physicalAddress||null,publicDescription:profile.publicDescription||null}});
  if(result.count!==1)throw Error("PROPERTY_UNAVAILABLE");
  await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"PROPERTY_PUBLIC_PROFILE_UPDATED",entityType:"Property",entityId:id}});
- }); }catch{return{error:"Property unavailable or changes could not be saved.",message:""};}
+ }); }catch(error){return{error:isHostelNameConflict(error)?hostelNameTaken:"Property unavailable or changes could not be saved.",message:""};}
  revalidatePath("/");revalidatePath("/settings");revalidatePath("/setup");revalidatePath("/website");return{error:"",message:"Property website details saved."};
 }

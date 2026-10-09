@@ -1,0 +1,60 @@
+// Optional isolated fixture dependencies: @electric-sql/pglite and @electric-sql/pglite-socket.
+// PGLITE_MODULE_ROOT may point to an existing node_modules installation.
+import assert from 'node:assert/strict';
+import { readFile, readdir } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
+import { compare } from 'bcryptjs';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.ts';
+import { requestPasswordRecovery, resetRecoveredPassword, recoveryNotice, recoveryTokenHash, prunePasswordRecovery } from '../src/lib/password-recovery.ts';
+import { assertHostelNameAvailable } from '../src/lib/hostel-name.ts';
+import { provisionHostel } from '../src/lib/platform-provisioning.ts';
+const dep = name => process.env.PGLITE_MODULE_ROOT ? pathToFileURL(`${process.env.PGLITE_MODULE_ROOT}/@electric-sql/${name}/dist/index.js`).href : `@electric-sql/${name}`;
+const { PGlite } = await import(dep('pglite'));
+const { PGLiteSocketServer } = await import(dep('pglite-socket'));
+const pg = await PGlite.create();
+const migrations = (await readdir('prisma/migrations')).filter(n => /^\d/.test(n)).sort();
+for (const name of migrations) await pg.exec(await readFile(`prisma/migrations/${name}/migration.sql`, 'utf8'));
+await pg.exec(`
+INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('one','Recovery Fixture','Owner','0714000001',now()),('two','Other Fixture','Other owner','0714000002',now());
+INSERT INTO "Property" (id,"organizationId",slug,name,"customDomain","publicListing","updatedAt") VALUES ('p-one','one','recovery','Recovery Fixture','recovery.studentshostels.com',true,now()),('p-two','two','other','Other Fixture','other.studentshostels.com',true,now());
+INSERT INTO "User" (id,"organizationId",name,email,"passwordHash",role,"updatedAt") VALUES ('owner','one','Owner','owner@example.invalid','original','OWNER',now()),('staff','one','Staff','staff@example.invalid','original','MANAGER',now()),('other-owner','two','Other owner','owner@example.invalid','original','OWNER',now());
+INSERT INTO "Student" (id,"organizationId","fullName",phone,email,"admittedAt","portalEnabled","portalPasswordHash","updatedAt") VALUES ('student','one','Fixture resident','0714000003','resident@example.invalid',now(),true,'original',now());
+INSERT INTO "RoomType" (id,"organizationId",name,"sharingMode","defaultCapacity","monthlyRate","semesterRate","updatedAt") VALUES ('type','one','Single','PRIVATE',1,100,400,now());
+INSERT INTO "Room" (id,"organizationId","propertyId","roomTypeId",number,"numberKey","floorKey","updatedAt") VALUES ('room','one','p-one','type','1','1','',now());
+INSERT INTO "Semester" (id,"organizationId",name,"startDate","endDate","updatedAt") VALUES ('term','one','Fixture term',now(),now()+interval '3 months',now());
+INSERT INTO "Occupancy" (id,"organizationId","semesterId","studentId","roomId","checkInAt","updatedAt") VALUES ('stay','one','term','student','room',now(),now());
+`);
+const server = new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:55449,maxConnections:20}); await server.start();
+const db = new PrismaClient({adapter:new PrismaPg({connectionString:'postgresql://fixture:fixture@127.0.0.1:55449/recovery',max:1})});
+const config={apiKey:'fixture-never-sent',from:'fixture@example.invalid',secret:'fixture-recovery-secret-only'};
+const host='recovery.studentshostels.com', emails=[];
+const provider=async (_url,options)=>{emails.push(JSON.parse(options.body));return Response.json({id:'fixture-provider-id'});};
+const request=(identifier='owner@example.invalid',kind='MANAGEMENT',target=host,send=provider)=>requestPasswordRecovery(db,{identifier,kind,hostel:'recovery'},target,config,send);
+const lastToken=()=>emails.at(-1).text.match(/\/reset-password\/([A-Za-z0-9_-]+)/)[1];
+const reset=(token,target=host)=>resetRecoveredPassword(db,{token,password:'New-recovery-password-2026',confirmation:'New-recovery-password-2026'},target);
+const clearLimits=()=>db.recoveryRateLimit.deleteMany();
+let checks=0;const pass=t=>{checks++;console.log(`PASS ${t}`);};
+try {
+  assert.equal((await request()).message,recoveryNotice);assert.equal(emails.length,1);const token=lastToken();
+  const row=await db.passwordRecovery.findUniqueOrThrow({where:{tokenHash:recoveryTokenHash(token)}});assert(!JSON.stringify(row).includes(token));assert.equal(row.recipient,'owner@example.invalid');assert.equal(row.deliveryStatus,'PROVIDER_ACCEPTED');assert(emails[0].text.includes(`https://${host}/reset-password/`));pass('registered recipient, correct canonical link and hashed single-use token');
+  assert.equal((await request('missing@example.invalid')).message,recoveryNotice);assert.equal(emails.length,1);await request('owner@example.invalid','MANAGEMENT','unknown.studentshostels.com');assert.equal(emails.length,1);pass('missing accounts and unknown hostels do not send mail or reveal existence');
+  assert((await reset(token,'other.studentshostels.com')).error);assert.equal((await db.user.findUnique({where:{id:'owner'}})).sessionVersion,0);pass('cross-hostel token redemption denied without changing credentials');
+  await request();const second=lastToken();assert((await reset(token)).complete);assert((await reset(token)).error);assert((await reset(second)).error);const owner=await db.user.findUniqueOrThrow({where:{id:'owner'}});assert.equal(owner.sessionVersion,1);assert(await compare('New-recovery-password-2026',owner.passwordHash));assert.equal((await db.user.findUnique({where:{id:'other-owner'}})).sessionVersion,0);pass('password update revokes old sessions and every outstanding link; replay and other hostels stay unchanged');
+  await clearLimits();await request('staff@example.invalid');const staffToken=lastToken();await db.user.update({where:{id:'staff'},data:{email:'changed@example.invalid'}});assert((await reset(staffToken)).error);await db.user.update({where:{id:'staff'},data:{email:'staff@example.invalid'}});await request('staff@example.invalid');await db.user.update({where:{id:'staff'},data:{sessionVersion:{increment:1}}});assert((await reset(lastToken())).error);pass('changed email and existing account revocation invalidate old links');
+  await clearLimits();await request('0714000003','TENANT');const tenantToken=lastToken();assert.equal(emails.at(-1).to[0],'resident@example.invalid');assert((await reset(tenantToken)).complete);const student=await db.student.findUniqueOrThrow({where:{id:'student'}});assert.equal(student.portalSessionVersion,1);assert(await compare('New-recovery-password-2026',student.portalPasswordHash));pass('tenant mobile identifies account; recovery goes to saved email and revokes tenant sessions');
+  await db.occupancy.update({where:{id:'stay'},data:{status:'CHECKED_OUT',checkedOutAt:new Date()}});await request('resident@example.invalid','TENANT');assert((await reset(lastToken())).complete);pass('enabled former residents retain account recovery for permitted statements');
+  await clearLimits();await request('resident@example.invalid','TENANT');const revoked=lastToken();await db.student.update({where:{id:'student'},data:{portalEnabled:false}});assert((await reset(revoked)).error);const n=emails.length;await request('resident@example.invalid','TENANT');assert.equal(emails.length,n);await db.student.update({where:{id:'student'},data:{portalEnabled:true}});pass('disabled tenant access cannot be restored by a recovery link');
+  await clearLimits();await request();const expired=lastToken();await db.passwordRecovery.update({where:{tokenHash:recoveryTokenHash(expired)},data:{expiresAt:new Date(Date.now()-1)}});assert((await reset(expired)).error);pass('expired links rejected');
+  await clearLimits();const before=emails.length;for(let i=0;i<5;i++)await request();assert.equal(emails.length-before,3);pass('persistent rate limits cap requests across repeated calls');
+  await clearLimits();await request('staff@example.invalid','MANAGEMENT',host,async()=>{throw Error('ambiguous network result')});assert.equal((await db.passwordRecovery.findFirst({where:{userId:'staff'},orderBy:{createdAt:'desc'}})).deliveryStatus,'REVIEW');pass('uncertain sends recorded for review without automatic resend');
+  await clearLimits();await db.property.update({where:{id:'p-one'},data:{publicListing:false}});await request('owner@example.invalid','MANAGEMENT','studentshostels.com');const unpublished=lastToken();assert(emails.at(-1).text.includes('https://studentshostels.com/reset-password/'));assert((await reset(unpublished,'studentshostels.com')).complete);await db.property.update({where:{id:'p-one'},data:{publicListing:true}});pass('owners of unpublished hostels recover through the directory with a fixed trusted origin');
+  for(const name of ['RECOVERY FIXTURE','Recovery   Fixture','Recovery-Fixture','Ｒｅｃｏｖｅｒｙ Fixture'])await assert.rejects(db.property.update({where:{id:'p-two'},data:{name}}));pass('database rejects case, spacing, punctuation and full-width duplicate names');
+  await assert.rejects(db.organization.update({where:{id:'two'},data:{name:'Recovery Fixture'}}));await db.property.update({where:{id:'p-one'},data:{name:'Recovery Fixture Juja'}});await assert.rejects(db.organization.update({where:{id:'two'},data:{name:'Recovery Fixture Juja'}}));pass('organization settings and public property names share the uniqueness rule');
+  await assert.rejects(db.$transaction(tx=>assertHostelNameAvailable(tx,'Recovery Fixture Juja','two','p-two')),/HOSTEL_NAME_TAKEN/);await db.$transaction(tx=>assertHostelNameAvailable(tx,'Recovery Fixture Juja','one','p-one'));pass('friendly availability checks permit unchanged own name and reject another hostel');
+  const identity={platformUserId:'platform-owner',platformOrganizationId:'platform-org',sessionVersion:0,userName:'Fixture owner',email:'fixture@example.invalid',organizationName:'Recovery Fixture Juja',role:'OWNER'};
+  await assert.rejects(provisionHostel(db,{...identity,productCode:'STUDENTSHOSTELS',phone:'0714000004'},async()=>identity),/HOSTEL_NAME_TAKEN/);assert.equal(await db.organization.count({where:{platformOrganizationId:'platform-org'}}),0);pass('provisioning rejects duplicate names without creating a partial workspace');
+  await db.passwordRecovery.updateMany({data:{expiresAt:new Date(Date.now()-32*86400000)}});const cleaned=await prunePasswordRecovery(db);assert(cleaned.oldRecoveryLinks>0);assert.equal(await db.passwordRecovery.count(),0);pass('retention cleanup removes old recovery records without changing accounts');
+  const conflict=await PGlite.create();try{for(const name of migrations.slice(0,-1))await conflict.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));await conflict.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('conflict-a','Duplicate Hostel','Owner','1',now()),('conflict-b','duplicate-hostel','Owner','2',now())`);await assert.rejects(conflict.exec(await readFile(`prisma/migrations/${migrations.at(-1)}/migration.sql`,'utf8')),/HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED/);}finally{await conflict.close();}pass('migration stops for existing conflicts instead of renaming or deleting hostels');
+  console.log(`PASS ${checks} isolated database and recovery checks`);
+} finally {await db.$disconnect();await server.stop();await pg.close();}
