@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { WhatsAppPreferences } from "@/components/whatsapp-preferences";
+import { PushSettings } from "@/components/push-settings";
 import { ShieldCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -24,6 +26,7 @@ export default async function AccountPage() {
       {session.platformSubject && <p>Confirm changes using your current SYSTEM IN ONE password. You can also create a hostel password here.</p>}
       <a href="https://systeminone.com/account/security">Manage SYSTEM IN ONE password</a>
     </section>}
+    <PushSettings/><WhatsAppPreferences/>
     <div className={styles.forms}>
       <AccountSecurityForm operation="email" shared={Boolean(session.platformSubject)}/>
       <AccountSecurityForm operation="password" shared={Boolean(session.platformSubject)}/>

@@ -27,6 +27,7 @@ INSERT INTO "Occupancy" (id,"organizationId","semesterId","studentId","roomId","
 `);
 const server = new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:55449,maxConnections:20}); await server.start();
 const db = new PrismaClient({adapter:new PrismaPg({connectionString:'postgresql://fixture:fixture@127.0.0.1:55449/recovery',max:1})});
+const recoveryMigrations=migrations.slice(0,migrations.indexOf('20261009110000_account_recovery_and_hostel_names')+1);
 const config={apiKey:'fixture-never-sent',from:'fixture@example.invalid',secret:'fixture-recovery-secret-only'};
 const host='recovery.studentshostels.com', emails=[];
 const provider=async (_url,options)=>{emails.push(JSON.parse(options.body));return Response.json({id:'fixture-provider-id'});};
@@ -55,14 +56,14 @@ try {
   const identity={platformUserId:'platform-owner',platformOrganizationId:'platform-org',sessionVersion:0,userName:'Fixture owner',email:'fixture@example.invalid',organizationName:'Recovery Fixture Juja',role:'OWNER'};
   await assert.rejects(provisionHostel(db,{...identity,productCode:'STUDENTSHOSTELS',phone:'0714000004'},async()=>identity),/HOSTEL_NAME_TAKEN/);assert.equal(await db.organization.count({where:{platformOrganizationId:'platform-org'}}),0);pass('provisioning rejects duplicate names without creating a partial workspace');
   await db.passwordRecovery.updateMany({data:{expiresAt:new Date(Date.now()-32*86400000)}});const cleaned=await prunePasswordRecovery(db);assert(cleaned.oldRecoveryLinks>0);assert.equal(await db.passwordRecovery.count(),0);pass('retention cleanup removes old recovery records without changing accounts');
-  const conflict=await PGlite.create();try{for(const name of migrations.slice(0,-1))await conflict.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));await conflict.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('conflict-a','Duplicate Hostel','Owner','1',now()),('conflict-b','duplicate-hostel','Owner','2',now())`);await assert.rejects(conflict.exec(await readFile(`prisma/migrations/${migrations.at(-1)}/migration.sql`,'utf8')),/HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED/);}finally{await conflict.close();}pass('migration stops for existing conflicts instead of renaming or deleting hostels');
+  const conflict=await PGlite.create();try{for(const name of recoveryMigrations.slice(0,-1))await conflict.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));await conflict.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('conflict-a','Duplicate Hostel','Owner','1',now()),('conflict-b','duplicate-hostel','Owner','2',now())`);await assert.rejects(conflict.exec(await readFile(`prisma/migrations/${recoveryMigrations.at(-1)}/migration.sql`,'utf8')),/HOSTEL_NAME_CONFLICT_REVIEW_REQUIRED/);}finally{await conflict.close();}pass('migration stops for existing conflicts instead of renaming or deleting hostels');
   for (const published of [false,true]) {
     const setup = await PGlite.create();
     try {
-      for (const name of migrations.slice(0,-1)) await setup.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));
+      for (const name of recoveryMigrations.slice(0,-1)) await setup.exec(await readFile(`prisma/migrations/${name}/migration.sql`,'utf8'));
       await setup.exec(`INSERT INTO "Organization" (id,name,"ownerName",phone,"updatedAt") VALUES ('live','MMAMBUGUA HOSTEL','Owner','1',now()),('setup','MMAMBUGUA HOSTEL','Owner','2',now());
         INSERT INTO "Property" (id,"organizationId",slug,name,"customDomain","publicListing","updatedAt") VALUES ('live-property','live','mmambugua','MMAMBUGUA HOSTEL','mmambugua.studentshostels.com',true,now()),('setup-property','setup','setup','MMAMBUGUA HOSTEL','mmambugua-6c70266ef6.studentshostels.com',${published},now());`);
-      const migrationSql=await readFile(`prisma/migrations/${migrations.at(-1)}/migration.sql`,'utf8');
+      const migrationSql=await readFile(`prisma/migrations/${recoveryMigrations.at(-1)}/migration.sql`,'utf8');
       if(published) {
         await assert.rejects(setup.exec(migrationSql),/HOSTEL_SETUP_HAS_DATA_REVIEW_REQUIRED/);await setup.exec('ROLLBACK');
         assert.equal((await setup.query(`SELECT name FROM "Property" WHERE id='setup-property'`)).rows[0].name,'MMAMBUGUA HOSTEL');

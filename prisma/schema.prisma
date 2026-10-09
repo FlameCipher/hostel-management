@@ -243,6 +243,10 @@ enum ChargeAdjustmentReason {
 }
 
 model Organization {
+  pushSubscriptions PushSubscription[]
+  assistantRuns AssistantRun[]
+  whatsappConnection WhatsAppConnection?
+  whatsappDeliveries WhatsAppDelivery[]
   id                    String   @id @default(cuid())
   slug                  String?  @unique
   status                OrganizationStatus @default(ACTIVE)
@@ -298,6 +302,113 @@ model Organization {
   properties            Property[]
   subscriptions         Subscription[]
   termsAcceptances      StudentTermsAcceptance[]
+}
+
+model AssistantRun {
+ id String @id @default(cuid())
+ organizationId String
+ principal String
+ status String @default("STARTED")
+ model String
+ inputTokens Int @default(0)
+ outputTokens Int @default(0)
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+ @@index([organizationId, principal, createdAt])
+ @@index([createdAt])
+}
+
+model PushSubscription {
+ id String @id
+ organizationId String
+ accountId String
+ audience String
+ sessionVersion Int
+ host String
+ endpoint String @unique
+ p256dh String
+ auth String
+ enabled Boolean @default(true)
+ lastFingerprint String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+ deliveries PushDelivery[]
+ @@index([organizationId, accountId, enabled])
+}
+
+model PushDelivery {
+ id String @id
+ subscriptionId String
+ eventKey String
+ status String @default("QUEUED")
+ attempts Int @default(0)
+ attemptAt DateTime?
+ nextAttemptAt DateTime @default(now())
+ sentAt DateTime?
+ error String?
+ createdAt DateTime @default(now())
+ subscription PushSubscription @relation(fields:[subscriptionId], references:[id], onDelete:Cascade)
+ @@index([status, nextAttemptAt])
+}
+
+model WhatsAppConnection {
+ organizationId String @id
+ phoneNumberId String @unique
+ displayPhone String
+ apiVersion String
+ businessAccountId String
+ accessToken String
+ templateName String
+ templateLanguage String @default("en")
+ enabled Boolean @default(false)
+ verifiedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+}
+
+model WhatsAppConsent {
+ id String @id
+ organizationId String
+ accountId String
+ audience String
+ phone String
+ enabled Boolean @default(true)
+ consentText String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([organizationId, accountId, audience])
+}
+
+model WhatsAppDelivery {
+ id String @id
+ organizationId String
+ notificationId String @unique
+ phoneNumberId String
+ recipient String
+ status String @default("QUEUED")
+ providerId String? @unique
+ attempts Int @default(0)
+ attemptAt DateTime?
+ nextAttemptAt DateTime @default(now())
+ deliveredAt DateTime?
+ readAt DateTime?
+ error String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+ @@index([status, nextAttemptAt])
+}
+
+model OperationalRun {
+ id String @id @default(cuid())
+ kind String
+ status String
+ metadata Json?
+ createdAt DateTime @default(now())
+ completedAt DateTime?
+ @@index([kind, createdAt])
 }
 
 

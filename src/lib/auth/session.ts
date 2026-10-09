@@ -82,5 +82,9 @@ export async function requireSession() {
 }
 
 export async function deleteSession() {
+  const device=(await cookies()).get("hostel_push_device")?.value;
+  const session=await getSession();
+  if(device&&session)await db.pushSubscription.updateMany({where:{id:device,organizationId:session.organizationId,accountId:session.userId,audience:"staff"},data:{enabled:false}}).catch(()=>undefined);
+  (await cookies()).delete("hostel_push_device");
   (await cookies()).delete(SESSION_COOKIE);
 }
