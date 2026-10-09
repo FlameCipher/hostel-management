@@ -4,6 +4,7 @@ import {db} from '@/lib/db';
 import {createSession} from '@/lib/auth/session';
 import {healthfixAuthorized} from '@/lib/healthfix';
 import {pendingSso,platformIdentity,consumeSso,validOpaque} from '@/lib/platform-sso';
+import {propertySignInDestination} from '@/lib/property-sso';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
  const url=new URL(request.url),code=url.searchParams.get('code'),state=url.searchParams.get('state'),jar=await cookies();
@@ -14,8 +15,10 @@ export async function GET(request:Request){
  const identity=await platformIdentity(grant);if(!identity)return fail();
  const linked=await db.user.findFirst({where:{platformUserId:identity.platformUserId,active:true,organization:{platformOrganizationId:identity.platformOrganizationId,platformProductCode:'STUDENTSHOSTELS',status:'ACTIVE'}},select:{id:true}});
  const fresh=!linked && identity.role==='OWNER' ? await db.organization.findFirst({where:{platformOrganizationId:identity.platformOrganizationId,platformProductCode:'STUDENTSHOSTELS',status:'ACTIVE',platformBootstrapAllowed:true,users:{none:{}}},select:{id:true}}) : null;
- const r=NextResponse.redirect(new URL(linked?'/dashboard':fresh?'/platform/new-owner':'/platform/connection','https://studentshostels.com'));r.headers.set('cache-control','no-store');r.headers.set('referrer-policy','no-referrer');
- if(linked){await createSession(await consumeSso(db,code,verifier,identity));for(const name of ['hostel_sso_state','hostel_sso_verifier','hostel_sso_code'])r.cookies.delete(name);}
+ let destination=fresh?'/platform/new-owner':'/platform/connection';
+ if(linked){try{const session=await consumeSso(db,code,verifier,identity);await createSession(session);destination=await propertySignInDestination(db,session.organizationId);}catch{return fail();}}
+ const r=NextResponse.redirect(new URL(destination,'https://studentshostels.com'));r.headers.set('cache-control','no-store');r.headers.set('referrer-policy','no-referrer');
+ if(linked){for(const name of ['hostel_sso_state','hostel_sso_verifier','hostel_sso_code'])r.cookies.delete(name);}
  else r.cookies.set('hostel_sso_code',code,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:300});
  return r;
 }

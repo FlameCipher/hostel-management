@@ -1,5 +1,13 @@
 export const DIRECTORY_HOST = "studentshostels.com";
 export const MMAMBUGUA_HOST = "mmambugua.studentshostels.com";
+// This accepts only managed property domains, never an arbitrary redirect URL.
+export function managedPropertyHost(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 300) return null;
+  const host = value.trim().toLowerCase().replace(/^https:\/\//, '').replace(/\/$/, '');
+  const candidate = host.includes('.') ? host : host + '.studentshostels.com';
+  const match = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.studentshostels\.com$/.exec(candidate);
+  return match && !['www', 'admin', 'api', 'login', 'support', 'mail', 'account', 'system', 'hostel', 'hostels'].includes(match[1]) ? candidate : null;
+}
 export function normalizeHost(value: string | null): string | null {
   if (!value || value.length > 260) return null;
   const match = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::[0-9]{1,5})?$/i.exec(value);
