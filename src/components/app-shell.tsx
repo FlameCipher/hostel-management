@@ -23,6 +23,7 @@ import {
   Settings,
   ShieldCheck,
   Share2,
+  Smartphone,
   Users,
   Wrench,
   X,
@@ -56,6 +57,7 @@ const navItems: NavItem[] = [
   { label: "Users & Permissions", href: "/users", icon: ShieldCheck },
   { label: "Hostel Setup", href: "/setup", icon: Building2 },
   { label: "My Website", href: "/website", icon: Globe },
+  { label: "Install App", href: "/install", icon: Smartphone },
   { label: "My Account", href: "/account", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
