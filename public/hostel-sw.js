@@ -11,3 +11,12 @@ self.addEventListener("fetch", event => {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" },
   })));
 });
+
+self.addEventListener("push", event => {
+  let data={}; try { data=event.data?.json()||{}; } catch { /* Use private generic copy. */ }
+  event.waitUntil(self.registration.showNotification("Your hostel", {body:"New activity is ready to review. Open your hostel app to see the details.",icon:"/app-icons/192",badge:"/app-icons/192",tag:typeof data.tag==="string"?data.tag:"hostel-update",data:{url:"/open-app"}}));
+});
+self.addEventListener("notificationclick", event => {
+ event.notification.close();
+ event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(async windows=>{for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.navigate("/open-app");return client.focus();}}return self.clients.openWindow("/open-app");}));
+});

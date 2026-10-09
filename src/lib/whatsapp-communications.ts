@@ -66,7 +66,7 @@ export async function prepareWhatsAppDrafts(database: PrismaClient, session: Ses
       channel: "WHATSAPP" as const, recipientType: kind as "STUDENT" | "STAFF", recipientName: r.name, recipientPhone: r.number!, message: `${org.name}\n\n${value.message}`, status: "QUEUED" as const }));
     const saved = await tx.notification.createMany({ data: drafts, skipDuplicates: true });
     if (saved.count) await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "WHATSAPP_DRAFTS_PREPARED", entityType: "Notification", entityId: value.requestId, metadata: { audience: value.audience, count: saved.count } } });
-    return { success: saved.count ? `${saved.count} private WhatsApp draft${saved.count === 1 ? " is" : "s are"} ready. Open each draft and send it in WhatsApp.` : "These drafts are already saved. Check the list below." };
+    return { success: saved.count ? `${saved.count} WhatsApp message${saved.count === 1 ? " is" : "s are"} queued. Eligible opted-in recipients use your enabled business sender; other drafts remain available for manual sending.` : "These drafts are already saved. Check the list below." };
   }, { timeout: 15000 });
 }
 
@@ -76,6 +76,9 @@ export async function actOnManualNotification(database: PrismaClient, session: S
     if (!await lockedManager(tx, session)) return { error: "Only active management can manage messages." };
     await tx.$queryRaw`SELECT id FROM "Notification" WHERE id=${id} AND "organizationId"=${session.organizationId} FOR UPDATE`;
     const item = await tx.notification.findFirst({ where: { id, organizationId: session.organizationId } });
+    const automatic = await tx.whatsAppDelivery.findFirst({ where: { notificationId: id, organizationId: session.organizationId } });
+    if (automatic && ["SENDING", "ACCEPTED", "SENT", "DELIVERED", "READ", "REVIEW"].includes(automatic.status)) return { error: "This message is being handled by the business sender. Check automatic delivery status before attempting a manual send." };
+    if (automatic && ["OPEN", "CANCEL"].includes(action)) await tx.whatsAppDelivery.update({ where: { id: automatic.id }, data: { status: "CANCELLED" } });
     if (!item || ["SENT", "CANCELLED"].includes(item.status) || item.scheduledAt > new Date()) return { error: "This message is unavailable, scheduled for later or already completed." };
     const org = await tx.organization.findUniqueOrThrow({ where: { id: session.organizationId }, select: { whatsappEnabled: true, smsEnabled: true } });
     if (action !== "CANCEL" && !(item.channel === "WHATSAPP" ? org.whatsappEnabled : org.smsEnabled)) return { error: "This channel is disabled in Settings." };

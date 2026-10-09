@@ -67,10 +67,14 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   await read("invitations", "Account invitations", () => db.tenantPortalInvitation.count({ where: scope }), [unknown("activation", "Account activation not probed")]);
   modules.push(module("email", "Email delivery", [configuration("sender", "Email key and sender configured", Boolean(env.RESEND_API_KEY && env.RECEIPT_EMAIL_FROM)), unknown("delivery", "Mailbox delivery not confirmed")]));
   modules.push(module("scheduler", "Scheduled processing", [configuration("secret", "Cron authentication configured", Boolean(env.CRON_SECRET)), await maintenanceScheduleCheck(db, organizationId, now)]));
-  modules.push(module("whatsapp", "WhatsApp delivery", [unknown("automatic", "Automatic Business sender not connected")]));
-  modules.push(module("assistant", "System assistant", [unknown("ai", "Documented guide available; generative AI provider not connected")]));
-  modules.push(module("mobile-notifications", "Background mobile notifications", [unknown("push", "Live in-app alerts available; closed-app push delivery not connected")]));
-  modules.push(module("recovery", "Backup and recovery", [unknown("restore", "Production backup restoration requires an isolated provider restore drill")]));
+  const operational=async(kind:string)=>{try{return await db.operationalRun.findFirst({where:{kind},orderBy:{createdAt:"desc"}});}catch{return null;}};
+  const [aiProbe,backup,restore,deliveryRun]=await Promise.all([operational("AI_PROBE"),operational("BACKUP"),operational("RESTORE_DRILL"),operational("DELIVERY")]);
+  const receipt=(code:string,name:string,run:typeof backup,maxAge?:number):Check=>({code,name,status:!run?"UNKNOWN":run.status==="FAILED"?"FAILING":run.status!=="COMPLETED"?"WARNING":maxAge&&now.getTime()-run.createdAt.getTime()>maxAge?"WARNING":"PASSING",checkType:"FUNCTIONAL"});
+  let sender=false;try{sender=!!await db.whatsAppConnection.findFirst({where:{...(organizationId?{organizationId}:{}),enabled:true,verifiedAt:{not:null}},select:{organizationId:true}});}catch{/* Configuration remains unverified. */}
+  modules.push(module("whatsapp", "WhatsApp delivery", [sender?configuration("automatic","Verified business sender enabled",true):unknown("automatic","Automatic sender awaits the hostel's approved Meta connection"),env.WHATSAPP_APP_SECRET?configuration("webhook","Meta webhook signature key configured",true):unknown("webhook","Meta webhook signature key awaits configuration")]));
+  modules.push(module("assistant", "System assistant", [env.HOSTEL_AI_ENABLED==="true"?configuration("ai","AI model configured with bounded usage",Boolean(env.HOSTEL_AI_MODEL)):unknown("ai","AI is disabled; documented guide remains available"),receipt("provider","Latest synthetic AI response",aiProbe)]));
+  modules.push(module("mobile-notifications", "Background mobile notifications", [env.VAPID_PUBLIC_KEY?configuration("push","Device notification keys configured",Boolean(env.VAPID_PRIVATE_KEY&&env.VAPID_SUBJECT)):unknown("push","Device notification keys await configuration"),receipt("worker","Background delivery worker completed within 20 minutes",deliveryRun,20*60000),unknown("device","Actual closed-app display must be confirmed on the subscriber's device")]));
+  modules.push(module("recovery", "Backup and recovery", [receipt("backup","Private daily backup captured and read back within 26 hours",backup,26*3600000),receipt("restore","Latest isolated restore drill",restore,30*86400000)]));
   const old = new Date(now.getTime() - interruptedAfterMs), overdue = new Date(now.getTime() - backlogAfterMs);
   async function warning(code: string, name: string, query: () => Promise<number>): Promise<Check> {
     let status: CheckStatus;

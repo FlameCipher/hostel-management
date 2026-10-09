@@ -55,7 +55,7 @@ test("worker never handles writes, API reads, server actions, assets or another 
     { method: "GET", mode: "navigate", url: "https://another.example/" },
   ]) handlers.fetch({ request, respondWith: () => assert.fail("Private or unrelated request was intercepted") });
   assert.equal(handlers.sync, undefined);
-  assert.equal(handlers.push, undefined);
+  assert.equal(typeof handlers.push, "function");
 });
 
 test("online navigation uses the network without an HTTP or service worker cache", async () => {
@@ -78,4 +78,15 @@ test("offline fallback reveals no request path, token or private data and queues
   assert(html.includes('href="/open-app"'));
   assert(!html.includes("private-token"));
   assert.match(html, /No message, payment or visitor change is queued/);
+});
+
+
+test("background alerts never expose payload text or navigate to a supplied URL", async () => {
+  const handlers: Record<string, (event: unknown) => void> = {};
+  let shown: unknown[],opened: string|undefined,waiting:Promise<unknown>|undefined;
+  runInNewContext(readFileSync(new URL("../public/hostel-sw.js", import.meta.url), "utf8"), {URL,Response,fetch,
+    self:{location:{origin:"https://hostel.example"},registration:{showNotification:async(...args:unknown[])=>{shown=args;}},clients:{matchAll:async()=>[],openWindow:async(url:string)=>{opened=url;}},addEventListener:(name:string,handler:(event:unknown)=>void)=>{handlers[name]=handler;}}});
+  handlers.push({data:{json:()=>({title:"Private tenant",body:"Secret balance",url:"https://evil.example",tag:"stable"})},waitUntil:(p:Promise<unknown>)=>{waiting=p;}});await waiting;
+  assert(!JSON.stringify(shown!).includes("Secret"));assert(!JSON.stringify(shown!).includes("Private tenant"));assert(JSON.stringify(shown!).includes("stable"));
+  handlers.notificationclick({notification:{close(){},data:{url:"https://evil.example"}},waitUntil:(p:Promise<unknown>)=>{waiting=p;}});await waiting;assert.equal(opened,"/open-app");
 });

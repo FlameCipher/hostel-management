@@ -43,5 +43,9 @@ export async function requireTenantSession() {
 }
 
 export async function deleteTenantSession() {
+  const device=(await cookies()).get("hostel_push_device")?.value;
+  const session=await getTenantSession();
+  if(device&&session)await db.pushSubscription.updateMany({where:{id:device,organizationId:session.organizationId,accountId:session.studentId,audience:"tenant"},data:{enabled:false}}).catch(()=>undefined);
+  (await cookies()).delete("hostel_push_device");
   (await cookies()).delete(COOKIE);
 }
