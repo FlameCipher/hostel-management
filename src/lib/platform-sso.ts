@@ -3,6 +3,7 @@ import {bootstrapOwnerAllowed} from '@/lib/landlord-onboarding-policy';
 import { compare, hash } from 'bcryptjs';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { SessionPayload } from '@/lib/auth/session';
+import {managedPropertyHost} from './property-host-policy';
 export type PlatformSubject = { platformUserId: string; platformOrganizationId: string; sessionVersion: number };
 export type PlatformIdentity = PlatformSubject & { userName: string; email: string; organizationName: string; role: string };
 export function platformRoleAllows(hostelRole: string, platformRole: string) {
@@ -35,7 +36,7 @@ export async function pendingSso(db: PrismaClient, code: string, verifier: strin
   if (!validOpaque(code) || !validOpaque(verifier)) return null;
   return db.platformSsoGrant.findFirst({ where:{tokenHash:ssoHash(code),challenge:ssoHash(verifier),consumedAt:null,expiresAt:{gt:now},attempts:{lt:5}} });
 }
-export async function consumeSso(db: PrismaClient, code: string, verifier: string, identity: PlatformIdentity, proof?: {userId:string;organizationId:string;password:string} | {bootstrap:true}, now = new Date()): Promise<SessionPayload> {
+export async function consumeSso(db: PrismaClient, code: string, verifier: string, identity: PlatformIdentity, proof?: {userId:string;organizationId:string;password:string} | {host:string;email:string;password:string} | {bootstrap:true}, now = new Date()): Promise<SessionPayload> {
   if (!validOpaque(code) || !validOpaque(verifier)) throw Error('SSO_DENIED');
   const attempt = await db.platformSsoGrant.updateMany({where:{tokenHash:ssoHash(code),challenge:ssoHash(verifier),consumedAt:null,expiresAt:{gt:now},attempts:{lt:5}},data:{attempts:{increment:1}}});
   if (attempt.count !== 1) throw Error('SSO_DENIED');
@@ -58,7 +59,13 @@ export async function consumeSso(db: PrismaClient, code: string, verifier: strin
     }
     if (!user && proof && !('bootstrap' in proof)) {
       if (proof.password.length < 8 || proof.password.length > 128) throw Error('SSO_DENIED');
-      user = await tx.user.findFirst({where:{id:proof.userId,organizationId:proof.organizationId,active:true,organization:{status:'ACTIVE'}},include:{organization:true}});
+      if('host' in proof){
+        const host=managedPropertyHost(proof.host),email=proof.email.trim().toLowerCase();
+        if(!host||email.length>254||!email.includes('@'))throw Error('SSO_DENIED');
+        const property=await tx.property.findFirst({where:{customDomain:host,active:true,organization:{status:'ACTIVE'}},select:{organizationId:true}});
+        if(!property)throw Error('SSO_DENIED');
+        user=await tx.user.findFirst({where:{email,organizationId:property.organizationId,active:true,organization:{status:'ACTIVE'}},include:{organization:true}});
+      }else user = await tx.user.findFirst({where:{id:proof.userId,organizationId:proof.organizationId,active:true,organization:{status:'ACTIVE'}},include:{organization:true}});
       if (!user || !await compare(proof.password,user.passwordHash)) throw Error('SSO_DENIED');
       await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${user.organizationId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "User" WHERE id=${user.id} FOR UPDATE`;

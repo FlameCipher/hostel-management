@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {platformRoleAllows,platformIdentity,ssoHash,validOpaque,validSubject} from '../src/lib/platform-sso';
+import {managedPropertyHost} from '../src/lib/property-host-policy';
+import {acceptPropertyHandoff,issuePropertyHandoff} from '../src/lib/property-sso';
+import type {PrismaClient} from '../src/generated/prisma/client';
 const subject={platformUserId:'one',platformOrganizationId:'org',sessionVersion:2};
 const identity={...subject,userName:'Test user',email:'test@example.invalid',organizationName:'Test org',role:'OWNER'};
 test('PKCE matches the RFC 7636 S256 vector',()=>assert.equal(ssoHash('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'));
@@ -12,3 +15,19 @@ for(const change of [{sessionVersion:3},{platformUserId:'foreign'},{platformOrga
 test('revocation and network failure fail closed',async()=>{process.env.HOSTEL_SSO_SECRET='test-only';assert.equal(await platformIdentity(subject,(async()=>new Response('{}',{status:403})) as typeof fetch),null);assert.equal(await platformIdentity(subject,(async()=>{throw Error('private')}) as typeof fetch),null)});
 
 test('central role downgrade blocks privileged shared sessions without upgrading hostel roles',()=>{assert.equal(platformRoleAllows('OWNER','ADMIN'),false);assert.equal(platformRoleAllows('ADMIN','MEMBER'),false);assert.equal(platformRoleAllows('CARETAKER','ADMIN'),true);assert.equal(platformRoleAllows('OWNER','OWNER'),true);assert.equal(platformRoleAllows('UNKNOWN','OWNER'),false)});
+
+test('hostel connection accepts a managed label or HTTPS website',()=>{
+  for(const input of ['mmambugua','mmambugua.studentshostels.com',' https://MMAMBUGUA.studentshostels.com/ '])assert.equal(managedPropertyHost(input),'mmambugua.studentshostels.com');
+});
+test('hostel connection rejects arbitrary redirect targets and reserved domains',()=>{
+  for(const input of [null,'','studentshostels.com','www','admin','https://evil.example','http://mmambugua.studentshostels.com','mmambugua.studentshostels.com.evil.example','evil@mmambugua.studentshostels.com','mmambugua.studentshostels.com:443','mmambugua.studentshostels.com/?next=evil','//mmambugua.studentshostels.com','nested.mmambugua.studentshostels.com','-invalid','a'.repeat(64)])assert.equal(managedPropertyHost(input),null,String(input));
+});
+test('invalid property callback state is rejected before database access',async()=>{
+  const db=new Proxy({},{get(){throw Error('DATABASE_MUST_NOT_BE_READ')}}) as PrismaClient;
+  const valid={host:'mmambugua.studentshostels.com',state:'s'.repeat(43),expectedState:'s'.repeat(43),code:'c'.repeat(43),verifier:'v'.repeat(43)};
+  for(const change of [{state:null},{expectedState:null},{state:'x'.repeat(43)},{code:'short'},{verifier:undefined},{host:'evil.example'}])await assert.rejects(acceptPropertyHandoff(db,{...valid,...change}),/HANDOFF_DENIED/);
+});
+test('handoff refuses missing or invalid local session versions before database access',async()=>{
+  const db=new Proxy({},{get(){throw Error('DATABASE_MUST_NOT_BE_READ')}}) as PrismaClient;
+  for(const sessionVersion of [undefined,-1,1.5])await assert.rejects(issuePropertyHandoff(db,{userId:'u',organizationId:'o',name:'Test',role:'OWNER',platformSubject:subject,sessionVersion},'mmambugua.studentshostels.com','c'.repeat(43),'s'.repeat(43)),/HANDOFF_DENIED/);
+});
