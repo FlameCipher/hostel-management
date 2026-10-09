@@ -1,9 +1,11 @@
 "use client";
+import { HostelInstallCard } from "./hostel-app";
 import { useActionState } from "react";
 import { registerTenantAction, reviewRegistrationAction } from "@/app/tenant/register/actions";
 import styles from "./resident-services.module.css";
 export function TenantRegistrationForm({ ticket }: { ticket: string }) {
   const [state, action, pending] = useActionState(registerTenantAction, {});
+  if (state.success) return <div><p role="status" className={styles.notice}>{state.success}</p><HostelInstallCard/></div>;
   return <form action={action}><input type="hidden" name="ticket" value={ticket}/><input name="website" type="hidden" value=""/><label className="field-group"><span>Full name as recorded by the hostel</span><input name="fullName" autoComplete="name" required minLength={2} maxLength={120}/></label><label className="field-group"><span>Registered phone number (with country code)</span><input name="phone" type="tel" autoComplete="tel" required maxLength={30}/></label><label className="field-group"><span>Current room number</span><input name="roomNumber" required maxLength={40}/></label><label className="field-group"><span>Choose your password</span><input name="password" type="password" autoComplete="new-password" required minLength={10} maxLength={72}/></label><label className="field-group"><span>Confirm password</span><input name="confirmation" type="password" autoComplete="new-password" required minLength={10} maxLength={72}/></label><label className="check-field"><input name="consent" type="checkbox" required/><span>I am an existing resident and request access to my own account. Management may use these details to verify my identity.</span></label>{state.error && <p role="alert" className="form-error">{state.error}</p>}{state.success && <p role="status" className={styles.notice}>{state.success}</p>}<button className="primary-button" disabled={pending || !!state.success}>{pending ? "Submitting…" : "Request my tenant account"}</button></form>;
 }
 export function RegistrationReviewForm({ id, candidates }: { id: string; candidates: Array<{ id: string; label: string }> }) {

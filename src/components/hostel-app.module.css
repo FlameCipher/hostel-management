@@ -1,0 +1,20 @@
+.page { max-width: 820px; margin-inline: auto; }
+.page > h1 { margin-block: 10px 16px; font-size: clamp(26px, 5vw, 36px); font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.page > p { line-height: 1.7; }
+.card { border: 1px solid var(--border); border-radius: 20px; background: white; padding: clamp(18px, 4vw, 30px); margin-block: 20px; overflow-wrap: anywhere; }
+.heading { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.heading > div { min-width: 0; }
+.icon { width: 68px; height: 68px; border-radius: 17px; flex-shrink: 0; }
+.card h2 { margin: 0; font-size: 20px; line-height: 1.35; }
+.card p { font-size: 14px; line-height: 1.65; }
+.card .host { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+.actions > a, .actions > button { white-space: normal; text-align: center; max-width: 100%; }
+.instructions { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+.instructions summary { cursor: pointer; font-size: 14px; font-weight: 650; padding-block: 8px; }
+.instructions ol { padding-left: 23px; margin-block: 8px 16px; list-style: decimal; }
+.instructions li { padding-left: 3px; margin-block: 8px; font-size: 14px; line-height: 1.65; }
+.note { border-radius: 12px; padding: 12px 14px; background: var(--surface-soft); }
+.status { color: var(--blue-dark); font-weight: 600; }
+.offline { position: sticky; top: 0; z-index: 60; margin: 0; padding: 10px 16px; background: #fff4da; color: #64490b; font-size: 13px; text-align: center; }
+@media (max-width: 380px) { .heading { gap: 12px; } .icon { width: 56px; height: 56px; border-radius: 14px; } .card h2 { font-size: 18px; } }
