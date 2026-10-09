@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
+import { propertyTenantLogin } from "@/lib/whatsapp-policy";
 
 export const communicationSchema = z.object({
  title: z.string().trim().min(3).max(160), body: z.string().trim().min(10).max(3000),
@@ -81,7 +82,8 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  const item=await tx.tenantMessage.findUnique({where:{id:candidate.id}}); if(!item || item.notificationId) return;
  const [student,org]=await Promise.all([tx.student.findFirst({where:{...tenantWhere(item.organizationId),id:item.studentId},select:{id:true,fullName:true,phone:true}}),tx.organization.findUnique({where:{id:item.organizationId},select:{whatsappEnabled:true}})]);
  if(!student?.phone || !org?.whatsappEnabled) return;
- const notification=await tx.notification.create({data:{organizationId:item.organizationId,studentId:student.id,channel:"WHATSAPP",recipientType:"STUDENT",recipientName:student.fullName,recipientPhone:student.phone,message:`${item.title}\n\n${item.body}\n\nYour account: https://hostel.sampesa.com/tenant/login`,status:"QUEUED",scheduledAt:now}});
+ const properties=await tx.property.findMany({where:{organizationId:item.organizationId,active:true,publicListing:true},select:{customDomain:true,publicListing:true}});
+ const notification=await tx.notification.create({data:{organizationId:item.organizationId,studentId:student.id,channel:"WHATSAPP",recipientType:"STUDENT",recipientName:student.fullName,recipientPhone:student.phone,message:`${item.title}\n\n${item.body}\n\nYour account: ${propertyTenantLogin(properties)}`,status:"QUEUED",scheduledAt:now}});
  await tx.tenantMessage.update({where:{id:item.id},data:{notificationId:notification.id}});queued++;
  });
  return {created,queued};

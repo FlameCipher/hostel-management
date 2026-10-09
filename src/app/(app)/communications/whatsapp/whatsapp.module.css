@@ -1,0 +1,34 @@
+.page { min-width: 0; }
+.page :global(.entity-form) { display: grid; gap: 16px; padding: 20px; margin-top: 20px; }
+.page :global(.entity-form) article { padding-top: 14px; border-top: 1px solid var(--border-neutral); overflow-wrap: anywhere; }
+.page p { font-size: 13px; line-height: 1.7; }
+.page h2 { margin: 0; color: var(--navy); font-size: 18px; font-weight: 650; }
+.page h3 { margin: 0; color: var(--navy); font-size: 15px; font-weight: 650; }
+.page .contactPanel, .page .compose, .page .draft { padding: 20px; }
+.contactPanel { display: grid; gap: 14px; margin-bottom: 20px; }
+.contactPanel p, .compose p, .draft p { margin: 0; }
+.compose { display: grid; gap: 18px; }
+.formGrid { display: grid; gap: 16px; }
+.compose select { min-height: 44px; width: 100%; font-size: 14px; }
+.compose textarea, .compose input[type="search"] { font-size: 14px; }
+.recipients { min-width: 0; display: grid; gap: 12px; margin: 0; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.recipients legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.contactList { max-height: 260px; overflow-y: auto; }
+.contactChoice { display: flex; min-height: 54px; align-items: center; gap: 12px; padding: 8px 0; }
+.contactChoice input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--blue); }
+.contactChoice span { min-width: 0; overflow-wrap: anywhere; }
+.contactChoice strong, .contactChoice small { display: block; font-size: 13px; }
+.contactChoice small, .note { color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.actions > * { max-width: 100%; }
+.actions a, .actions button { min-height: 44px; height: auto; padding-top: 10px; padding-bottom: 10px; text-align: center; text-decoration: none; overflow-wrap: anywhere; }
+.error, .success { border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
+.error { background: #fff4f5; color: #a72a3d; }
+.success { background: #eefbf4; color: #137a4c; }
+.history { display: grid; gap: 16px; margin-top: 28px; }
+.draft { display: grid; gap: 16px; min-width: 0; }
+.draft header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; }
+.draft header > div { min-width: 0; overflow-wrap: anywhere; }
+.status { font-size: 12px; color: var(--blue-dark); background: var(--surface-soft); border-radius: 8px; padding: 7px 10px; }
+.message { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (min-width: 640px) { .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
