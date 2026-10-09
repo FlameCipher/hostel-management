@@ -282,6 +282,8 @@ model Organization {
   breakReservations     BreakReservation[]
   receiptSequences      ReceiptSequence[]
   portalInvitations TenantPortalInvitation[]
+  visitorRequests VisitorRequest[]
+  portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
   tenantMessages        TenantMessage[]
   communicationSettings CommunicationSettings?
@@ -382,6 +384,8 @@ model Property {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  visitorRequests VisitorRequest[]
+  portalRegistrations TenantRegistration[]
   rooms        Room[]
   photos       PropertyPhoto[]
 
@@ -531,6 +535,8 @@ model Student {
   @@index([organizationId, status])
   @@index([organizationId, fullName])
   portalInvitations TenantPortalInvitation[]
+  visitorRequests VisitorRequest[]
+  portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
   tenantMessages TenantMessage[]
 }
@@ -1140,4 +1146,58 @@ model BookingRequest {
   @@unique([propertyId, requestId])
   @@index([organizationId, status, createdAt])
   @@index([propertyId, contactKey, createdAt])
+}
+
+model VisitorRequest {
+ id String @id @default(cuid())
+ organizationId String
+ propertyId String
+ studentId String
+ occupancyId String
+ requestId String
+ visitorName String
+ visitorPhone String
+ purpose String
+ vehicle String?
+ roomLabel String
+ timeZone String
+ expectedArrival DateTime
+ expectedDeparture DateTime
+ status String @default("REQUESTED")
+ checkedInAt DateTime?
+ checkedOutAt DateTime?
+ verifiedById String?
+ checkedOutById String?
+ reviewNote String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+ property Property @relation(fields:[propertyId,organizationId], references:[id,organizationId], onDelete:Restrict)
+ student Student @relation(fields:[studentId], references:[id], onDelete:Restrict)
+ @@unique([organizationId, studentId, requestId])
+ @@index([organizationId,status,expectedDeparture])
+ @@index([organizationId,studentId,createdAt])
+}
+model TenantRegistration {
+ id String @id @default(cuid())
+ organizationId String
+ propertyId String
+ studentId String?
+ requestId String
+ fullName String
+ phone String
+ roomNumber String
+ passwordHash String?
+ fingerprint String
+ status String @default("PENDING")
+ reviewedById String?
+ reviewedAt DateTime?
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+ organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+ property Property @relation(fields:[propertyId,organizationId], references:[id,organizationId], onDelete:Restrict)
+ student Student? @relation(fields:[studentId], references:[id], onDelete:SetNull)
+ @@unique([propertyId,requestId])
+ @@index([organizationId,status,createdAt])
+ @@index([fingerprint,createdAt])
 }

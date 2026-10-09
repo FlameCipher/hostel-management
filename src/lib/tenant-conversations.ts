@@ -1,3 +1,5 @@
+import { localSessionCurrent } from "./account-security-policy";
+import { residentStaff } from "./resident-access";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { TenantSession } from "@/lib/auth/tenant-session";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -7,7 +9,8 @@ const inputSchema=z.object({subject:z.string().trim().min(3).max(160),body:z.str
 const entrySchema=z.object({conversationId:z.string().min(1).max(128),body:z.string().trim().min(3).max(3000),requestId:z.string().uuid()});
 export async function tenantContactAccount(db:Pick<PrismaClient,"student">,s:TenantSession|null){
  if(!s)return null;
- return db.student.findFirst({where:{...tenantWhere(s.organizationId),id:s.studentId,portalEnabled:true},select:{id:true}});
+ const account=await db.student.findFirst({where:{...tenantWhere(s.organizationId),id:s.studentId,portalEnabled:true,portalPasswordHash:{not:null},organization:{status:"ACTIVE"}},select:{id:true,portalSessionVersion:true}});
+ return account&&localSessionCurrent(s.sessionVersion,account.portalSessionVersion)?account:null;
 }
 export async function createConversation(db:PrismaClient,s:TenantSession|null,input:unknown){
  const parsed=inputSchema.safeParse(input);if(!parsed.success)return{error:"Enter a subject and message, and choose a request type."};
@@ -30,6 +33,8 @@ export async function replyConversation(db:PrismaClient,s:TenantSession|SessionP
  if(manager){if(!(await communicationManager(db,s as SessionPayload)))return{error:"Conversation unavailable."};}
  else if(!(await tenantContactAccount(db,s as TenantSession)))return{error:"Conversation unavailable."};
  return db.$transaction(async tx=>{
+ if(manager){await tx.$queryRaw`SELECT id FROM "User" WHERE id=${(s as SessionPayload).userId} AND "organizationId"=${s.organizationId} FOR SHARE`;if(!await residentStaff(tx,s as SessionPayload,true))return{error:"Conversation unavailable."};}
+ else {await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${(s as TenantSession).studentId} AND "organizationId"=${s.organizationId} FOR SHARE`;if(!await tenantContactAccount(tx as unknown as PrismaClient,s as TenantSession))return{error:"Conversation unavailable."};}
  await tx.$queryRaw`SELECT id FROM "TenantConversation" WHERE id=${parsed.data.conversationId} AND "organizationId"=${s.organizationId} FOR UPDATE`;
  const c=await tx.tenantConversation.findFirst({where:{id:parsed.data.conversationId,organizationId:s.organizationId,...(manager?{}:{studentId:(s as TenantSession).studentId})}});if(!c)return{error:"Conversation unavailable."};
  const account=await tx.student.findFirst({where:{...tenantWhere(c.organizationId),id:c.studentId,portalEnabled:true},select:{id:true}});if(!account)return{error:"This tenant account is no longer eligible for messaging."};
@@ -41,5 +46,24 @@ export async function replyConversation(db:PrismaClient,s:TenantSession|SessionP
  if(manager)await tx.tenantMessage.create({data:{organizationId:c.organizationId,studentId:c.studentId,batchId:parsed.data.requestId,dedupKey:parsed.data.requestId,title:"Management replied: "+c.subject,body:"Management has replied to your private conversation. Open Contact management in your tenant account to read and respond.",category:"REPLY",whatsappCopy:settings?.whatsappCopies??false,emailCopy:settings?.emailCopies??false,emailStatus:settings?.emailCopies?"QUEUED":"NOT_REQUESTED"}});
  await tx.auditLog.create({data:{organizationId:c.organizationId,actorUserId:manager?(s as SessionPayload).userId:undefined,action:manager?"MANAGEMENT_CONTACT_REPLIED":"TENANT_CONTACT_REPLIED",entityType:"TenantConversation",entityId:c.id,metadata:{studentId:c.studentId}}});
  return{success:"Your reply has been saved."};
+ });
+}
+
+export async function startManagementConversation(db:PrismaClient,s:SessionPayload|null,input:unknown):Promise<{error?:string;success?:string}>{
+ const parsed=inputSchema.extend({studentId:z.string().min(1).max(128)}).safeParse(input);
+ if(!s||!parsed.success)return{error:"Choose a current tenant, subject and message."};
+ return db.$transaction(async tx=>{
+ await tx.$queryRaw`SELECT id FROM "User" WHERE id=${s.userId} AND "organizationId"=${s.organizationId} FOR SHARE`;
+ if(!await residentStaff(tx,s,true))return{error:"Only active management can start tenant conversations."};
+ await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${parsed.data.studentId} AND "organizationId"=${s.organizationId} FOR SHARE`;
+ const student=await tx.student.findFirst({where:{...tenantWhere(s.organizationId),id:parsed.data.studentId,portalEnabled:true,portalPasswordHash:{not:null}},select:{id:true}});
+ if(!student)return{error:"Choose a current tenant with an activated portal account."};
+ const previous=await tx.tenantConversationEntry.findUnique({where:{requestId:parsed.data.requestId},include:{conversation:true}});
+ if(previous)return previous.conversation.organizationId===s.organizationId&&previous.conversation.studentId===student.id?{success:"This conversation is already saved."}:{error:"Refresh and try again."};
+ if(await tx.tenantConversationEntry.count({where:{authorUserId:s.userId,createdAt:{gte:new Date(Date.now()-60000)}}})>=20)return{error:"Please wait a minute before starting another conversation."};
+ const c=await tx.tenantConversation.create({data:{organizationId:s.organizationId,studentId:student.id,subject:parsed.data.subject,category:parsed.data.category,status:"REPLIED",entries:{create:{requestId:parsed.data.requestId,author:"MANAGEMENT",authorUserId:s.userId,body:parsed.data.body}}}});
+ await tx.tenantMessage.create({data:{organizationId:s.organizationId,studentId:student.id,batchId:parsed.data.requestId,dedupKey:parsed.data.requestId,title:"New private message from management",body:"Open Contact management in your tenant account to read and reply to your private conversation.",category:"REPLY"}});
+ await tx.auditLog.create({data:{organizationId:s.organizationId,actorUserId:s.userId,action:"MANAGEMENT_CONTACT_CREATED",entityType:"TenantConversation",entityId:c.id,metadata:{studentId:student.id}}});
+ return{success:"Your private message is available in the tenant portal."};
  });
 }

@@ -11,6 +11,6 @@ export async function repairAction(_state: HealthfixState, _form: FormData): Pro
   try {
     const result = await repairHealthfix(db, session.organizationId, session);
     revalidatePath("/healthfix");
-    return { success: `Completed: ${result.interruptedInvitations} interrupted invitations and ${result.interruptedEmails} interrupted notice emails flagged for review; ${result.expiredInvitations} expired invitation tokens cleared. No emails were sent.` };
+    return { success: `Completed: ${result.interruptedInvitations} interrupted invitations and ${result.interruptedEmails} interrupted notice emails flagged for review; ${result.expiredInvitations} expired invitation tokens cleared; ${result.expiredRegistrations} expired registration credentials cleared. No emails were sent.` };
   } catch { return { error: "Repair could not be confirmed. Refresh the report and repair history before trying again." }; }
 }

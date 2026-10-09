@@ -2,7 +2,7 @@
 import { requireTenantSession } from "@/lib/auth/tenant-session";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { createConversation,replyConversation } from "@/lib/tenant-conversations";
+import { createConversation,replyConversation,startManagementConversation } from "@/lib/tenant-conversations";
 import { revalidatePath } from "next/cache";
 export type ContactState={error?:string;success?:string};
 export async function contactAction(_state:ContactState,f:FormData):Promise<ContactState>{
@@ -13,4 +13,8 @@ export async function tenantReplyAction(_state:ContactState,f:FormData):Promise<
 }
 export async function managerReplyAction(_state:ContactState,f:FormData):Promise<ContactState>{
  const s=await requireSession();try{const result=await replyConversation(db,s,{conversationId:f.get("conversationId"),body:f.get("body"),requestId:f.get("requestId")},true);revalidatePath("/tenant/contact");revalidatePath("/tenant/messages");revalidatePath("/communications/inbox");return result;}catch{return{error:"Reply could not be confirmed. Refresh before retrying."};}
+}
+
+export async function managerContactAction(_state:ContactState,f:FormData):Promise<ContactState>{
+ const s=await requireSession();try{const result=await startManagementConversation(db,s,Object.fromEntries(f));for(const p of ["/tenant/contact","/tenant/messages","/communications/inbox","/assistant"])revalidatePath(p);return result;}catch{return{error:"Could not confirm your message. Refresh the inbox before trying again."};}
 }
