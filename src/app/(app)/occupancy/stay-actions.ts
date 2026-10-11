@@ -147,6 +147,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: target.id, roomTypeId: target.roomTypeId, startDate: transferDate, monthlyRateSnapshot: target.roomType.monthlyRate, semesterRateSnapshot: target.roomType.semesterRate } });
 
       let calculation: ReturnType<typeof calculateActualDaysRent> | null = null;
+      let monthlyLines: ReturnType<typeof calculateMonthlyTransferRent>["lines"] | null = null;
       let newAmount = Number(charge.amount);
       if (parsed.data.rentMethod === "ACTUAL_DAYS") {
         calculation = calculateActualDaysRent({ currency,
@@ -171,9 +172,10 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
           ],
         });
         newAmount = monthly.total;
+        monthlyLines = monthly.lines;
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
 
-      const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod === "MONTHLY" ? "STANDARD_RATE" : parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : { customRent: parsed.data.customRent ?? null } });
+      const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod === "MONTHLY" ? "STANDARD_RATE" : parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : monthlyLines ? { method: "MONTHLY", months: monthlyLines } : { customRent: parsed.data.customRent ?? null } });
       await tx.occupancy.update({ where: { id: occupancy.id }, data: { roomId: target.id } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, roomId: occupancy.roomId, ...activeBreakHoldWhere }, data: { roomId: target.id } });
       await refreshRoomStatus(tx, occupancy.roomId);
