@@ -1,6 +1,7 @@
 "use client";
 import { useCurrency } from "@/components/currency-context";
 import { formatMoney, currencyStep, roundCurrency } from "@/lib/currency";
+import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
@@ -47,14 +48,16 @@ export function CheckInForm({
   const initialCheckIn = semesterStart && today < semesterStart ? semesterStart : semesterEnd && today > semesterEnd ? semesterEnd : today;
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [checkInAt, setCheckInAt] = useState(initialCheckIn);
-  const [rentMethod, setRentMethod] = useState("KEEP_FULL");
+  const lastDayOfEndMonth = new Date(Date.UTC(Number(semesterEnd.slice(0,4)), Number(semesterEnd.slice(5,7)), 0)).getUTCDate();
+  const standardMonths = semesterStart.endsWith("-01") && Number(semesterEnd.slice(8,10)) === lastDayOfEndMonth;
+  const [rentMethod, setRentMethod] = useState(standardMonths ? "MONTHLY" : "ACTUAL_DAYS");
   const [customRent, setCustomRent] = useState("");
   const pricingAvailable = semesterStart !== undefined && semesterEnd !== undefined && currentRent !== undefined;
   const rentPreview = useMemo(() => {
     if (!pricingAvailable) return null;
     if (rentMethod === "KEEP_FULL") return currentRent;
     if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
-    if (rentMethod === "MONTHLY") return null;
+    if (rentMethod === "MONTHLY") return monthlyPreview?.total ?? null;
     const room = rooms.find((item) => item.id === selectedRoomId);
     if (!room || !checkInAt) return null;
     const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
@@ -116,8 +119,8 @@ export function CheckInForm({
   );
 }
 
-type TransferRoomOption = Option & { semesterRate: number };
-type TransferStay = { startDate: string; endDate: string | null; semesterRate: number };
+type TransferRoomOption = Option & { semesterRate: number; monthlyRate: number };
+type TransferStay = { roomId: string; startDate: string; endDate: string | null; semesterRate: number; monthlyRate: number };
 
 export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, currentRent, stays, allowCustom }: { occupancyId: string; rooms: TransferRoomOption[]; semesterStart: string; semesterEnd: string; currentRent: number; stays: TransferStay[]; allowCustom: boolean }) {
   const currency = useCurrency();
@@ -128,6 +131,20 @@ export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, c
   const [transferDate, setTransferDate] = useState(today);
   const [rentMethod, setRentMethod] = useState("KEEP_FULL");
   const [customRent, setCustomRent] = useState("");
+  const monthlyPreview = useMemo(() => {
+    if (rentMethod !== "MONTHLY" || !standardMonths || !targetRoomId || !transferDate) return null;
+    const target = rooms.find((item) => item.id === targetRoomId);
+    if (!target) return null;
+    try {
+      return calculateMonthlyTransferRent({
+        currency, firstMonth: semesterStart.slice(0,7), lastMonth: semesterEnd.slice(0,7),
+        stays: [
+          ...stays.map((stay) => ({ roomId: stay.roomId, startDate: new Date(stay.startDate), monthlyRate: stay.monthlyRate })),
+          { roomId: target.id, startDate: new Date(`${transferDate}T12:00:00.000Z`), monthlyRate: target.monthlyRate },
+        ],
+      });
+    } catch { return null; }
+  }, [currency, rentMethod, rooms, semesterStart, semesterEnd, stays, standardMonths, targetRoomId, transferDate]);
   const preview = useMemo(() => {
     if (rentMethod === "KEEP_FULL") return currentRent;
     if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
@@ -144,8 +161,15 @@ export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, c
     }
     amount += roundCurrency(target.semesterRate * days(transferDate, semesterEndExclusive) / totalDays, currency);
     return roundCurrency(amount, currency);
-  }, [currency, currentRent, customRent, rentMethod, rooms, semesterEnd, semesterStart, stays, targetRoomId, transferDate]);
-  return <form action={action} className="panel entity-form"><input type="hidden" name="currency" value={currency} /><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div><p>Changing to a room with a different rate requires rent recalculation. Keeping the old rent is only allowed when the monthly rates match.</p></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><FormSelect name="targetRoomId" onChange={(event) => setTargetRoomId(event.target.value)} required value={targetRoomId}><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</FormSelect></label><label className="field-group"><span>Transfer date *</span><input max={semesterEnd} min={semesterStart} name="transferDate" onChange={(event) => setTransferDate(event.target.value)} type="date" value={transferDate} required /></label><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep current semester rent (only if rates match)</option><option value="MONTHLY">Recalculate by calendar month</option><option value="ACTUAL_DAYS">Recalculate using actual days</option>{allowCustom ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect></label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent ({currency}) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step={currencyStep(currency)} type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Current semester rent</span><strong>{money(currentRent)}</strong><span>Proposed semester rent</span><strong>{preview === null || Number.isNaN(preview) ? rentMethod === "MONTHLY" ? "Calculated securely when submitted" : "Select the room and date" : `${money(preview)}`}</strong>{preview !== null && !Number.isNaN(preview) ? <small>{preview >= currentRent ? `Additional charge: ${money((preview - currentRent))}` : `Credit: ${money((currentRent - preview))}`}</small> : null}</div><label className="field-group form-span-2"><span>Transfer and rent-adjustment reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending}><ArrowRightLeft size={17} /> Transfer and apply rent</button></div></form>;
+  }, [currency, currentRent, customRent, monthlyPreview, rentMethod, rooms, semesterEnd, semesterStart, stays, targetRoomId, transferDate]);
+  return <form action={action} className="panel entity-form"><input type="hidden" name="currency" value={currency} /><div className="form-section-heading"><div><p className="panel-kicker">Internal transfer</p><h2>Move to another room</h2></div><p>Changing to a room with a different rate requires rent recalculation. Keeping the old rent is only allowed when the monthly rates match.</p></div><div className="form-grid"><label className="field-group form-span-2"><span>New room *</span><FormSelect name="targetRoomId" onChange={(event) => setTargetRoomId(event.target.value)} required value={targetRoomId}><option value="">Select available room</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</FormSelect></label><label className="field-group"><span>Transfer date *</span><input max={semesterEnd} min={semesterStart} name="transferDate" onChange={(event) => setTransferDate(event.target.value)} type="date" value={transferDate} required /></label><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep current semester rent (only if rates match)</option><option value="MONTHLY">Recalculate by calendar month (recommended for full-month semesters)</option><option value="ACTUAL_DAYS">Recalculate using actual days</option>{allowCustom ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect></label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent ({currency}) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step={currencyStep(currency)} type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Current semester rent</span><strong>{money(currentRent)}</strong><span>Proposed semester rent</span><strong>{preview === null || Number.isNaN(preview) ? rentMethod === "MONTHLY" ? "Select room and valid dates" : "Select the room and date" : `${money(preview)}`}</strong>{preview !== null && !Number.isNaN(preview) ? <small>{preview >= currentRent ? `Additional charge: ${money((preview - currentRent))}` : `Credit: ${money((currentRent - preview))}`}</small> : null}</div>{rentMethod === "MONTHLY" ? <div className="form-span-2">
+  {monthlyPreview ? <>
+    <p className="muted-note">Billing changes from the transfer month; earlier months keep their saved room rate.</p>
+    <div className="table-scroll"><table className="data-table"><thead><tr><th>Month</th><th>Room</th><th>Rent</th></tr></thead><tbody>{monthlyPreview.lines.map((line) => <tr key={line.month}><td>{line.month}</td><td>{rooms.find((room) => room.id === line.roomId)?.label.split(" · ")[0] ?? (stays.find((stay) => stay.roomId === line.roomId) ? "Previous room" : "Room")}</td><td>{money(line.rate)}</td></tr>)}</tbody></table></div>
+    <label className="check-field"><input type="checkbox" name="confirmRentAdjustment" required /><span>I have checked the room, monthly rates and total adjustment.</span></label>
+    <input type="hidden" name="confirmedRent" value={monthlyPreview.total} />
+  </> : <p className="form-error" role="status">Choose an eligible room and transfer date to review the monthly rent before continuing.</p>}
+</div> : null}<label className="field-group form-span-2"><span>Transfer and rent-adjustment reason *</span><textarea minLength={5} name="reason" rows={4} required /></label></div>{state.error ? <p className="form-error" role="alert">{state.error}</p> : null}<div className="form-actions"><Link className="secondary-button no-underline" href={`/occupancy/${occupancyId}`}><ArrowLeft size={17} /> Cancel</Link><button className="primary-button" disabled={pending || (rentMethod === "MONTHLY" && !monthlyPreview)}><ArrowRightLeft size={17} /> Transfer and apply rent</button></div></form>;
 }
 
 export function CheckoutForm({ occupancyId, allowOverride }: { occupancyId: string; allowOverride: boolean }) {
