@@ -27,4 +27,5 @@ assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:l
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:last,stays:[stays[0],{...stays[1],startDate:new Date("2026-10-03T12:00:00Z")}],charges:[charge]}),/REVIEW_ROOM_HISTORY_GAP/);
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:last,stays,charges:[{...charge,adjustments:[{reason:"DISCOUNT",calculationMethod:"CUSTOM",calculationData:null}]}]}),/REVIEW_SPECIAL_ADJUSTMENTS/);
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:new Date("2026-09-15T12:00:00Z"),semesterEnd:last,stays,charges:[charge]}),/REVIEW_PARTIAL_SEMESTER/);
+assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:last,stays,charges:[{...charge,status:"WAIVED"}]}),/REVIEW_WAIVED_CHARGE/);
 console.log("Historical rent reconciliation checks passed");
