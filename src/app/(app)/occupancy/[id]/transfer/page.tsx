@@ -20,7 +20,7 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
         semester: true,
         room: { include: { roomType: true } },
         roomStays: { orderBy: { startDate: "asc" } },
-        charges: { where: { type: "SEMESTER_RENT" }, orderBy: { createdAt: "asc" }, take: 1 },
+        charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true } } }, orderBy: { createdAt: "asc" } },
       },
     }),
     db.room.findMany({
@@ -37,6 +37,13 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
     semesterRate: Number(room.roomType.semesterRate),
     monthlyRate: Number(room.roomType.monthlyRate),
   }));
+  const start = occupancy.semester.startDate;
+  const end = occupancy.semester.endDate;
+  const semesterFullMonths = start.getUTCDate() === 1 &&
+    end.getUTCDate() === new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth()+1,0)).getUTCDate();
+  const monthlyEligible = semesterFullMonths && occupancy.charges.length === 1 &&
+    occupancy.charges[0].adjustments.every((adjustment) => adjustment.reason === "ROOM_TRANSFER") &&
+    occupancy.roomStays.length > 0 && occupancy.roomStays.filter((stay) => stay.endDate === null).length === 1;
   const stays = occupancy.roomStays.length ? occupancy.roomStays : [{ roomId: occupancy.roomId, startDate: occupancy.checkInAt, endDate: null, semesterRateSnapshot: occupancy.room.roomType.semesterRate, monthlyRateSnapshot: occupancy.room.roomType.monthlyRate }];
-  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Room transfer</p><h1>Move {occupancy.student.fullName}</h1><p>Current room: {occupancy.room.number}. Review the financial effect before completing the transfer.</p></div></div><TransferForm allowCustom={["OWNER", "ADMIN"].includes(session.role)} currentRent={Number(occupancy.charges[0].amount)} occupancyId={id} rooms={options} semesterEnd={occupancy.semester.endDate.toISOString().slice(0, 10)} semesterStart={occupancy.semester.startDate.toISOString().slice(0, 10)} stays={stays.map((stay) => ({ startDate: stay.startDate.toISOString(), endDate: stay.endDate?.toISOString() ?? null, semesterRate: Number(stay.semesterRateSnapshot), roomId: stay.roomId, monthlyRate: Number(stay.monthlyRateSnapshot) }))} /></div>;
+  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Room transfer</p><h1>Move {occupancy.student.fullName}</h1><p>Current room: {occupancy.room.number}. Review the financial effect before completing the transfer.</p></div></div><TransferForm monthlyEligible={monthlyEligible} allowCustom={["OWNER", "ADMIN"].includes(session.role)} currentRent={Number(occupancy.charges[0].amount)} occupancyId={id} rooms={options} semesterEnd={occupancy.semester.endDate.toISOString().slice(0, 10)} semesterStart={occupancy.semester.startDate.toISOString().slice(0, 10)} stays={stays.map((stay) => ({ startDate: stay.startDate.toISOString(), endDate: stay.endDate?.toISOString() ?? null, semesterRate: Number(stay.semesterRateSnapshot), roomId: stay.roomId, monthlyRate: Number(stay.monthlyRateSnapshot) }))} /></div>;
 }
