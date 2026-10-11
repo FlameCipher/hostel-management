@@ -126,6 +126,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       ]);
       if (!occupancy || !target) throw new Error("TRANSFER_UNAVAILABLE");
       if (occupancy.roomId === target.id) throw new Error("SAME_ROOM");
+      if (parsed.data.rentMethod === "KEEP_FULL" && Number(occupancy.room.roomType.monthlyRate) !== Number(target.roomType.monthlyRate)) throw new Error("RENT_RECALC_REQUIRED");
       if (["MAINTENANCE", "INACTIVE"].includes(target.status)) throw new Error("ROOM_UNAVAILABLE");
       if (transferDate <= occupancy.checkInAt || transferDate > occupancy.semester.endDate) throw new Error("INVALID_TRANSFER_DATE");
       const capacity = target.capacityOverride ?? target.roomType.defaultCapacity;
@@ -168,7 +169,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
+    const messages: Record<string, string> = { RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
