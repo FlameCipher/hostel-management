@@ -17,7 +17,7 @@ export function calculateMonthlyTransferRent(input: {
   stays: MonthlyRoomStay[];
 }) {
   const parseMonth = (value: string) => {
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw Error("INVALID_MONTH");
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw Error("INVALID_MONTH");
     return Number(value.slice(0,4))*12+Number(value.slice(5,7))-1;
   };
   const first=parseMonth(input.firstMonth), last=parseMonth(input.lastMonth);
