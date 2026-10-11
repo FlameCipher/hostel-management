@@ -1,13 +1,17 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { searchSystemGuide, systemGuide, type GuideRole } from "@/lib/system-guide";
 import styles from "./resident-services.module.css";
 export function SystemAssistant({ role }: { role: GuideRole }) {
+  const router = useRouter();
   const [question, setQuestion] = useState(""), [submitted, setSubmitted] = useState("");
   const [answer,setAnswer]=useState(""),[mode,setMode]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
   async function ask(value:string){
-    if(!value.trim()||busy)return;setSubmitted(value);setBusy(true);setError("");setAnswer("");
+    if(!value.trim()||busy)return;
+    if(role === "MANAGEMENT" && /(?:who|which|show|open|list|view|find|display|nani|onyesha).*?(?:unpaid|outstanding|owe|owing|not paid|hasn.t paid|haven.t paid|balance|deni|madeni)/i.test(value)) { router.push("/payments?view=outstanding"); return; }
+    setSubmitted(value);setBusy(true);setError("");setAnswer("");
     try{const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff"}),signal:AbortSignal.timeout(35000)});const result=await response.json();if(!response.ok)throw Error(result.error||"The assistant could not respond.");setAnswer(result.text);setMode(result.mode);}catch(e){setError(e instanceof Error?e.message:"The assistant could not respond. Use the guide below.");}finally{setBusy(false);}
   }
   const topics = systemGuide(role), matches = searchSystemGuide(topics, submitted);
