@@ -9,6 +9,7 @@ import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/rent-calculation";
+import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
@@ -104,7 +105,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
 const transferSchema = z.object({
   targetRoomId: z.string().min(1),
   transferDate: z.string().date(),
-  rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "CUSTOM"]),
+  rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "MONTHLY", "CUSTOM"]),
   customRent: z.coerce.number().min(0).max(4_000_000).optional(),
   reason: z.string().trim().min(5).max(300),
 });
@@ -158,6 +159,18 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
           ],
         });
         newAmount = calculation.amount;
+      } else if (parsed.data.rentMethod === "MONTHLY") {
+        const firstMonth = occupancy.semester.startDate.toISOString().slice(0, 7);
+        const lastMonth = occupancy.semester.endDate.toISOString().slice(0, 7);
+        const monthly = calculateMonthlyTransferRent({
+          currency, firstMonth, lastMonth,
+          stays: [
+            ...stays.filter((stay) => stay.id !== openStay.id).map((stay) => ({ roomId: stay.roomId, startDate: stay.startDate, monthlyRate: Number(stay.monthlyRateSnapshot) })),
+            { roomId: openStay.roomId, startDate: openStay.startDate, monthlyRate: Number(openStay.monthlyRateSnapshot) },
+            { roomId: target.id, startDate: transferDate, monthlyRate: Number(target.roomType.monthlyRate) },
+          ],
+        });
+        newAmount = monthly.total;
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
 
       const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : { customRent: parsed.data.customRent ?? null } });
