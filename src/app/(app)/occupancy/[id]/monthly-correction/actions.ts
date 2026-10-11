@@ -39,7 +39,7 @@ export async function approveHistoricalRentCorrection(
         charges:[{amount:Number(charge.amount),currency:charge.currency,status:charge.status,payments:charge.payments.map(p=>({amount:Number(p.amount)})),
           adjustments:charge.adjustments.map(a=>({reason:a.reason,calculationMethod:a.calculationMethod,calculationData:a.calculationData}))}],
       });
-      if(preview.expected!==expectedRent)throw Error("PREVIEW_CHANGED");
+      if(preview.expected!==expectedRent || preview.recorded!==Number(formData.get("recordedRent")) || preview.paid!==Number(formData.get("confirmedPaid")))throw Error("PREVIEW_CHANGED");
       if(preview.delta===0)return {changed:false,balance:preview.balance,credit:preview.credit};
       const adjustment=await applyChargeAmount(tx,{
         organizationId:session.organizationId,chargeId:charge.id,createdById:session.userId,
