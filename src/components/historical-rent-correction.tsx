@@ -25,6 +25,8 @@ export function HistoricalRentCorrection({occupancyId,chargeId,currency,expected
     </dl>
     <input type="hidden" name="chargeId" value={chargeId}/>
     <input type="hidden" name="expectedRent" value={expected}/>
+    <input type="hidden" name="recordedRent" value={recorded}/>
+    <input type="hidden" name="confirmedPaid" value={paid}/>
     <label className="check-field"><input name="confirmed" type="checkbox" required/><span>I have checked the rental agreement, room history and payment records, and approve this audited correction.</span></label>
     <p className="muted-note">This changes the charge amount only, not receipts or payment history. Any credit remains on the ledger for separate handling.</p>
     {state.error?<p className="form-error" role="alert">{state.error}</p>:null}
