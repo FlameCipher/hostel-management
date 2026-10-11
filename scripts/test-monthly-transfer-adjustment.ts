@@ -44,4 +44,4 @@ async function run(){
   assert.equal(cheaper.adjustments.length,1);
   console.log("Monthly-transfer adjustment mock checks passed");
 }
-await run();
+run().catch((error)=>{ console.error(error); process.exitCode=1; });
