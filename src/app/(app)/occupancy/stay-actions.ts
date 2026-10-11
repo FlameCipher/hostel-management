@@ -136,6 +136,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
       if (parsed.data.rentMethod === "MONTHLY" && occupancy.charges.length !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (parsed.data.rentMethod === "MONTHLY" && occupancy.roomStays.some((stay) => stay.startDate > transferDate)) throw new Error("MONTHLY_REVIEW_REQUIRED");
 
       let stays = occupancy.roomStays;
       if (!stays.length) {
