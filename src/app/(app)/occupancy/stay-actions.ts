@@ -135,6 +135,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       if (held.size >= capacity && !held.has(occupancy.studentId)) throw new Error("ROOM_FULL");
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
+      if (parsed.data.rentMethod === "MONTHLY" && occupancy.charges.length !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
 
       let stays = occupancy.roomStays;
       if (!stays.length) {
