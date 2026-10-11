@@ -48,16 +48,13 @@ export function CheckInForm({
   const initialCheckIn = semesterStart && today < semesterStart ? semesterStart : semesterEnd && today > semesterEnd ? semesterEnd : today;
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [checkInAt, setCheckInAt] = useState(initialCheckIn);
-  const lastDayOfEndMonth = new Date(Date.UTC(Number(semesterEnd.slice(0,4)), Number(semesterEnd.slice(5,7)), 0)).getUTCDate();
-  const standardMonths = semesterStart.endsWith("-01") && Number(semesterEnd.slice(8,10)) === lastDayOfEndMonth;
-  const [rentMethod, setRentMethod] = useState(standardMonths && monthlyEligible ? "MONTHLY" : "ACTUAL_DAYS");
+  const [rentMethod, setRentMethod] = useState("KEEP_FULL");
   const [customRent, setCustomRent] = useState("");
   const pricingAvailable = semesterStart !== undefined && semesterEnd !== undefined && currentRent !== undefined;
   const rentPreview = useMemo(() => {
     if (!pricingAvailable) return null;
     if (rentMethod === "KEEP_FULL") return currentRent;
     if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
-    if (rentMethod === "MONTHLY") return monthlyPreview?.total ?? null;
     const room = rooms.find((item) => item.id === selectedRoomId);
     if (!room || !checkInAt) return null;
     const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
@@ -107,7 +104,7 @@ export function CheckInForm({
         <label className="field-group"><span>Check-in date *</span><input max={semesterEnd} min={semesterStart} name="checkInAt" onChange={(event) => setCheckInAt(event.target.value)} type="date" value={checkInAt} required /></label>
         <label className="field-group"><span>Rent due date *</span><input defaultValue={today} name="dueDate" type="date" required /></label>
         <label className="field-group"><span>Expected checkout</span><input name="expectedCheckoutAt" type="date" /></label>
-        {pricingAvailable ? <><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep full semester rent</option><option value="ACTUAL_DAYS">Recalculate from check-in date</option>{allowCustomRent ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect>{!monthlyEligible ? <small>Monthly calculation needs manual review for this semester or existing adjustments.</small> : null}</label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent ({currency}) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step={currencyStep(currency)} type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Original semester charge</span><strong>{money(currentRent)}</strong><span>Proposed semester rent</span><strong>{rentPreview === null || Number.isNaN(rentPreview) ? "Select a room and check-in date" : `${money(rentPreview)}`}</strong>{rentPreview !== null && !Number.isNaN(rentPreview) ? <small>{rentPreview >= currentRent ? `Additional charge: ${money((rentPreview - currentRent))}` : `Credit: ${money((currentRent - rentPreview))}`}</small> : null}</div>{rentMethod !== "KEEP_FULL" ? <label className="field-group form-span-2"><span>Rent recalculation reason *</span><textarea minLength={5} name="rentAdjustmentReason" placeholder="For example: Student joined after the semester began" rows={3} required /></label> : <input name="rentAdjustmentReason" type="hidden" value="" />}</> : <><input name="rentMethod" type="hidden" value="KEEP_FULL" /><input name="customRent" type="hidden" value="" /><input name="rentAdjustmentReason" type="hidden" value="" /></>}
+        {pricingAvailable ? <><label className="field-group"><span>Rent treatment *</span><FormSelect name="rentMethod" onChange={(event) => setRentMethod(event.target.value)} value={rentMethod}><option value="KEEP_FULL">Keep full semester rent</option><option value="ACTUAL_DAYS">Recalculate from check-in date</option>{allowCustomRent ? <option value="CUSTOM">Custom agreed semester rent</option> : null}</FormSelect></label>{rentMethod === "CUSTOM" ? <label className="field-group"><span>Final agreed rent ({currency}) *</span><input min="0" name="customRent" onChange={(event) => setCustomRent(event.target.value)} step={currencyStep(currency)} type="number" value={customRent} required /></label> : <input name="customRent" type="hidden" value="" />}<div className="calculation-preview form-span-2"><span>Original semester charge</span><strong>{money(currentRent)}</strong><span>Proposed semester rent</span><strong>{rentPreview === null || Number.isNaN(rentPreview) ? "Select a room and check-in date" : `${money(rentPreview)}`}</strong>{rentPreview !== null && !Number.isNaN(rentPreview) ? <small>{rentPreview >= currentRent ? `Additional charge: ${money((rentPreview - currentRent))}` : `Credit: ${money((currentRent - rentPreview))}`}</small> : null}</div>{rentMethod !== "KEEP_FULL" ? <label className="field-group form-span-2"><span>Rent recalculation reason *</span><textarea minLength={5} name="rentAdjustmentReason" placeholder="For example: Student joined after the semester began" rows={3} required /></label> : <input name="rentAdjustmentReason" type="hidden" value="" />}</> : <><input name="rentMethod" type="hidden" value="KEEP_FULL" /><input name="customRent" type="hidden" value="" /><input name="rentAdjustmentReason" type="hidden" value="" /></>}
         <label className="field-group form-span-2"><span>Room condition at check-in</span><textarea maxLength={500} name="checkInCondition" placeholder="Describe the room condition and any existing damage" rows={4} /></label>
       </div>
       {state.error ? <p className="form-error" role="alert">{state.error}</p> : null}
@@ -129,7 +126,9 @@ export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, c
   const today = new Date().toISOString().slice(0, 10);
   const [targetRoomId, setTargetRoomId] = useState("");
   const [transferDate, setTransferDate] = useState(today);
-  const [rentMethod, setRentMethod] = useState("KEEP_FULL");
+  const lastDayOfEndMonth = new Date(Date.UTC(Number(semesterEnd.slice(0,4)), Number(semesterEnd.slice(5,7)), 0)).getUTCDate();
+  const standardMonths = semesterStart.endsWith("-01") && Number(semesterEnd.slice(8,10)) === lastDayOfEndMonth;
+  const [rentMethod, setRentMethod] = useState(standardMonths && monthlyEligible ? "MONTHLY" : "ACTUAL_DAYS");
   const [customRent, setCustomRent] = useState("");
   const monthlyPreview = useMemo(() => {
     if (rentMethod !== "MONTHLY" || !standardMonths || !monthlyEligible || !targetRoomId || !transferDate) return null;
@@ -148,6 +147,7 @@ export function TransferForm({ occupancyId, rooms, semesterStart, semesterEnd, c
   const preview = useMemo(() => {
     if (rentMethod === "KEEP_FULL") return currentRent;
     if (rentMethod === "CUSTOM") return customRent === "" ? null : Number(customRent);
+    if (rentMethod === "MONTHLY") return monthlyPreview?.total ?? null;
     const target = rooms.find((room) => room.id === targetRoomId);
     if (!target || !transferDate) return null;
     const day = (value: string) => Date.parse(`${value.slice(0, 10)}T00:00:00.000Z`);
