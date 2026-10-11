@@ -4,6 +4,14 @@ import { calculateMonthlyTransferRent } from "./monthly-transfer-rent";
 export type HistoricalStay = {roomId:string;startDate:Date;endDate:Date|null;monthlyRate:number};
 export type HistoricalAdjustment = {reason:string;calculationMethod:string;calculationData:unknown};
 export type HistoricalCharge = {amount:number;currency:string;status?:string;payments:{amount:number}[];adjustments:HistoricalAdjustment[]};
+export function isStandardMonthlyAdjustment(adjustment:HistoricalAdjustment) {
+  const data=adjustment.calculationData;
+  const method=data && typeof data==="object" && !Array.isArray(data) && "method" in data ? data.method : null;
+  return adjustment.calculationMethod==="STANDARD_RATE" &&
+    ((adjustment.reason==="ROOM_TRANSFER" && method==="MONTHLY") ||
+     (adjustment.reason==="RATE_CORRECTION" && method==="HISTORICAL_MONTHLY_CORRECTION"));
+}
+
 
 /** Strict read-only calculation used for both the owner's preview and the server action.
  * Never assumes that a payment is missing, and never changes a historical receipt.
@@ -17,7 +25,7 @@ export function reconcileHistoricalTransfer(input:{
   if(input.charges.length!==1)throw Error("REVIEW_MULTIPLE_CHARGES");
   const charge=input.charges[0];
   if(charge.status==="WAIVED")throw Error("REVIEW_WAIVED_CHARGE");
-  if(charge.adjustments.some(a=>a.reason!=="ROOM_TRANSFER"||a.calculationMethod!=="STANDARD_RATE"||!a.calculationData||typeof a.calculationData!=="object"||Array.isArray(a.calculationData)||!("method" in a.calculationData)||a.calculationData.method!=="MONTHLY"))throw Error("REVIEW_SPECIAL_ADJUSTMENTS");
+  if(charge.adjustments.some(a=>!isStandardMonthlyAdjustment(a)))throw Error("REVIEW_SPECIAL_ADJUSTMENTS");
   const stays=[...input.stays].sort((a,b)=>a.startDate.getTime()-b.startDate.getTime());
   if(stays.length<2||stays.filter(s=>s.endDate===null).length!==1||stays.at(-1)?.endDate!==null)throw Error("REVIEW_INCOMPLETE_ROOM_HISTORY");
   for(let i=0;i<stays.length-1;i++){
