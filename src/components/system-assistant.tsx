@@ -10,7 +10,12 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
   const [answer,setAnswer]=useState(""),[mode,setMode]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
   async function ask(value:string){
     if(!value.trim()||busy)return;
-    if(role === "MANAGEMENT" && /(?:who|which|show|open|list|view|find|display|nani|onyesha).*?(?:unpaid|outstanding|owe|owing|not paid|hasn.t paid|haven.t paid|balance|deni|madeni)/i.test(value)) { router.push("/payments?view=outstanding"); return; }
+    if(role === "MANAGEMENT" && /(?:who|which|show|open|list|view|find|display|nani|onyesha).*?(?:unpaid|outstanding|owe|owing|not paid|hasn.t paid|haven.t paid|balance|deni|madeni)/i.test(value)) { const months=["january","february","march","april","may","june","july","august","september","october","november","december"];
+      const match=months.findIndex(m=>new RegExp("\\b"+m+"\\b","i").test(value));
+      const yearMatch=value.match(/\\b20\\d{2}\\b/);
+      const year=yearMatch ? Number(yearMatch[0]) : new Date().getFullYear();
+      const month=match>=0 ? `&month=${year}-${String(match+1).padStart(2,"0")}` : "";
+      router.push("/payments?view=outstanding"+month); return; }
     setSubmitted(value);setBusy(true);setError("");setAnswer("");
     try{const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff"}),signal:AbortSignal.timeout(35000)});const result=await response.json();if(!response.ok)throw Error(result.error||"The assistant could not respond.");setAnswer(result.text);setMode(result.mode);}catch(e){setError(e instanceof Error?e.message:"The assistant could not respond. Use the guide below.");}finally{setBusy(false);}
   }
