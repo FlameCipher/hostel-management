@@ -36,7 +36,7 @@ export async function approveHistoricalRentCorrection(
       const preview=reconcileHistoricalTransfer({
         semesterStart:occupancy.semester.startDate,semesterEnd:occupancy.semester.endDate,
         stays:occupancy.roomStays.map(stay=>({roomId:stay.roomId,startDate:stay.startDate,endDate:stay.endDate,monthlyRate:Number(stay.monthlyRateSnapshot)})),
-        charges:[{amount:Number(charge.amount),currency:charge.currency,payments:charge.payments.map(p=>({amount:Number(p.amount)})),
+        charges:[{amount:Number(charge.amount),currency:charge.currency,status:charge.status,payments:charge.payments.map(p=>({amount:Number(p.amount)})),
           adjustments:charge.adjustments.map(a=>({reason:a.reason,calculationMethod:a.calculationMethod,calculationData:a.calculationData}))}],
       });
       if(preview.expected!==expectedRent)throw Error("PREVIEW_CHANGED");
