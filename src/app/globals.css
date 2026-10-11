@@ -690,3 +690,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 10px 16px;
   font-size: 13px;
 }
+
+/* Searchable outstanding-charge picker for mobile and desktop payment entry. */
+.outstanding-selector { min-width: 0; }
+.outstanding-selector-trigger { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 54px; padding: 12px 14px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: #19344e; cursor: pointer; }
+.outstanding-selector-trigger > span:first-child { display: grid; gap: 4px; min-width: 0; }
+.outstanding-selector-trigger small { color: #536779; font-size: 12px; overflow-wrap: anywhere; }
+.outstanding-selector-trigger > span:last-child { color: #175a9c; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.outstanding-selector-panel { display: grid; gap: 12px; padding: 14px; margin-top: 8px; border: 1px solid var(--border); border-radius: 14px; background: #f8fbff; }
+.outstanding-selector-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #c8d7e5; border-radius: 10px; background: #fff; }
+.outstanding-selector-search input { width: 100%; min-width: 0; min-height: 46px; border: 0; outline: none; background: transparent; font-size: 16px; }
+.outstanding-selector-options { display: grid; gap: 9px; max-height: 390px; overflow-y: auto; }
+.outstanding-selector-card { display: grid; gap: 5px; width: 100%; padding: 14px; border: 1px solid #d8e2ec; border-radius: 12px; background: #fff; color: #21394d; text-align: left; cursor: pointer; }
+.outstanding-selector-card.is-selected { border-color: #1674cc; background: #eef7ff; }
+.outstanding-selector-card-top, .outstanding-selector-balance { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.outstanding-selector-card-top strong { font-size: 15px; }
+.outstanding-selector-meta, .outstanding-selector-description { color: #526879; font-size: 12px; overflow-wrap: anywhere; }
+.outstanding-selector-balance { border-top: 1px solid #e7edf3; margin-top: 6px; padding-top: 9px; }
+.outstanding-selector-balance strong { font-size: 16px; }
+.outstanding-selector-card:focus-visible, .outstanding-selector-trigger:focus-visible { outline: 3px solid #237ed0; outline-offset: 2px; }
