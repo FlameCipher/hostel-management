@@ -147,7 +147,8 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
         stays = [opening];
       }
       const openStay = stays.find((stay) => !stay.endDate);
-      if (!openStay) throw new Error("ACTIVE_STAY_NOT_FOUND");\n      if (parsed.data.rentMethod === "MONTHLY" && transferDate <= openStay.startDate) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (!openStay) throw new Error("ACTIVE_STAY_NOT_FOUND");
+      if (parsed.data.rentMethod === "MONTHLY" && transferDate <= openStay.startDate) throw new Error("MONTHLY_REVIEW_REQUIRED");
       await tx.occupancyRoomStay.update({ where: { id: openStay.id }, data: { endDate: transferDate } });
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: target.id, roomTypeId: target.roomTypeId, startDate: transferDate, monthlyRateSnapshot: target.roomType.monthlyRate, semesterRateSnapshot: target.roomType.semesterRate } });
 
