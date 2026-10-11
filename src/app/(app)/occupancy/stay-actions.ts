@@ -171,7 +171,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
             { roomId: target.id, startDate: transferDate, monthlyRate: Number(target.roomType.monthlyRate) },
           ],
         });
-        if (monthly.lines.length !== 4 && occupancy.semester.startDate.getUTCDate() !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
+        if (occupancy.semester.startDate.getUTCDate() !== 1 || occupancy.semester.endDate.getUTCDate() !== new Date(Date.UTC(occupancy.semester.endDate.getUTCFullYear(), occupancy.semester.endDate.getUTCMonth() + 1, 0)).getUTCDate()) throw new Error("MONTHLY_REVIEW_REQUIRED");
         newAmount = monthly.total;
         monthlyLines = monthly.lines;
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
