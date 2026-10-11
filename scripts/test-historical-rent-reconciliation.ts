@@ -28,4 +28,13 @@ assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:l
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:last,stays,charges:[{...charge,adjustments:[{reason:"DISCOUNT",calculationMethod:"CUSTOM",calculationData:null}]}]}),/REVIEW_SPECIAL_ADJUSTMENTS/);
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:new Date("2026-09-15T12:00:00Z"),semesterEnd:last,stays,charges:[charge]}),/REVIEW_PARTIAL_SEMESTER/);
 assert.throws(()=>reconcileHistoricalTransfer({semesterStart:first,semesterEnd:last,stays,charges:[{...charge,status:"WAIVED"}]}),/REVIEW_WAIVED_CHARGE/);
+const alreadyReconciled=reconcileHistoricalTransfer({
+  semesterStart:first,semesterEnd:last,stays,
+  charges:[{...charge,amount:25500,adjustments:[{reason:"RATE_CORRECTION",calculationMethod:"STANDARD_RATE",calculationData:{method:"HISTORICAL_MONTHLY_CORRECTION"}}]}],
+});
+assert.equal(alreadyReconciled.delta,0);
+assert.throws(()=>reconcileHistoricalTransfer({
+  semesterStart:first,semesterEnd:last,stays,
+  charges:[{...charge,adjustments:[{reason:"RATE_CORRECTION",calculationMethod:"CUSTOM",calculationData:{method:"HISTORICAL_MONTHLY_CORRECTION"}}]}],
+}),/REVIEW_SPECIAL_ADJUSTMENTS/);
 console.log("Historical rent reconciliation checks passed");
