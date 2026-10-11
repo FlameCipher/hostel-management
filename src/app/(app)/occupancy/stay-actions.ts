@@ -171,6 +171,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
             { roomId: target.id, startDate: transferDate, monthlyRate: Number(target.roomType.monthlyRate) },
           ],
         });
+        if (monthly.lines.length !== 4 && occupancy.semester.startDate.getUTCDate() !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
         newAmount = monthly.total;
         monthlyLines = monthly.lines;
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
@@ -184,7 +185,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
+    const messages: Record<string, string> = { MONTHLY_REVIEW_REQUIRED: "This semester does not follow the standard full-month billing pattern. Request a manual review before applying a monthly transfer.", RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
