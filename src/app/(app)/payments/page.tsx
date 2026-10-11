@@ -14,7 +14,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const outstandingOnly = params.view === "outstanding";
-  const month = /^\\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? "") ? params.month! : "";
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? "") ? params.month! : "";
   const monthStart = month ? new Date(`${month}-01T00:00:00.000Z`) : null;
   const monthEnd = monthStart ? new Date(Date.UTC(monthStart.getUTCFullYear(),monthStart.getUTCMonth()+1,1)) : null;
   const canManage = session.role !== "CARETAKER";
