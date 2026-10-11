@@ -38,7 +38,7 @@ export default async function OccupancyDetailPage({ params }: { params: Promise<
           roomId:stay.roomId,startDate:stay.startDate,endDate:stay.endDate,monthlyRate:Number(stay.monthlyRateSnapshot),
         })),
         charges:rentCharges.map(charge=>({
-          amount:Number(charge.amount),currency:charge.currency,
+          amount:Number(charge.amount),currency:charge.currency,status:charge.status,
           payments:charge.payments.map(payment=>({amount:Number(payment.amount)})),
           adjustments:charge.adjustments.map(adjustment=>({
             reason:adjustment.reason,calculationMethod:adjustment.calculationMethod,calculationData:adjustment.calculationData,
