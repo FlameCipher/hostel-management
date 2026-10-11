@@ -4,7 +4,7 @@ import { refreshChargeStatus } from "@/lib/payment-balance";
 
 const DAY_MS = 86_400_000;
 
-export type RentMethod = "KEEP_FULL" | "STANDARD_RATE" | "ACTUAL_DAYS" | "CUSTOM";
+export type RentMethod = "KEEP_FULL" | "STANDARD_RATE" | "ACTUAL_DAYS" | "MONTHLY" | "CUSTOM";
 
 export type RentSegment = {
   roomId: string;
