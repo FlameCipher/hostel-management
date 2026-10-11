@@ -25,23 +25,23 @@ function OutstandingChargeSelector({ charges, selectedChargeId, money }: { charg
   const chosen = charges.find((item) => item.id === selected);
   const filtered = charges.filter((item) => [item.studentName, item.roomNumber ?? "", item.period, item.description].join(" ").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return <div className="field-group form-span-2 outstanding-selector">
-    <span>Outstanding charge *</span>
+    <span>Outstanding balance *</span>
     <input type="hidden" name="chargeId" value={selected} />
     <button type="button" className="outstanding-selector-trigger" aria-expanded={open} onClick={() => setOpen(!open)}>
-      <span>{chosen ? <><strong>{chosen.studentName}</strong><small>{chosen.roomNumber ? `Room ${chosen.roomNumber} · ` : ""}{chosen.period} · {money(chosen.balance)} outstanding</small></> : <strong>Select outstanding charge</strong>}</span>
+      <span>{chosen ? <><strong>{chosen.studentName}</strong><small>{chosen.roomNumber ? `Room ${chosen.roomNumber} · ` : ""}{chosen.period} · {money(chosen.balance)} outstanding</small></> : <strong>Select outstanding balance</strong>}</span>
       <span>{open ? "Close" : "Choose charge"}</span>
     </button>
     {open ? <div className="outstanding-selector-panel">
-      <label className="outstanding-selector-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label="Search outstanding charges by student, room or period" placeholder="Search student, room or period..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-      <p className="muted-note">{filtered.length} matching outstanding charge{filtered.length === 1 ? "" : "s"}</p>
-      <div className="outstanding-selector-options" role="group" aria-label="Outstanding charges">
+      <label className="outstanding-selector-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label="Search outstanding balances by student, room or period" placeholder="Search student, room or period..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      <p className="muted-note">{filtered.length} matching outstanding balance{filtered.length === 1 ? "" : "s"}</p>
+      <div className="outstanding-selector-options" role="group" aria-label="Outstanding balances">
         {filtered.map((item) => <button key={item.id} type="button" aria-pressed={selected === item.id} className={`outstanding-selector-card ${selected === item.id ? "is-selected" : ""}`} onClick={() => { setSelected(item.id); setOpen(false); }}>
           <span className="outstanding-selector-card-top"><strong>{item.studentName}</strong>{selected === item.id ? <CheckCircle2 size={20} aria-label="Selected" /> : null}</span>
           <span className="outstanding-selector-meta">{item.roomNumber ? `Room ${item.roomNumber} · ` : ""}{item.period}</span>
           <span className="outstanding-selector-description">{item.description}</span>
           <span className="outstanding-selector-balance"><small>Outstanding balance</small><strong>{money(item.balance)}</strong></span>
         </button>)}
-        {!filtered.length ? <p className="muted-note">No matching outstanding charges.</p> : null}
+        {!filtered.length ? <p className="muted-note">No matching outstanding balances.</p> : null}
       </div>
     </div> : null}
     {!selected ? <small>Select a charge before recording payment.</small> : null}
