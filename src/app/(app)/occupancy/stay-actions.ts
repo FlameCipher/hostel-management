@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/rent-calculation";
 import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
+import { isStandardMonthlyAdjustment } from "@/lib/monthly-rent-reconciliation";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
@@ -123,7 +124,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
   try {
     await db.$transaction(async (tx) => {
       const [occupancy, target] = await Promise.all([
-        tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true } } }, orderBy: { createdAt: "asc" } } } }),
+        tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true, calculationMethod: true, calculationData: true } } }, orderBy: { createdAt: "asc" } } } }),
         tx.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
       ]);
       if (!occupancy || !target) throw new Error("TRANSFER_UNAVAILABLE");
@@ -137,7 +138,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
       if (parsed.data.rentMethod === "MONTHLY" && occupancy.charges.length !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
-      if (parsed.data.rentMethod === "MONTHLY" && charge.adjustments.some((adjustment) => adjustment.reason !== "ROOM_TRANSFER")) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (parsed.data.rentMethod === "MONTHLY" && charge.adjustments.some((adjustment) => !isStandardMonthlyAdjustment(adjustment))) throw new Error("MONTHLY_REVIEW_REQUIRED");
       if (parsed.data.rentMethod === "MONTHLY" && (!occupancy.roomStays.length || occupancy.roomStays.filter((stay) => stay.endDate === null).length !== 1)) throw new Error("MONTHLY_REVIEW_REQUIRED");
       if (parsed.data.rentMethod === "MONTHLY" && occupancy.roomStays.some((stay) => stay.startDate > transferDate)) throw new Error("MONTHLY_REVIEW_REQUIRED");
 
