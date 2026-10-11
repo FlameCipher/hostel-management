@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && npm run test:monthly-transfer && npm run test:monthly-adjustment && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -17,6 +17,8 @@
     "db:seed:production": "tsx prisma/seed-production.ts",
     "db:audit": "tsx scripts/audit-data.ts",
     "test:rent": "node --import tsx scripts/test-rent-calculation.ts",
+    "test:monthly-transfer": "node --import tsx scripts/test-monthly-transfer-rent.ts",
+    "test:monthly-adjustment": "node --import tsx scripts/test-monthly-transfer-adjustment.ts",
     "test:platform-isolation": "node --import tsx scripts/test-platform-tenant-isolation.ts",
     "test:terms": "node --import tsx --test scripts/test-student-terms.ts",
     "test:communications": "node --import tsx --test scripts/test-communications.ts",

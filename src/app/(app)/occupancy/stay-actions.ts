@@ -9,6 +9,7 @@ import { organizationCurrency } from "@/lib/organization-currency";
 import { db } from "@/lib/db";
 import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/rent-calculation";
+import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
@@ -104,7 +105,7 @@ export async function checkInStudentAction(_state: StayFormState, formData: Form
 const transferSchema = z.object({
   targetRoomId: z.string().min(1),
   transferDate: z.string().date(),
-  rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "CUSTOM"]),
+  rentMethod: z.enum(["KEEP_FULL", "ACTUAL_DAYS", "MONTHLY", "CUSTOM"]),
   customRent: z.coerce.number().min(0).max(4_000_000).optional(),
   reason: z.string().trim().min(5).max(300),
 });
@@ -117,11 +118,12 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
   if (parsed.data.customRent !== undefined && !validAmount(parsed.data.customRent, currency)) return {error:"Use the decimal places supported by your currency."};
   if (parsed.data.rentMethod === "CUSTOM" && parsed.data.customRent === undefined) return { error: "Enter the agreed final semester rent." };
   if (parsed.data.rentMethod === "CUSTOM" && !["OWNER", "ADMIN"].includes(session.role)) return { error: "Only the Owner or Admin can enter a custom final rent." };
+  if (parsed.data.rentMethod === "MONTHLY" && formData.get("confirmRentAdjustment") !== "on") return { error: "Review and confirm the monthly rent adjustment before transferring." };
   const transferDate = new Date(`${parsed.data.transferDate}T12:00:00.000Z`);
   try {
     await db.$transaction(async (tx) => {
       const [occupancy, target] = await Promise.all([
-        tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, orderBy: { createdAt: "asc" } } } }),
+        tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true } } }, orderBy: { createdAt: "asc" } } } }),
         tx.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
       ]);
       if (!occupancy || !target) throw new Error("TRANSFER_UNAVAILABLE");
@@ -134,6 +136,10 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       if (held.size >= capacity && !held.has(occupancy.studentId)) throw new Error("ROOM_FULL");
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
+      if (parsed.data.rentMethod === "MONTHLY" && occupancy.charges.length !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (parsed.data.rentMethod === "MONTHLY" && charge.adjustments.some((adjustment) => adjustment.reason !== "ROOM_TRANSFER")) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (parsed.data.rentMethod === "MONTHLY" && (!occupancy.roomStays.length || occupancy.roomStays.filter((stay) => stay.endDate === null).length !== 1)) throw new Error("MONTHLY_REVIEW_REQUIRED");
+      if (parsed.data.rentMethod === "MONTHLY" && occupancy.roomStays.some((stay) => stay.startDate > transferDate)) throw new Error("MONTHLY_REVIEW_REQUIRED");
 
       let stays = occupancy.roomStays;
       if (!stays.length) {
@@ -142,10 +148,12 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       }
       const openStay = stays.find((stay) => !stay.endDate);
       if (!openStay) throw new Error("ACTIVE_STAY_NOT_FOUND");
+      if (parsed.data.rentMethod === "MONTHLY" && transferDate <= openStay.startDate) throw new Error("MONTHLY_REVIEW_REQUIRED");
       await tx.occupancyRoomStay.update({ where: { id: openStay.id }, data: { endDate: transferDate } });
       await tx.occupancyRoomStay.create({ data: { organizationId: session.organizationId, occupancyId: occupancy.id, roomId: target.id, roomTypeId: target.roomTypeId, startDate: transferDate, monthlyRateSnapshot: target.roomType.monthlyRate, semesterRateSnapshot: target.roomType.semesterRate } });
 
       let calculation: ReturnType<typeof calculateActualDaysRent> | null = null;
+      let monthlyLines: ReturnType<typeof calculateMonthlyTransferRent>["lines"] | null = null;
       let newAmount = Number(charge.amount);
       if (parsed.data.rentMethod === "ACTUAL_DAYS") {
         calculation = calculateActualDaysRent({ currency,
@@ -158,9 +166,24 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
           ],
         });
         newAmount = calculation.amount;
+      } else if (parsed.data.rentMethod === "MONTHLY") {
+        const firstMonth = occupancy.semester.startDate.toISOString().slice(0, 7);
+        const lastMonth = occupancy.semester.endDate.toISOString().slice(0, 7);
+        const monthly = calculateMonthlyTransferRent({
+          currency, firstMonth, lastMonth,
+          stays: [
+            ...stays.filter((stay) => stay.id !== openStay.id).map((stay) => ({ roomId: stay.roomId, startDate: stay.startDate, monthlyRate: Number(stay.monthlyRateSnapshot) })),
+            { roomId: openStay.roomId, startDate: openStay.startDate, monthlyRate: Number(openStay.monthlyRateSnapshot) },
+            { roomId: target.id, startDate: transferDate, monthlyRate: Number(target.roomType.monthlyRate) },
+          ],
+        });
+        if (occupancy.semester.startDate.getUTCDate() !== 1 || occupancy.semester.endDate.getUTCDate() !== new Date(Date.UTC(occupancy.semester.endDate.getUTCFullYear(), occupancy.semester.endDate.getUTCMonth() + 1, 0)).getUTCDate()) throw new Error("MONTHLY_REVIEW_REQUIRED");
+        newAmount = monthly.total;
+        if (!Number.isFinite(Number(formData.get("confirmedRent"))) || Number(formData.get("confirmedRent")) !== newAmount) throw new Error("RENT_PREVIEW_CHANGED");
+        monthlyLines = monthly.lines;
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
 
-      const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : { customRent: parsed.data.customRent ?? null } });
+      const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod === "MONTHLY" ? "STANDARD_RATE" : parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : monthlyLines ? { method: "MONTHLY", months: monthlyLines } : { customRent: parsed.data.customRent ?? null } });
       await tx.occupancy.update({ where: { id: occupancy.id }, data: { roomId: target.id } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, roomId: occupancy.roomId, ...activeBreakHoldWhere }, data: { roomId: target.id } });
       await refreshRoomStatus(tx, occupancy.roomId);
@@ -169,7 +192,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
+    const messages: Record<string, string> = { MONTHLY_REVIEW_REQUIRED: "The existing semester, payment adjustments, or room-stay history needs manual review before a month-based transfer.", RENT_PREVIEW_CHANGED: "The calculated rent has changed since your review. Reload the transfer form and confirm the updated amount.", RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }
