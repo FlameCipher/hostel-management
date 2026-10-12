@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, type FormEvent } from "react";
 import { createStudentAction } from "@/app/(app)/students/actions";
 import { recordPaymentAction } from "@/app/(app)/payments/actions";
 import { currencyStep, formatMoney } from "@/lib/currency";
@@ -99,7 +99,7 @@ export function AssistantActionWorkspace({ kind, data, onClose }: Props) {
       });
     }
   }
-  function submissionGuard(event: React.FormEvent<HTMLFormElement>) {
+  function submissionGuard(event: FormEvent<HTMLFormElement>) {
     if (!review || !approved) { event.preventDefault(); setLocalError("Review and explicitly approve before saving."); }
   }
   const today = new Date().toISOString().slice(0, 10);
