@@ -37,7 +37,7 @@ export default async function MobileOnboardingPage({
           select: {
             fullName: true, phone: true, portalEnabled: true,
             occupancies: {
-              where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "RESERVED"] as Array<"ACTIVE" | "RESERVED"> } },
+              where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "RESERVED"] as Array<"ACTIVE" | "RESERVED"> }, room: { organizationId: session.organizationId, property: { organizationId: session.organizationId } } },
               select: {
                 room: {
                   select: {
