@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
-import { normalizeStudentDocument, normalizeStudentPhone } from "@/lib/student-identifiers";
+import { normalizeStudentDocument, normalizeStudentPhone, normalizeGuardianPhone, normalizeStudentLookupName } from "@/lib/student-identifiers";
 import { clearStudentUpdateSession, createStudentUpdateSession, getPublicLookupFingerprint, getStudentUpdateSession } from "@/lib/student-update-session";
 
 export type StudentLookupState = { error: string };
@@ -23,10 +23,6 @@ const submissionSchema = z.object({
   guardianEmail: z.union([z.literal(""), z.string().trim().email()]),
   consent: z.literal("on"),
 });
-
-function normalizeName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-}
 
 function isPrismaError(error: unknown, code: string) {
   return typeof error === "object" && error !== null && "code" in error && error.code === code;
@@ -50,7 +46,7 @@ export async function identifyStudentAction(_state: StudentLookupState, formData
     select: { id: true, fullName: true },
     take: 3,
   });
-  const student = candidates.find((candidate) => normalizeName(candidate.fullName) === normalizeName(parsed.data.fullName));
+  const student = candidates.find((candidate) => normalizeStudentLookupName(candidate.fullName) === normalizeStudentLookupName(parsed.data.fullName));
   await db.publicStudentLookupAttempt.create({ data: { organizationId: organization.id, fingerprintHash, matched: Boolean(student) } });
   if (!student) return { error: "We could not verify those details. Use your registered name and phone number or contact the hostel office." };
 
@@ -95,7 +91,7 @@ export async function submitStudentDetailsAction(_state: StudentDetailsSubmissio
       const request = await tx.studentDetailsUpdateRequest.create({ data: {
         organizationId: session.organizationId, studentId: student.id, submittedName: session.submittedName, submittedPhone: session.submittedPhone,
         email: !student.email ? parsed.data.email.toLowerCase() : null, admissionNumber, nationalId,
-        guardianName: parsed.data.guardianName, guardianPhone: normalizeStudentPhone(parsed.data.guardianPhone), guardianRelationship: parsed.data.guardianRelationship,
+        guardianName: parsed.data.guardianName, guardianPhone: normalizeGuardianPhone(parsed.data.guardianPhone), guardianRelationship: parsed.data.guardianRelationship,
         guardianEmail: parsed.data.guardianEmail ? parsed.data.guardianEmail.toLowerCase() : null, consentConfirmedAt: new Date(),
       } });
       await tx.auditLog.create({ data: { organizationId: session.organizationId, action: "STUDENT_DETAILS_UPDATE_SUBMITTED", entityType: "StudentDetailsUpdateRequest", entityId: request.id, metadata: { studentId: student.id, fields: [student.email ? null : "email", student.admissionNumber ? null : "admissionNumber", student.nationalId ? null : "nationalId", "guardian"].filter(Boolean) } } });
