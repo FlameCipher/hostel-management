@@ -1,4 +1,4 @@
-import { minorUnits, validAmount } from "@/lib/currency";
+import { minorUnits, validAmount, currencyDigits } from "@/lib/currency";
 
 /** Preview only: a correction replaces a posting, never records additional cash. */
 export function paymentAmountCorrectionPreview(input: {
@@ -18,13 +18,10 @@ export function paymentAmountCorrectionPreview(input: {
   if(replacementAmount===oldPaymentAmount)throw Error("UNCHANGED_AMOUNT");
   const newPaid=current-old+next;
   if(newPaid<0 || newPaid>rent)throw Error("REPLACEMENT_EXCEEDS_CHARGE");
-  const divisor=10**({KES:2,USD:2,JPY:0}[currency as "KES"|"USD"|"JPY"]??2);
-  // For supported multi-currency hosts, use the same ledger scale.
-  const precision=10**(String(minorUnits(1,currency)).length-1);
-  void divisor;void precision;
+  const divisor = 10 ** currencyDigits(currency);
   return {
-    paidAfter: newPaid/(minorUnits(1,currency)),
-    balanceAfter: (rent-newPaid)/(minorUnits(1,currency)),
-    change: (next-old)/(minorUnits(1,currency)),
+    paidAfter: newPaid/divisor,
+    balanceAfter: (rent-newPaid)/divisor,
+    change: (next-old)/divisor,
   };
 }
