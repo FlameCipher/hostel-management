@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BedDouble, ClipboardList, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound, Users } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { studentStatusLabels, studentStatusTone } from "@/lib/students";
 
@@ -31,6 +32,7 @@ function phoneSearchVariants(query: string) {
 
 export default async function StudentsPage({ searchParams }: StudentsPageProps) {
   const session = await requireSession();
+  if (session.role === "CARETAKER") redirect("/visitors");
   const filters = await searchParams;
   const query = filters.q?.trim() ?? "";
   const status = validStatuses.has(filters.status ?? "")
