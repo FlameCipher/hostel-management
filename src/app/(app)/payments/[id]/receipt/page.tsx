@@ -1,7 +1,8 @@
 import { formatMoney, roundCurrency } from "@/lib/currency";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { ArrowLeft, Building2, Mail, PencilLine } from "lucide-react";
+import { emailPendingReceiptAction } from "./email-action";
 import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { ReceiptShareActions } from "@/components/receipt-share-actions";
 import { requireSession } from "@/lib/auth/session";
@@ -11,12 +12,15 @@ import "@/components/receipt-toolbar.css";
 
 export default async function PaymentReceiptPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{delivery?: string; correction?: string}>;
 }) {
 
   const session = await requireSession();
   const { id } = await params;
+  const paramsQuery=await searchParams;
   const payment = await db.payment.findFirst({
     where: { id, organizationId: session.organizationId },
     include: {
@@ -39,6 +43,8 @@ export default async function PaymentReceiptPage({
   const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
+  const canCorrect=["OWNER","ADMIN"].includes(session.role) && !payment.reversedAt;
+  const canEmail=["OWNER","ADMIN","MANAGER"].includes(session.role) && !payment.reversedAt && !!payment.student.email?.trim() && !(payment.receiptDeliveryChannel==="EMAIL"&&payment.receiptDeliveryStatus==="SENT");
   const emailStatus = !payment.student.email ? "No email recorded."
     : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Receipt emailed."
     : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed."
@@ -50,10 +56,22 @@ export default async function PaymentReceiptPage({
         <Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17} /> Payments</Link>
         <div className="heading-actions">
           <PrintReceiptButton />
-          <ReceiptShareActions paymentId={payment.id} />
+          {!payment.reversedAt ? <ReceiptShareActions paymentId={payment.id} /> : null}
+          {canEmail ? <form action={emailPendingReceiptAction.bind(null,payment.id)}>
+            <button className="secondary-button" type="submit"><Mail size={17}/> Email receipt</button>
+          </form> : null}
+          {canCorrect ? <Link className="secondary-button no-underline" href={`/payments/${payment.id}/correct`}>
+            <PencilLine size={17}/> Correct amount
+          </Link> : null}
         </div>
       </div>
 
+      {paramsQuery.correction==="applied" ? <p className="review-success print-hidden" role="status">
+        Financial correction saved. The original receipt remains in the audit trail; this is the newly issued receipt.
+      </p>:null}
+      {paramsQuery.delivery==="email" ? <p className="review-success print-hidden" role="status">Replacement receipt emailed successfully.</p>:null}
+      {paramsQuery.delivery==="failed" ? <p className="form-error print-hidden" role="alert">The receipt was saved, but email delivery failed. Check the delivery status before retrying.</p>:null}
+      {paramsQuery.delivery==="no-email" ? <p className="form-error print-hidden" role="alert">No student email is recorded for this receipt.</p>:null}
       <p className="receipt-email-status print-hidden" role="status">{emailStatus}</p>
 
       <article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>
