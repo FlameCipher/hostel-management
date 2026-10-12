@@ -3,6 +3,8 @@ export type KnowledgeTopic="overview"|"contact"|"location"|"pricing"|"vacancy"|"
 export function hostelKnowledgeTopic(question:string):KnowledgeTopic|null {
  const q=question.trim().toLocaleLowerCase("en");
  if(!q||q.length>1200||/\broom\s*(?:number\s*)?\d+/i.test(q))return null;
+ // A person-specific rent or statement is private, never a public price list.
+ if(/(?:\b(?:my|his|her|their)\b|[\p{L}][\p{L}.'-]*[’\']s)\s+(?:rent|balance|payments?|receipts?|charges?)\b/u.test(q))return null;
  if(/\b(?:what.*(?:know|everything)|tell me everything|overview|tell me about|about (?:the |our )?hostel|explain the hostel|hostel information|who are you)\b/i.test(q))return"overview";
  if(/\b(?:what.*missing|knowledge gaps?|incomplete records?|what.*not know|data readiness|training coverage)\b/i.test(q))return"coverage";
  if(/\b(?:founded|established|history|how old is the hostel|when.*started)\b/i.test(q))return"history";
