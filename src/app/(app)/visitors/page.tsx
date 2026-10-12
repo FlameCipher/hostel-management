@@ -76,7 +76,15 @@ export default async function Visitors({
         <h1>Visitor operations</h1>
         <p>Arrival and departure verification for this hostel's tenants and their guests.</p>
       </div>
-      <Link className="secondary-button" href="/assistant">System assistant &amp; alerts</Link>
+      <div className="heading-actions">
+        {["OWNER","ADMIN"].includes(session.role)?
+          <Link className="secondary-button no-underline" href="/gate-readiness">
+            Gate readiness
+          </Link>:null}
+        <Link className="secondary-button no-underline" href="/assistant">
+          System assistant &amp; alerts
+        </Link>
+      </div>
     </div>
     <section className="room-summary-grid">
       <article className="compact-stat"><div><p>Expected requests</p><strong>{expected}</strong></div></article>
@@ -119,12 +127,12 @@ export default async function Visitors({
       {visits.length?visits.slice(0,30).map(v=>{
         const room=roomByOccupancy.get(v.occupancyId);
         const currentRoom=room?.room.number??null;
-        const hostRoomChanged=Boolean(room&&(
+        const hostRoomChanged=!room||(
           room.status!=="ACTIVE" ||
           room.studentId!==v.studentId ||
           room.room.propertyId!==v.propertyId ||
           room.room.number.toLocaleLowerCase()!==v.roomLabel.toLocaleLowerCase()
-        ));
+        );
         return <VisitorRecord key={v.id} visit={v}
           currentRoomNumber={currentRoom} hostRoomChanged={hostRoomChanged}/>;
       }):<div className={`panel ${styles.card}`}>
