@@ -11,6 +11,7 @@ import { deliverPaymentReceipt } from "@/lib/receipt-delivery";
 import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/rent-calculation";
 import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 import { isStandardMonthlyAdjustment } from "@/lib/monthly-rent-reconciliation";
+import { transferRentChargeIdentity } from "@/lib/transfer-charge-identity";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
@@ -185,11 +186,18 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       } else if (parsed.data.rentMethod === "CUSTOM") newAmount = parsed.data.customRent ?? newAmount;
 
       const adjustment = await applyChargeAmount(tx, { organizationId: session.organizationId, chargeId: charge.id, createdById: session.userId, reason: "ROOM_TRANSFER", calculationMethod: parsed.data.rentMethod === "MONTHLY" ? "STANDARD_RATE" : parsed.data.rentMethod, newAmount, effectiveDate: transferDate, explanation: parsed.data.reason, calculationData: calculation ? { totalDays: calculation.totalDays, lines: calculation.lines.map((line) => ({ roomId: line.roomId, roomTypeId: line.roomTypeId, startDate: line.startDate.toISOString(), endDate: line.endDate.toISOString(), days: line.days, semesterRate: line.semesterRate, amount: line.amount })) } : monthlyLines ? { method: "MONTHLY", months: monthlyLines } : { customRent: parsed.data.customRent ?? null } });
+      const newChargeIdentity = transferRentChargeIdentity({
+        semesterName: occupancy.semester.name,
+        roomNumber: target.number,
+        roomTypeId: target.roomTypeId,
+        roomTypeName: target.roomType.name,
+      });
+      await tx.charge.update({where:{id:charge.id},data:newChargeIdentity});
       await tx.occupancy.update({ where: { id: occupancy.id }, data: { roomId: target.id } });
       await tx.breakReservation.updateMany({ where: { organizationId: session.organizationId, studentId: occupancy.studentId, roomId: occupancy.roomId, ...activeBreakHoldWhere }, data: { roomId: target.id } });
       await refreshRoomStatus(tx, occupancy.roomId);
       await refreshRoomStatus(tx, target.id);
-      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ROOM_TRANSFERRED", entityType: "Occupancy", entityId: occupancy.id, metadata: { fromRoomId: occupancy.roomId, toRoomId: target.id, transferDate: transferDate.toISOString(), rentMethod: parsed.data.rentMethod, previousRent: adjustment.previousAmount, newRent: adjustment.newAmount, credit: adjustment.credit, reason: parsed.data.reason } } });
+      await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ROOM_TRANSFERRED", entityType: "Occupancy", entityId: occupancy.id, metadata: { fromRoomId: occupancy.roomId, toRoomId: target.id, transferDate: transferDate.toISOString(), rentMethod: parsed.data.rentMethod, previousRent: adjustment.previousAmount, newRent: adjustment.newAmount, credit: adjustment.credit, reason: parsed.data.reason, previousChargeDescription: charge.description, newChargeDescription: newChargeIdentity.description, originalRoomTypeId: charge.roomTypeId, newRoomTypeId: target.roomTypeId } } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
