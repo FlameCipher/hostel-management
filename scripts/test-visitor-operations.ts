@@ -83,7 +83,7 @@ function gateFixture(options?:{
     auditLog:{create:async(input:unknown)=>{audits.push(input);return {};}},
   };
   const db={
-    $transaction:async(fn:(tx:typeof tx)=>Promise<unknown>)=>fn(tx),
+    $transaction:async(fn:(client:typeof tx)=>Promise<unknown>)=>fn(tx),
   } as unknown as PrismaClient;
   return {db,visit,audits,get changes(){return changes}};
 }
