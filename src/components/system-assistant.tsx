@@ -16,6 +16,17 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
       const year=yearMatch ? Number(yearMatch[0]) : new Date().getFullYear();
       const month=match>=0 ? `&month=${year}-${String(match+1).padStart(2,"0")}` : "";
       router.push("/payments?view=outstanding"+month); return; }
+    if (role === "MANAGEMENT" && /^(?:find|locate|search(?: for)?|open|show|where is)\b/i.test(value.trim()) &&
+        !/\b(?:unpaid|outstanding|owe|owing|not paid|balance|deni|madeni)\b/i.test(value)) {
+      const room = value.match(/\broom\s*(?:number\s*)?(\d+[a-z]?)\b/i);
+      const subject = room?.[1] ?? value.trim()
+        .replace(/^(?:find|locate|search(?: for)?|open|show|where is)\s+(?:(?:me\s+)?(?:student|resident|tenant|room)(?:\s+number)?\s+)?/i, "")
+        .replace(/[.!?]+$/, "").trim();
+      if (subject.length >= 2 && subject.length <= 80) {
+        router.push("/occupancy?q=" + encodeURIComponent(subject));
+        return;
+      }
+    }
     setSubmitted(value);setBusy(true);setError("");setAnswer("");
     try{const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff"}),signal:AbortSignal.timeout(35000)});const result=await response.json();if(!response.ok)throw Error(result.error||"The assistant could not respond.");setAnswer(result.text);setMode(result.mode);}catch(e){setError(e instanceof Error?e.message:"The assistant could not respond. Use the guide below.");}finally{setBusy(false);}
   }
