@@ -166,6 +166,13 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
   document.setAuthor(pdfText(data.organizationName));
   document.setSubject("Payment receipt");
   document.setCreator("StudentsHostels");
+  // Stable document metadata makes retrying a receipt with Resend's
+  // idempotency key use the same PDF bytes instead of a fresh timestamp.
+  const issueDate = data.issuedAt ? new Date(data.issuedAt) : null;
+  if(issueDate && !Number.isNaN(issueDate.getTime())){
+    document.setCreationDate(issueDate);
+    document.setModificationDate(issueDate);
+  }
 
   return document.save();
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { searchSystemGuide, systemGuide, type GuideRole } from "@/lib/system-guide";
+import { receiptQueueNavigationRequest } from "@/lib/receipt-queue-intents";
 import styles from "./resident-services.module.css";
 export function SystemAssistant({ role }: { role: GuideRole }) {
   const router = useRouter();
@@ -16,6 +17,10 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
       const year=yearMatch ? Number(yearMatch[0]) : new Date().getFullYear();
       const month=match>=0 ? `&month=${year}-${String(match+1).padStart(2,"0")}` : "";
       router.push("/payments?view=outstanding"+month); return; }
+    if(role==="MANAGEMENT" && receiptQueueNavigationRequest(value)){
+      router.push("/payments?delivery=all");
+      return;
+    }
     if (role === "MANAGEMENT" && /^(?:find|locate|search(?: for)?|open|show|where is)\b/i.test(value.trim()) &&
         !/\b(?:unpaid|outstanding|owe|owing|not paid|balance|deni|madeni)\b/i.test(value)) {
       const room = value.match(/\broom\s*(?:number\s*)?(\d+[a-z]?)\b/i);
