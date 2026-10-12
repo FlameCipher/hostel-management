@@ -102,4 +102,6 @@ assert.ok(read("src/app/(app)/occupancy/[id]/page.tsx").includes("{canReviewRent
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));
 assert.ok(read("src/app/(app)/gate-readiness/page.tsx").includes("staffMayReviewGateReadiness"));
+assert.ok(read("src/app/(app)/students/page.tsx").includes('session.role === "CARETAKER"'),"Caretaker should not access personal student register.");
+assert.ok(read("src/app/(app)/visitors/page.tsx").includes("hostRoomChanged=!room||"),"An absent host occupancy must block gate admission.");
 console.log("Gate Staff & Operational Readiness: role menu, caretaker privacy, route guards, operational metrics and on-site verification boundaries passed.");
