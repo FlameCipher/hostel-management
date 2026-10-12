@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { searchSystemGuide, systemGuide, type GuideRole } from "@/lib/system-guide";
 import { receiptQueueNavigationRequest } from "@/lib/receipt-queue-intents";
+import { financialAuditNavigationRequest } from "@/lib/financial-audit-intents";
 import styles from "./resident-services.module.css";
 export function SystemAssistant({ role }: { role: GuideRole }) {
   const router = useRouter();
@@ -17,6 +18,10 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
       const year=yearMatch ? Number(yearMatch[0]) : new Date().getFullYear();
       const month=match>=0 ? `&month=${year}-${String(match+1).padStart(2,"0")}` : "";
       router.push("/payments?view=outstanding"+month); return; }
+    if(role==="MANAGEMENT" && financialAuditNavigationRequest(value)){
+      router.push("/payments/audit");
+      return;
+    }
     if(role==="MANAGEMENT" && receiptQueueNavigationRequest(value)){
       router.push("/payments?delivery=all");
       return;
