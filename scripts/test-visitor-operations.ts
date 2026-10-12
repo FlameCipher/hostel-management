@@ -148,7 +148,7 @@ async function run() {
   r=await updateVisit(unsigned.db,staff,{
     id:"visit-1",action:"CHECK_IN",verified:false,note:"",
   },false,now);
-  assert.match(r.error??"",/verify/i);assert.equal(unsigned.changes,0);
+  assert.match(r.error??"",/verif/i);assert.equal(unsigned.changes,0);
 
   const tenant:TenantSession={
     studentId:"tenant-1",organizationId:"hostel-A",name:"Tenant One",
