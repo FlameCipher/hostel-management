@@ -101,6 +101,14 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
       return rows[0].count;
     }),
   ])));
+  modules.push(module("visitor-operations", "Visitor gate integrity", await Promise.all([
+    warning("visitor-unrecorded-exits", "Checked-in visitors past their planned departure without a recorded exit require gate review",
+      () => db.visitorRequest.count({where:{...scope,status:"CHECKED_IN",checkedOutAt:null,expectedDeparture:{lt:now}}})),
+    warning("visitor-checkin-missing", "Checked-in visitors require a verified arrival timestamp",
+      () => db.visitorRequest.count({where:{...scope,status:"CHECKED_IN",checkedInAt:null}})),
+    warning("visitor-checkout-missing", "Checked-out visitors require both recorded entry and exit timestamps",
+      () => db.visitorRequest.count({where:{...scope,status:"CHECKED_OUT",OR:[{checkedInAt:null},{checkedOutAt:null}]}})),
+  ])));
   modules.push(module("photo-guidelines", "Property photograph checks", await Promise.all([
     warning("classification", "Published pictures have an owner-confirmed building, compound or room category", () => db.propertyPhoto.count({ where: { ...scope, deletedAt: null, visible: true, OR: [{ category: null }, { confirmedAt: null }, { category: { notIn: ["EXTERIOR", "COMPOUND", "ROOM"] } }] } })),
     warning("review", "Older photographs awaiting owner classification", () => db.propertyPhoto.count({ where: { ...scope, deletedAt: null, url: { not: null }, category: null } })),

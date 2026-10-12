@@ -95,7 +95,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
     <div>
       <div className="page-heading-row">
         <div><p className="eyebrow">Tenant management</p><h1>Students</h1><p>Manage student records, JKUAT details, guardian contacts, registration approvals and current accommodation.</p></div>
-        {canManageStudents ? <div className="heading-actions">{canDeleteStudents ? <Link className="secondary-button no-underline" href="/students/update-requests"><ClipboardList size={18} /> Update requests{pendingUpdates ? ` (${pendingUpdates})` : ""}</Link> : null}<Link className="secondary-button no-underline" href="/students/guardians"><Users size={18} /> Guardians</Link><Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
+        {canManageStudents ? <div className="heading-actions">{canDeleteStudents ? <Link className="secondary-button no-underline" href="/students/update-requests"><ClipboardList size={18} /> Update requests{pendingUpdates ? ` (${pendingUpdates})` : ""}</Link> : null}<Link className="secondary-button no-underline" href="/students/registrations"><ClipboardList size={18} /> Tenant activation</Link><Link className="secondary-button no-underline" href="/students/guardians"><Users size={18} /> Guardians</Link><Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
       </div>
 
       <section className="room-summary-grid" aria-label="Student summary">
