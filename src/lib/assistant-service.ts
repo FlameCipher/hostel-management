@@ -13,6 +13,8 @@ import { namedStudentAccountIntent, namedStudentAccountAnswer, isPrivateFinanceQ
 import { staffCanViewFinance } from "./staff-navigation-policy";
 import { operationalIntent, answerOperationalQuestion } from "./assistant-operations-read";
 import { roomAccountIntent, answerRoomAccount } from "./assistant-room-account";
+import { answerHostelKnowledge } from "./assistant-knowledge-reader";
+import { issueAssistantContext, readAssistantContext, isRoomFinanceFollowup } from "./assistant-conversation-context";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -24,7 +26,7 @@ export async function generateHostelAnswer(question:string, role:GuideRole, fact
  if(!result.text.trim())throw Error("EMPTY_AI_RESPONSE");
  return {text:result.text, inputTokens:result.usage.inputTokens??0,outputTokens:result.usage.outputTokens??0};
 }
-export async function answerHostelQuestion(database:PrismaClient,session:SessionPayload|TenantSession|null,tenant:boolean,question:string,generate=generateHostelAnswer) {
+export async function answerHostelQuestion(database:PrismaClient,session:SessionPayload|TenantSession|null,tenant:boolean,question:string,generate=generateHostelAnswer,contextToken:string|null=null) {
  if(!session)return {error:"Sign in to use your hostel assistant.",status:401};
  const staff=tenant?null:await residentStaff(database,session as SessionPayload);
  if(tenant?!await residentTenant(database,session as TenantSession):!staff)return {error:"Your account is no longer eligible. Sign in again.",status:401};
@@ -35,7 +37,18 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  // giving financial records to an AI provider or granting autonomous writes.
  if(!tenant && staff && staffCanViewFinance(staff.role)) {
    const roomRequest=roomAccountIntent(question);
-   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+   const pointerPrincipal={organizationId:session.organizationId,userId:(session as SessionPayload).userId,role:staff.role,sessionVersion:(session as SessionPayload).sessionVersion};
+   const secret=process.env.SESSION_SECRET??"";
+   if(roomRequest) {
+     const answer=await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     return {...answer,contextToken:issueAssistantContext({kind:"room",number:roomRequest.number},pointerPrincipal,secret)};
+   }
+   if(isRoomFinanceFollowup(question)) {
+     const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
+     if(!subject)return {mode:"guide",text:"Which room or student are you asking about? Please give the room number again. I won't guess or show unrelated payments.",links:[{title:"Rooms",href:"/rooms",action:"Find room"}]};
+     const answer=await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     return {...answer,contextToken};
+   }
    const named=namedStudentAccountIntent(question);
    if(named) return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},named.name,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
    const intent=managementIntent(question);
@@ -49,8 +62,20 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
 
  if(!tenant && staff) {
    const operation=operationalIntent(question);
-   if(operation) return answerOperationalQuestion(database,session.organizationId,staff.role,operation);
+   if(operation) {
+     const answer=await answerOperationalQuestion(database,session.organizationId,staff.role,operation);
+     if(operation.kind==="room") {
+       const principal={organizationId:session.organizationId,userId:(session as SessionPayload).userId,role:staff.role,sessionVersion:(session as SessionPayload).sessionVersion};
+       return {...answer,contextToken:issueAssistantContext({kind:"room",number:operation.number},principal,process.env.SESSION_SECRET??"")};
+     }
+     return answer;
+   }
  }
+ // Personal tenant statements are not the same as public room-type rates.
+ if(tenant && /\b(?:my|mine)\b/i.test(question) && /\b(?:rent|charges?|payments?|balance|receipt|statement|paid|owing)\b/i.test(question))
+   return {mode:"guide",text:"Your own recorded charges, payments and rent balance are in your private account statement. I cannot infer your individual negotiated rent from public accommodation prices.",links:[{title:"My statement",href:"/tenant/account",action:"Open my statement"}]};
+ const knowledge=await answerHostelKnowledge(database,session.organizationId,role,question);
+ if(knowledge)return knowledge;
  if(isPrivateFinanceQuestion(question))return {
    mode:"guide",text:"This question may involve private financial records. I cannot safely answer it from a general AI model without an exact verified student, room and accounting period. Please ask, for example, ‘What is the balance for Sheila Nyaboke?’ or ‘Who owes rent this semester?’, or open your authorized ledger. No records were changed.",
    links:tenant?[{title:"My account",href:"/tenant/account",action:"Open my statement"}]:staff?.role==="CARETAKER"?[{title:"Rooms",href:"/rooms",action:"Open rooms"}]:[{title:"Payments",href:"/payments",action:"Search protected ledger"}]
