@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { formatMoney, minorUnits } from "@/lib/currency";
 import type { SessionPayload } from "@/lib/auth/session";
+import type { FinancePeriod } from "@/lib/assistant-finance-period";
+import { resolveFinanceWindow } from "@/lib/assistant-management-intents";
 
 export function roomAccountIntent(question: string): { number: string } | null {
   if (!question.trim() || question.length > 1200) return null;
@@ -17,7 +19,8 @@ type AccountAnswer = { mode: "records"; text: string; links: RecordLink[] };
 const link = (title:string,href:string,action:string):RecordLink => ({title,href,action});
 
 export async function answerRoomAccount(
-  db: PrismaClient, session: Pick<SessionPayload,"organizationId"|"role">, number:string
+  db: PrismaClient, session: Pick<SessionPayload,"organizationId"|"role">, number:string,
+  period:FinancePeriod={kind:"all",label:"All recorded periods"}
 ): Promise<AccountAnswer> {
   // Defense in depth: never allow gate-only users to see money.
   if (session.role === "CARETAKER") return {
@@ -46,11 +49,16 @@ export async function answerRoomAccount(
   };
   const uniqueIds=[...new Set(occupants.map(o=>o.studentId))];
   const currency=organization.currency;
+  const window=await resolveFinanceWindow(db,organizationId,period);
+  if(window&&"error" in window) return {
+    mode:"records",text:window.error+" Room "+room.number+" has not been assigned an all-time payment total instead.",
+    links:[link("Semesters","/semesters","Review periods")]
+  };
   const [charges,payments]=await Promise.all([
     db.charge.findMany({where:{organizationId,studentId:{in:uniqueIds},status:{not:"WAIVED"}},
       select:{studentId:true,semesterId:true,currency:true,amount:true,
         payments:{where:{reversedAt:null},select:{studentId:true,organizationId:true,currency:true,amount:true}}}}),
-    db.payment.findMany({where:{organizationId,studentId:{in:uniqueIds},reversedAt:null},
+    db.payment.findMany({where:{organizationId,studentId:{in:uniqueIds},reversedAt:null,...(window?{paidAt:{gte:window.start,lt:window.end}}:{})},
       select:{studentId:true,organizationId:true,currency:true,amount:true,charge:{select:{studentId:true,organizationId:true}}}})
   ]);
   const invalidCharge=charges.some(c=>c.currency!==currency || !uniqueIds.includes(c.studentId) ||
@@ -87,10 +95,11 @@ export async function answerRoomAccount(
     } else {
       lines.push("No current-semester charge is linked to this allocation.");
     }
-    lines.push("All recorded unreversed payments (all periods): "+money(allPaid)+" ("+all.length+" payment records)");
+    lines.push((window?"Payments received during "+window.label:"All recorded unreversed payments (all periods)")+": "+money(allPaid)+" ("+all.length+" payment records)");
   }
   lines.push("");
   lines.push("These figures come from the hostel ledger, not a bank or M-Pesa confirmation. Shared rooms are shown resident by resident; no payment is assumed to belong to someone else.");
+  if(window)lines.push("Current allocation-semester charge payments can predate the selected payment-date window; the totals are intentionally separate.");
   return {
     mode:"records",text:lines.join("\n"),
     links:[

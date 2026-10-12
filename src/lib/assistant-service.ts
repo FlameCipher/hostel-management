@@ -7,7 +7,9 @@ import { residentAlerts } from "./resident-alerts";
 import { residentStaff, residentTenant } from "./resident-access";
 import { systemGuide, searchSystemGuide, type GuideRole } from "./system-guide";
 import { assistantConfiguration, assistantEnabled } from "./assistant-config";
-import { managementIntent, managementLedgerAnswer } from "./assistant-management-intents";
+import { managementIntent, managementLedgerAnswer, financialMonthFromQuestion } from "./assistant-management-intents";
+import { requestedFinancePeriod } from "./assistant-finance-period";
+import { namedStudentAccountIntent, namedStudentAccountAnswer, isPrivateFinanceQuestion } from "./assistant-student-account";
 import { staffCanViewFinance } from "./staff-navigation-policy";
 import { operationalIntent, answerOperationalQuestion } from "./assistant-operations-read";
 import { roomAccountIntent, answerRoomAccount } from "./assistant-room-account";
@@ -33,10 +35,12 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  // giving financial records to an AI provider or granting autonomous writes.
  if(!tenant && staff && staffCanViewFinance(staff.role)) {
    const roomRequest=roomAccountIntent(question);
-   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number);
+   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+   const named=namedStudentAccountIntent(question);
+   if(named) return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},named.name,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
    const intent=managementIntent(question);
    if(intent?.kind==="debtors" || intent?.kind==="collected") {
-     const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month);
+     const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month,requestedFinancePeriod(question,intent.month));
      return {mode:"records",text:result.text,links:result.links,observedAt:new Date().toISOString()};
    }
    if(intent?.kind==="register") return {mode:"workflow",workflow:"register",text:"I have opened a secure student registration workspace below. Enter the actual student and guardian details, choose the active semester and room type, review the generated rent charge, and explicitly approve. No account or charge has been created yet. After confirmation, you will proceed to initial payment and room allocation.",links:[{title:"Student register",href:"/students",action:"Review existing students"}]};
@@ -47,6 +51,10 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
    const operation=operationalIntent(question);
    if(operation) return answerOperationalQuestion(database,session.organizationId,staff.role,operation);
  }
+ if(isPrivateFinanceQuestion(question))return {
+   mode:"guide",text:"This question may involve private financial records. I cannot safely answer it from a general AI model without an exact verified student, room and accounting period. Please ask, for example, ‘What is the balance for Sheila Nyaboke?’ or ‘Who owes rent this semester?’, or open your authorized ledger. No records were changed.",
+   links:tenant?[{title:"My account",href:"/tenant/account",action:"Open my statement"}]:staff?.role==="CARETAKER"?[{title:"Rooms",href:"/rooms",action:"Open rooms"}]:[{title:"Payments",href:"/payments",action:"Search protected ledger"}]
+ };
  if(!assistantEnabled())return {mode:"guide",text:"AI assistance is temporarily unavailable. You can still use the documented guidance below.",links};
  const principal=tenant?`tenant:${(session as TenantSession).studentId}`:`staff:${(session as SessionPayload).userId}`;
  const now=new Date();

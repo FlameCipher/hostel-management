@@ -104,3 +104,29 @@ test("incorrect payment identity or foreign currency stops figures",async()=>{
  assert.match(response.text,/mismatch/);
  assert.doesNotMatch(response.text,/18,000/);
 });
+
+
+test("Room 41 relative month collection is filtered to correct Nairobi period",async()=>{
+ const period={kind:"calendar" as const,label:"October 2026",
+   start:new Date("2026-09-30T21:00:00Z"),end:new Date("2026-10-31T21:00:00Z")};
+ const {db}=buildFake({
+  charges:[{studentId:"resident-1",semesterId:"semester-current",currency:"KES",amount:18000,payments:[]}],
+  payments:[{studentId:"resident-1",organizationId:"hostel-a",currency:"KES",amount:9000,charge:{studentId:"resident-1",organizationId:"hostel-a"}}]
+ });
+ const old=db.payment.findMany.bind(db.payment);
+ (db.payment as any).findMany=async(args:any)=>{
+  assert.equal(args.where.paidAt.gte.toISOString(),"2026-09-30T21:00:00.000Z");
+  assert.equal(args.where.paidAt.lt.toISOString(),"2026-10-31T21:00:00.000Z");
+  return old(args);
+ };
+ const r=await answerRoomAccount(db,actor,"41",period);
+ assert.match(r.text,/Payments received during October 2026: KES 9,000.00/);
+ assert.match(r.text,/Current semester outstanding: KES 18,000.00/);
+ assert.match(r.text,/intentionally separate/);
+});
+test("ambiguous accounting period for room does not return all-time payments",async()=>{
+ const {db}=buildFake({forbidFinancialQueries:true});
+ const r=await answerRoomAccount(db,actor,"41",{kind:"ambiguous",label:"Two periods requested"});
+ assert.match(r.text,/Two periods requested/);
+ assert.doesNotMatch(r.text,/All recorded unreversed payments/);
+});
