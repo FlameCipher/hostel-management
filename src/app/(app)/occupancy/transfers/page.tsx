@@ -3,7 +3,7 @@ import {redirect} from "next/navigation";
 import {ArrowLeft,ArrowRightLeft,ClipboardCheck,Search,ShieldCheck} from "lucide-react";
 import {requireSession} from "@/lib/auth/session";
 import {db} from "@/lib/db";
-import {loadTransferReviewRecord} from "@/lib/room-transfer-data";
+import {listTransferReviewRecords} from "@/lib/room-transfer-data";
 import {reviewRoomTransfers} from "@/lib/room-transfer-review";
 import {formatMoney} from "@/lib/currency";
 
@@ -15,19 +15,8 @@ export default async function TransferReviewIndex({
   const params=await searchParams;
   const search=(params.q??"").trim().slice(0,90).toLocaleLowerCase();
   const view=params.view==="flags"?"flags":"all";
-  const candidateOccupancies=await db.occupancy.findMany({
-    where:{
-      organizationId:session.organizationId,
-      roomStays:{some:{endDate:{not:null}}},
-    },
-    select:{id:true},
-    orderBy:{updatedAt:"desc"},
-    take:200,
-  });
-  const records=await Promise.all(candidateOccupancies.map(o=>
-    loadTransferReviewRecord(db,session.organizationId,o.id)));
-  const reviewed=records.filter((r)=>r!==null&&r.stays.length>1)
-    .map(record=>({record:record!,analysis:reviewRoomTransfers(record!)}));
+  const records=await listTransferReviewRecords(db,session.organizationId,200);
+  const reviewed=records.map(record=>({record,analysis:reviewRoomTransfers(record)}));
   const noteCounts=reviewed.length?await db.auditLog.groupBy({
     by:["entityId"],
     where:{
@@ -89,7 +78,7 @@ export default async function TransferReviewIndex({
         </label>
         <button className="secondary-button" type="submit">Find transfer</button>
       </form>
-      {candidateOccupancies.length>=200?<p className="muted-note">
+      {records.length>=200?<p className="muted-note">
         Showing the most recently updated 200 transfer candidates; older histories may require a narrower review.
       </p>:null}
       {visible.length?<div className="table-scroll"><table className="data-table">
