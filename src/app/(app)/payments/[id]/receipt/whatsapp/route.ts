@@ -8,8 +8,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const origin = new URL(request.url).origin;
   if (request.headers.get("origin") !== origin) return new Response("Invalid request.", { status: 403 });
   const session = await requireSession();
+  if(!["OWNER","ADMIN","MANAGER"].includes(session.role))
+    return new Response("Finance permission required.",{status:403});
   const { id } = await params;
-  const payment = await db.payment.findFirst({ where: { id, organizationId: session.organizationId }, select: { id: true, student: { select: { phone: true } } } });
+  const payment = await db.payment.findFirst({ where: { id, organizationId: session.organizationId, reversedAt: null }, select: { id: true, student: { select: { phone: true } } } });
   if (!payment) return new Response("Receipt not found.", { status: 404 });
   const number = receiptWhatsAppNumber(payment.student.phone);
   if (!number) return new Response("Update the student’s phone number before sharing.", { status: 400 });
