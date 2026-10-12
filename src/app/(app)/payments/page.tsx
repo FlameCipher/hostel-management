@@ -71,6 +71,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           const workflow = receiptDeliveryQueueState({
             receiptDeliveryStatus: payment.receiptDeliveryStatus,
             receiptDeliveryChannel: payment.receiptDeliveryChannel === "EMAIL" ? "EMAIL" : payment.receiptDeliveryChannel === "WHATSAPP" ? "WHATSAPP" : null,
+            receiptDeliveryError: payment.receiptDeliveryError,
+            updatedAt: payment.updatedAt,
             reversedAt: payment.reversedAt,
             hasEmail: Boolean(payment.student.email?.trim()),
             hasPhone: Boolean(payment.student.phone?.trim()),
