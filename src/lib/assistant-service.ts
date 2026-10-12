@@ -7,7 +7,8 @@ import { residentAlerts } from "./resident-alerts";
 import { residentStaff, residentTenant } from "./resident-access";
 import { systemGuide, searchSystemGuide, type GuideRole } from "./system-guide";
 import { assistantConfiguration, assistantEnabled } from "./assistant-config";
-import { managementIntent, managementLedgerAnswer } from "./assistant-management-intents";
+import { managementIntent, managementLedgerAnswer, financialMonthFromQuestion } from "./assistant-management-intents";
+import { requestedFinancePeriod } from "./assistant-finance-period";
 import { staffCanViewFinance } from "./staff-navigation-policy";
 import { operationalIntent, answerOperationalQuestion } from "./assistant-operations-read";
 import { roomAccountIntent, answerRoomAccount } from "./assistant-room-account";
@@ -33,10 +34,10 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  // giving financial records to an AI provider or granting autonomous writes.
  if(!tenant && staff && staffCanViewFinance(staff.role)) {
    const roomRequest=roomAccountIntent(question);
-   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number);
+   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
    const intent=managementIntent(question);
    if(intent?.kind==="debtors" || intent?.kind==="collected") {
-     const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month);
+     const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month,requestedFinancePeriod(question,intent.month));
      return {mode:"records",text:result.text,links:result.links,observedAt:new Date().toISOString()};
    }
    if(intent?.kind==="register") return {mode:"workflow",workflow:"register",text:"I have opened a secure student registration workspace below. Enter the actual student and guardian details, choose the active semester and room type, review the generated rent charge, and explicitly approve. No account or charge has been created yet. After confirmation, you will proceed to initial payment and room allocation.",links:[{title:"Student register",href:"/students",action:"Review existing students"}]};
