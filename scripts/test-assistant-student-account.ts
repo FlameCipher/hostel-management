@@ -69,7 +69,7 @@ test("authorized exact student matches only this hostel and matches its charge/p
 test("caretaker denied before database calls",async()=>{
  const db={student:{findMany:async()=>assert.fail("must not read student")},organization:{findFirst:async()=>assert.fail("must not read organization")}} as unknown as PrismaClient;
  const r=await namedStudentAccountAnswer(db,{organizationId:"hostel-a",role:"CARETAKER"},"Sheila");
- assert.match(r.text,/requires authorized management finance access/);
+ assert.match(r.text,/require authorized management finance access/);
 });
 test("named student period limits only payments received during requested month",async()=>{
  const period=requestedFinancePeriod("Payments for Sheila this month",null,new Date("2026-10-12T20:00:00Z"));
