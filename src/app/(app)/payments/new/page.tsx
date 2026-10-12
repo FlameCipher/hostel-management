@@ -1,5 +1,6 @@
 import { formatMoney, roundCurrency } from "@/lib/currency";
 import { managementCurrency } from "@/lib/organization-currency";
+import { currentRentAccountDisplay } from "@/lib/current-rent-account-display";
 import { redirect } from "next/navigation";
 import { ChargeForm, PaymentForm } from "@/components/payment-forms";
 import { requireSession } from "@/lib/auth/session";
@@ -15,9 +16,33 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
     db.student.findMany({ where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } }, orderBy: { fullName: "asc" } }),
     db.semester.findMany({ where: { organizationId: session.organizationId }, orderBy: { startDate: "desc" } }),
     db.roomType.findMany({ where: { organizationId: session.organizationId, active: true }, orderBy: { name: "asc" } }),
-    db.charge.findMany({ where: { organizationId: session.organizationId, status: { notIn: ["FULLY_PAID", "WAIVED"] } }, include: { student: { include: { occupancies: { where: { status: "ACTIVE" }, include: { room: { select: { number: true } } }, take: 1 } } }, occupancy: { include: { room: { select: { number: true } } } }, semester: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
+    db.charge.findMany({ where: { organizationId: session.organizationId, status: { notIn: ["FULLY_PAID", "WAIVED"] } }, include: { student: { include: { occupancies: { where: { status: "ACTIVE" }, include: { room: { select: { number: true } } }, take: 1 } } }, occupancy: { include: { room: { include: { roomType: true } } } }, semester: true, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
   ]);
-  const chargeOptions = charges.map((charge) => ({ id: charge.id, label: `${charge.student.fullName} · ${charge.semester?.name ?? "Other charge"} · ${charge.description}`, studentId: charge.studentId, studentName: charge.student.fullName, roomNumber: charge.occupancy?.room.number ?? charge.student.occupancies[0]?.room.number ?? null, period: charge.semester?.name ?? "Other charge", description: charge.description, balance: Math.max(0, roundCurrency(Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0), currency)) })).filter((item) => item.balance > 0);
+  const chargeOptions = charges.map((charge) => {
+    const display = currentRentAccountDisplay({
+      chargeType: charge.type,
+      description: charge.description,
+      semesterName: charge.semester?.name,
+      chargeRoomTypeId: charge.roomTypeId,
+      occupancy: charge.occupancy?.room ? {
+        status: charge.occupancy.status,
+        room: {number: charge.occupancy.room.number, roomType: {
+          id: charge.occupancy.room.roomType.id,
+          name: charge.occupancy.room.roomType.name,
+        }},
+      } : null,
+    });
+    return {
+      id: charge.id,
+      label: `${charge.student.fullName} · ${charge.semester?.name ?? "Other charge"} · ${display.label}`,
+      studentId: charge.studentId, studentName: charge.student.fullName,
+      roomNumber: display.currentRoom ?? charge.occupancy?.room.number ?? charge.student.occupancies[0]?.room.number ?? null,
+      period: charge.semester?.name ?? "Other charge",
+      description: display.label,
+      needsReview: display.roomTypeMismatch,
+      balance: Math.max(0, roundCurrency(Number(charge.amount) - charge.payments.reduce((sum, item) => sum + Number(item.amount), 0), currency)),
+    };
+  }).filter((item) => item.balance > 0);
   const options = students.map((student) => ({ id: student.id, label: student.fullName }));
   const semesterOptions = semesters.map((semester) => ({ id: semester.id, label: `${semester.name} · ${semester.status}` }));
   const intake = params.intake === "1";
