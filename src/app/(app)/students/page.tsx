@@ -38,7 +38,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
   const status = validStatuses.has(filters.status ?? "")
     ? (filters.status as StudentStatusType)
     : undefined;
-  const canManageStudents = session.role !== "CARETAKER";
+  const canManageStudents = true; // CARETAKER already redirected before register queries.
   const canDeleteStudents = ["OWNER", "ADMIN"].includes(session.role);
   const phoneVariants = phoneSearchVariants(query);
 
