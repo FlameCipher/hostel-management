@@ -14,6 +14,8 @@ test("interprets person-specific financial questions without broad hostel collec
   "Check John Waigwa’s rent":"John Waigwa",
   "Payments for Sheila":"Sheila",
   "Balance for student Jane Doe":"Jane Doe",
+  "Payments for Sheila this month":"Sheila",
+  "Balance for Jane Doe in October 2026":"Jane Doe",
  };
  for(const [question,name] of Object.entries(questions))
   assert.deepEqual(namedStudentAccountIntent(question),{name},question);
