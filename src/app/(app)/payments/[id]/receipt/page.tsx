@@ -1,4 +1,5 @@
 import { formatMoney, roundCurrency } from "@/lib/currency";
+import { currentRentAccountDisplay } from "@/lib/current-rent-account-display";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, Download, Mail, PencilLine } from "lucide-react";
@@ -30,7 +31,7 @@ export default async function PaymentReceiptPage({
       reversedBy: true,
       charge: {
         include: {
-          occupancy: { include: { room: true, semester: true } },
+          occupancy: { include: { room: {include:{roomType:true}}, semester: true } },
           payments: { where: { reversedAt: null } },
         },
       },
@@ -56,6 +57,19 @@ export default async function PaymentReceiptPage({
   const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
   const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
   const semesterName = payment.charge.occupancy?.semester.name ?? payment.charge.description;
+  const currentAccount = currentRentAccountDisplay({
+    chargeType: payment.charge.type, description: payment.charge.description,
+    chargeRoomTypeId: payment.charge.roomTypeId,
+    semesterName: payment.charge.occupancy?.semester.name,
+    occupancy: payment.charge.occupancy?.room ? {
+      status:payment.charge.occupancy.status,
+      room:{number: payment.charge.occupancy.room.number,
+        roomType:{id:payment.charge.occupancy.room.roomType.id,
+          name:payment.charge.occupancy.room.roomType.name}},
+    }:null,
+  });
+  const currentAccountDifferent = !payment.reversedAt &&
+    currentAccount.label !== currentAccount.originalDescription;
   const canCorrect=["OWNER","ADMIN"].includes(session.role) && !payment.reversedAt;
   const canEmail=["OWNER","ADMIN","MANAGER"].includes(session.role) && !payment.reversedAt && !!payment.student.email?.trim() && !(payment.receiptDeliveryChannel==="EMAIL"&&payment.receiptDeliveryStatus==="SENT");
   const emailStatus = !payment.student.email ? "No email recorded."
@@ -111,7 +125,10 @@ export default async function PaymentReceiptPage({
           <div><span>Payment date</span><strong>{payment.paidAt.toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}</strong></div>
         </section>
         <section className="receipt-payment">
-          <div><span>Description</span><strong>{payment.charge.description}</strong></div>
+          <div><span>{currentAccountDifferent ? "Current rent account" : "Description"}</span>
+            <strong>{currentAccountDifferent ? currentAccount.label : payment.charge.description}</strong>
+            {currentAccountDifferent ? <small>Original accommodation and charge history remain preserved in the occupancy audit trail.</small> : null}
+          </div>
           <div><span>Amount received</span><strong>{money(Number(payment.amount))}</strong></div>
         </section>
         <section className="receipt-details">
