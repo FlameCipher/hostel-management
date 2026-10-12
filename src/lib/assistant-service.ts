@@ -10,6 +10,7 @@ import { assistantConfiguration, assistantEnabled } from "./assistant-config";
 import { managementIntent, managementLedgerAnswer } from "./assistant-management-intents";
 import { staffCanViewFinance } from "./staff-navigation-policy";
 import { operationalIntent, answerOperationalQuestion } from "./assistant-operations-read";
+import { roomAccountIntent, answerRoomAccount } from "./assistant-room-account";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -31,6 +32,8 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  // Deterministic, tenant-scoped queries answer from the actual ledger without
  // giving financial records to an AI provider or granting autonomous writes.
  if(!tenant && staff && staffCanViewFinance(staff.role)) {
+   const roomRequest=roomAccountIntent(question);
+   if(roomRequest) return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},roomRequest.number);
    const intent=managementIntent(question);
    if(intent?.kind==="debtors" || intent?.kind==="collected") {
      const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month);
