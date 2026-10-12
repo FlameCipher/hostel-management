@@ -9,7 +9,6 @@ export type GuardianCleanupState = {
   error: string;
   success: string;
 };
-export const emptyGuardianCleanupState: GuardianCleanupState = { error: "", success: "" };
 
 function errorMessage(error: unknown) {
   const code = error instanceof Error ? error.message : "";
