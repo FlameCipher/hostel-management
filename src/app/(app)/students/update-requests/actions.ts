@@ -6,6 +6,8 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizeStudentDocument } from "@/lib/student-identifiers";
+import { normalizeGuardianPhone } from "@/lib/guardian-contact-review";
+import { messagingCountry } from "@/lib/whatsapp-communications";
 
 export type UpdateReviewState = { error: string; success: string };
 
@@ -41,6 +43,11 @@ export async function approveStudentUpdateAction(requestId: string, _state: Upda
     if (duplicate) return { error: `The submitted admission number or national ID belongs to ${duplicate.fullName}. Reject this request and investigate the duplicate.`, success: "" };
   }
 
+  const properties = await db.property.findMany({
+    where: { organizationId: session.organizationId, active: true }, select: { countryCode: true },
+  });
+  const guardianCountry = messagingCountry(properties, session.organizationId);
+
   try {
     await db.$transaction(async (tx) => {
       const current = await tx.studentDetailsUpdateRequest.findFirst({ where: { id: request.id, organizationId: session.organizationId, status: "PENDING" }, include: { student: true } });
@@ -52,8 +59,8 @@ export async function approveStudentUpdateAction(requestId: string, _state: Upda
       } });
       await tx.guardian.upsert({
         where: { studentId: current.studentId },
-        create: { studentId: current.studentId, name: current.guardianName, phone: current.guardianPhone, relationship: current.guardianRelationship, email: current.guardianEmail },
-        update: { name: current.guardianName, phone: current.guardianPhone, relationship: current.guardianRelationship, email: current.guardianEmail },
+        create: { studentId: current.studentId, name: current.guardianName, phone: normalizeGuardianPhone(current.guardianPhone, guardianCountry), relationship: current.guardianRelationship, email: current.guardianEmail },
+        update: { name: current.guardianName, phone: normalizeGuardianPhone(current.guardianPhone, guardianCountry), relationship: current.guardianRelationship, email: current.guardianEmail },
       });
       await tx.studentDetailsUpdateRequest.update({ where: { id: current.id }, data: { status: "APPROVED", reviewedById: session.userId, reviewedAt: new Date(), reviewNotes: null } });
       await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_DETAILS_UPDATE_APPROVED", entityType: "StudentDetailsUpdateRequest", entityId: current.id, metadata: { studentId: current.studentId } } });
