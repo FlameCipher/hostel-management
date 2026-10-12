@@ -18,4 +18,6 @@ test("does not classify sensitive account requests as public knowledge",()=>{
  assert.equal(hostelKnowledgeTopic("How much did room 41 pay?"),null);
  assert.equal(hostelKnowledgeTopic("What is Sheila Nyaboke balance?"),null);
  assert.equal(hostelKnowledgeTopic("Register a student"),null);
+ assert.equal(hostelKnowledgeTopic("How much is Sheila\u0027s rent?"),null);
+ assert.equal(hostelKnowledgeTopic("What is my rent per semester?"),null);
 });
