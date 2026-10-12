@@ -24,7 +24,7 @@ export function namedStudentAccountIntent(question:string): {name:string}|null {
  return {name};
 }
 export function isPrivateFinanceQuestion(question:string) {
- return /\b(?:payments?|paid|paying|collections?|collected|received|receipts?|balances?|outstanding|debts?|debtors?|arrears|rent|invoices?|owe|owed|owing|m-pesa|mpesa|deni|madeni|amelipa)\b/i.test(question);
+ return /\b(?:payments?|paid|paying|collections?|collected|receive(?:d|s)?|receipts?|balances?|outstanding|debts?|debtors?|arrears|rent|invoices?|owe|owed|owing|m-pesa|mpesa|deni|madeni|amelipa)\b/i.test(question);
 }
 type FinanceLink={title:string;href:string;action:string};
 const link=(title:string,href:string,action:string):FinanceLink=>({title,href,action});
