@@ -1,7 +1,7 @@
 import { formatMoney } from "@/lib/currency";
 import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
-import { Archive, CalendarDays, CircleCheck, Eye, RotateCcw, UserPlus, Search } from "lucide-react";
+import { Archive, ArrowRightLeft, CalendarDays, CircleCheck, Eye, RotateCcw, UserPlus, Search } from "lucide-react";
 import { BreakDecisionForm, BreakPeriodForm } from "@/components/break-forms";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -38,7 +38,7 @@ export default async function OccupancyPage({ searchParams }: { searchParams: Pr
     : occupancies;
 
   return <div>
-    <div className="page-heading-row"><div><p className="eyebrow">Occupancy management</p><h1>Check-in and check-out</h1><p>Manage active stays, room transfers, clearance and break reservations.</p></div>{canManage ? <Link className="primary-button no-underline" href="/occupancy/check-in"><UserPlus size={17} /> Allocate paid student</Link> : null}</div>
+    <div className="page-heading-row"><div><p className="eyebrow">Occupancy management</p><h1>Check-in and check-out</h1><p>Manage active stays, room transfers, clearance and break reservations.</p></div>{canManage ? <div className="heading-actions"><Link className="secondary-button no-underline" href="/occupancy/transfers"><ArrowRightLeft size={17}/> Transfer review</Link><Link className="primary-button no-underline" href="/occupancy/check-in"><UserPlus size={17} /> Allocate paid student</Link></div> : null}</div>
     <section className="panel overflow-hidden"><div className="panel-heading"><div><p className="panel-kicker">Current residents</p><h2>{normalizedSearch ? `${matchingOccupancies.length} matching residents` : `${occupancies.length} active occupanc${occupancies.length === 1 ? "y" : "ies"}`}</h2></div></div>
     <form method="get" className="filter-bar" role="search">
       <label className="filter-search"><Search size={17} aria-hidden="true"/><input name="q" aria-label="Find student or room" placeholder="Student name, admission number or room 54" defaultValue={search} maxLength={80}/></label>

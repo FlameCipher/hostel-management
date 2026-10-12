@@ -12,6 +12,7 @@ import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/re
 import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 import { isStandardMonthlyAdjustment } from "@/lib/monthly-rent-reconciliation";
 import { transferRentChargeIdentity } from "@/lib/transfer-charge-identity";
+import { validateTransferPreflight } from "@/lib/room-transfer-preflight";
 import { readTransferCandidates } from "@/lib/serial-transaction-read";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
@@ -140,6 +141,24 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
       if (held.size >= capacity && !held.has(occupancy.studentId)) throw new Error("ROOM_FULL");
       const charge = occupancy.charges[0];
       if (!charge) throw new Error("RENT_CHARGE_NOT_FOUND");
+      validateTransferPreflight({
+        occupancyRoomId:occupancy.roomId,
+        occupancyCheckIn:occupancy.checkInAt,
+        semesterEnd:occupancy.semester.endDate,
+        transferDate,
+        stays:occupancy.roomStays.map(stay=>({
+          roomId:stay.roomId,startDate:stay.startDate,endDate:stay.endDate,
+        })),
+        chargeCount:occupancy.charges.length,
+        chargeCurrency:charge.currency,
+        originalRoomCurrency:occupancy.room.roomType.currency,
+        destinationRoomCurrency:target.roomType.currency,
+        rentMethod:parsed.data.rentMethod,
+        originalMonthlyRate:Number(occupancy.room.roomType.monthlyRate),
+        destinationMonthlyRate:Number(target.roomType.monthlyRate),
+        originalSemesterRate:Number(occupancy.room.roomType.semesterRate),
+        destinationSemesterRate:Number(target.roomType.semesterRate),
+      });
       if (parsed.data.rentMethod === "MONTHLY" && occupancy.charges.length !== 1) throw new Error("MONTHLY_REVIEW_REQUIRED");
       if (parsed.data.rentMethod === "MONTHLY" && charge.adjustments.some((adjustment) => !isStandardMonthlyAdjustment(adjustment))) throw new Error("MONTHLY_REVIEW_REQUIRED");
       if (parsed.data.rentMethod === "MONTHLY" && (!occupancy.roomStays.length || occupancy.roomStays.filter((stay) => stay.endDate === null).length !== 1)) throw new Error("MONTHLY_REVIEW_REQUIRED");
@@ -203,7 +222,7 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    const messages: Record<string, string> = { MONTHLY_REVIEW_REQUIRED: "The existing semester, payment adjustments, or room-stay history needs manual review before a month-based transfer.", RENT_PREVIEW_CHANGED: "The calculated rent has changed since your review. Reload the transfer form and confirm the updated amount.", RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
+    const messages: Record<string, string> = { TRANSFER_HISTORY_REVIEW_REQUIRED: "The recorded room-stay history is inconsistent or the transfer date is not later than the active room-stay start. Review the entire transfer case before saving.", TRANSFER_CHARGE_REVIEW_REQUIRED: "There must be exactly one active semester rent charge to complete a room transfer. Review the student ledger first.", TRANSFER_CURRENCY_REVIEW_REQUIRED: "The original room, destination room and rent charge use different currencies. Review the contract before transferring.", MONTHLY_REVIEW_REQUIRED: "The existing semester, payment adjustments, or room-stay history needs manual review before a month-based transfer.", RENT_PREVIEW_CHANGED: "The calculated rent has changed since your review. Reload the transfer form and confirm the updated amount.", RENT_RECALC_REQUIRED: "The new room has a different monthly rate. Keeping the old rent would leave an incorrect balance. Choose a recalculation method or request an approved adjustment before transferring.", TRANSFER_UNAVAILABLE: "The occupancy or target room is unavailable.", SAME_ROOM: "Select a different room.", ROOM_UNAVAILABLE: "The selected room is unavailable.", INVALID_TRANSFER_DATE: "The transfer date must be after check-in and within the semester.", ROOM_FULL: "The selected room is full.", RENT_CHARGE_NOT_FOUND: "The semester rent charge could not be found.", ACTIVE_STAY_NOT_FOUND: "The active room-stay record could not be found." };
     if (messages[code]) return { error: messages[code] };
     throw error;
   }

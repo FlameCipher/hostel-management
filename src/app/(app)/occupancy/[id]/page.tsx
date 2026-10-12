@@ -4,7 +4,7 @@ import { HistoricalRentCorrection } from "@/components/historical-rent-correctio
 import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRightLeft, BedDouble, LogOut, Phone, ReceiptText, UserRound } from "lucide-react";
+import { ArrowRightLeft, BedDouble, ClipboardCheck, LogOut, Phone, ReceiptText, UserRound } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -52,7 +52,7 @@ export default async function OccupancyDetailPage({ params }: { params: Promise<
   const recordedRent = rentCharges.reduce((sum, charge) => sum + Number(charge.amount),0);
   const rentDifference = rentReview?.delta ?? null;
 
-  return <div><div className="page-heading-row"><div><p className="eyebrow">Occupancy record</p><h1>{occupancy.student.fullName}</h1><p>Room {occupancy.room.number} · {occupancy.semester.name}</p></div>{canManage ? <div className="heading-actions"><Link className="secondary-button no-underline" href={`/occupancy/${id}/transfer`}><ArrowRightLeft size={17} /> Transfer</Link><Link className="primary-button no-underline" href={`/occupancy/${id}/checkout`}><LogOut size={17} /> Check out</Link></div> : null}</div>{canReviewRent ? <section className="panel mt-5" aria-label="Read-only monthly rent review">
+  return <div><div className="page-heading-row"><div><p className="eyebrow">Occupancy record</p><h1>{occupancy.student.fullName}</h1><p>Room {occupancy.room.number} · {occupancy.semester.name}</p></div>{canManage ? <div className="heading-actions">{occupancy.roomStays.length>1 ? <Link className="secondary-button no-underline" href={`/occupancy/${encodeURIComponent(id)}/transfer-review`}><ClipboardCheck size={17}/> Review room history</Link> : null}<Link className="secondary-button no-underline" href={`/occupancy/${id}/transfer`}><ArrowRightLeft size={17} /> Transfer</Link><Link className="primary-button no-underline" href={`/occupancy/${id}/checkout`}><LogOut size={17} /> Check out</Link></div> : null}</div>{canReviewRent ? <section className="panel mt-5" aria-label="Read-only monthly rent review">
   <div className="panel-heading"><div><p className="panel-kicker">Financial integrity</p><h2>Monthly rent review</h2></div></div>
   <p className="muted-note">Read-only comparison of saved room-rate snapshots against the existing semester rent charge. Payments and records are not changed.</p>
   {rentReview ? <><div className="table-scroll"><table className="data-table"><thead><tr><th>Month</th><th>Room ID</th><th>Monthly rent</th></tr></thead><tbody>{rentReview.lines.map((line)=><tr key={line.month}><td>{line.month}</td><td>{occupancy.roomStays.find((stay)=>stay.roomId===line.roomId)?.room.number ?? "Historical room"}</td><td>{money(line.rate)}</td></tr>)}</tbody></table></div>
