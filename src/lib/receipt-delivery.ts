@@ -1,8 +1,13 @@
 import { formatMoney, roundCurrency } from "@/lib/currency";
 import { db } from "@/lib/db";
 import { generateReceiptPdf } from "@/lib/receipt-pdf";
+import {
+  RECEIPT_EMAIL_PROCESSING,
+  receiptEmailClaimWhere,
+  activeReceiptEmailClaimWhere,
+} from "@/lib/receipt-delivery-guard";
 
-export type ReceiptDeliveryResult = "email" | "whatsapp" | "failed" | "deferred";
+export type ReceiptDeliveryResult = "email" | "whatsapp" | "failed" | "deferred" | "already-sent" | "in-progress";
 
 
 function escapeHtml(value: string) {
@@ -36,11 +41,12 @@ export async function deliverPaymentReceipt(
     });
 
     if (!payment?.charge.occupancy) return "deferred";
+    if(payment.receiptDeliveryStatus==="SENT") return "already-sent";
     const money = (value: number) => formatMoney(value, payment.currency);
 
     if (!payment.student.email) {
-      await db.payment.update({
-        where: { id: payment.id },
+      await db.payment.updateMany({
+        where: {id: payment.id, organizationId, reversedAt: null, receiptDeliveryStatus: {not: "SENT"}},
         data: {
           receiptDeliveryChannel: "WHATSAPP",
           receiptDeliveryStatus: "ACTION_REQUIRED",
@@ -53,8 +59,8 @@ export async function deliverPaymentReceipt(
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RECEIPT_EMAIL_FROM;
     if (!apiKey || !from) {
-      await db.payment.update({
-        where: { id: payment.id },
+      await db.payment.updateMany({
+        where: {id: payment.id, organizationId, reversedAt: null, receiptDeliveryStatus: {not: "SENT"}},
         data: {
           receiptDeliveryChannel: "EMAIL",
           receiptDeliveryStatus: "FAILED",
@@ -62,6 +68,24 @@ export async function deliverPaymentReceipt(
         },
       });
       return "failed";
+    }
+
+    const claim = await db.payment.updateMany({
+      where: receiptEmailClaimWhere(payment.id, organizationId, new Date(Date.now()-120_000)),
+      data: {
+        receiptDeliveryStatus: "ACTION_REQUIRED",
+        receiptDeliveryChannel: "EMAIL",
+        receiptDeliveryError: RECEIPT_EMAIL_PROCESSING,
+        receiptDeliveredAt: null,
+      },
+    });
+    if(claim.count!==1) {
+      const latest=await db.payment.findFirst({
+        where:{id: payment.id, organizationId},
+        select:{receiptDeliveryStatus:true,reversedAt:true},
+      });
+      if(!latest || latest.reversedAt) return "deferred";
+      return latest.receiptDeliveryStatus==="SENT" ? "already-sent" : "in-progress";
     }
 
     const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -99,6 +123,7 @@ export async function deliverPaymentReceipt(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": `hostel-receipt-${payment.id}`,
       },
       body: JSON.stringify({
         from,
@@ -125,14 +150,14 @@ export async function deliverPaymentReceipt(
           </div>
         `,
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
       const details = (await response.text()).slice(0, 500);
-      await db.payment.update({
-        where: { id: payment.id },
+      await db.payment.updateMany({
+        where: activeReceiptEmailClaimWhere(payment.id, organizationId),
         data: {
-          receiptDeliveryChannel: "EMAIL",
           receiptDeliveryStatus: "FAILED",
           receiptDeliveryError: `Email provider rejected the receipt: ${details}`,
         },
@@ -140,31 +165,37 @@ export async function deliverPaymentReceipt(
       return "failed";
     }
 
-    await db.$transaction([
-      db.payment.update({
-        where: { id: payment.id },
+    await db.$transaction(async(tx)=>{
+      const delivered=await tx.payment.updateMany({
+        where: activeReceiptEmailClaimWhere(payment.id, organizationId),
         data: {
-          receiptDeliveryChannel: "EMAIL",
           receiptDeliveryStatus: "SENT",
           receiptDeliveredAt: new Date(),
           receiptDeliveryError: null,
         },
-      }),
-      db.auditLog.create({
+      });
+      if(delivered.count!==1) throw Error("RECEIPT_DELIVERY_CLAIM_LOST");
+      await tx.auditLog.create({
         data: {
           organizationId,
           action: "PAYMENT_RECEIPT_EMAILED",
           entityType: "Payment",
           entityId: payment.id,
-          metadata: { receiptNumber: payment.receiptNumber, recipient: payment.student.email },
+          metadata: {
+            receiptNumber: payment.receiptNumber,
+            recipient: payment.student.email,
+            providerAccepted: true,
+            idempotencyKeyVersion: 1,
+          },
         },
-      }),
-    ]);
+      });
+    });
     return "email";
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Receipt delivery failed.";
+    // Do not overwrite a completed or subsequently reversed receipt on a late failure.
     await db.payment.updateMany({
-      where: { id: paymentId, organizationId },
+      where: activeReceiptEmailClaimWhere(paymentId, organizationId),
       data: { receiptDeliveryStatus: "FAILED", receiptDeliveryError: message },
     }).catch(() => undefined);
     return "failed";
