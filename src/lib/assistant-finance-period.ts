@@ -36,8 +36,13 @@ export function requestedFinancePeriod(question:string,explicitMonth:string|null
   const dayScope=/\b(?:today|yesterday)\b/.test(q);
   const weekScope=/\b(?:this|last|previous)\s+week\b/.test(q);
   const yearScope=/\b(?:this|current|last|previous)\s+year\b/.test(q);
-  const choices=[currentSemester||previousSemester,relativeMonth||namedMonth,dayScope,weekScope,yearScope].filter(Boolean).length;
-  if(choices>1||(currentSemester&&previousSemester))return {kind:"ambiguous",label:"Multiple different accounting periods were requested. Specify one period."};
+  const explicitYear=q.match(/\b(?:in|for|during|year)\s+(20\d{2})\b/)?.[1];
+  const choices=[currentSemester||previousSemester,relativeMonth||namedMonth,dayScope,weekScope,yearScope||Boolean(explicitYear)].filter(Boolean).length;
+  const conflictingRelative = (/(?:this|current)\s+month/.test(q)&&/(?:last|previous)\s+month/.test(q)) ||
+    (/(?:this|current)\s+week/.test(q)&&/(?:last|previous)\s+week/.test(q)) ||
+    (/(?:this|current)\s+year/.test(q)&&/(?:last|previous)\s+year/.test(q)) ||
+    (/\btoday\b/.test(q)&&/\byesterday\b/.test(q));
+  if(choices>1||(currentSemester&&previousSemester)||conflictingRelative)return {kind:"ambiguous",label:"Multiple different accounting periods were requested. Specify one period."};
   if(currentSemester)return {kind:"semester",which:"current"};
   if(previousSemester)return {kind:"semester",which:"previous"};
   if(namedMonth) {
@@ -62,8 +67,8 @@ export function requestedFinancePeriod(question:string,explicitMonth:string|null
     const end=new Date(start.getTime()+7*86400000);
     return {kind:"calendar",start,end,label:prev?"Last Nairobi calendar week":"This Nairobi calendar week"};
   }
-  if(yearScope) {
-    const year=local.year-(/\b(?:last|previous)\s+year\b/.test(q)?1:0);
+  if(yearScope||explicitYear) {
+    const year=explicitYear?Number(explicitYear):local.year-(/\b(?:last|previous)\s+year\b/.test(q)?1:0);
     return {kind:"calendar",label:String(year),start:localDay(year,1,1),end:localDay(year+1,1,1)};
   }
   return {kind:"all",label:"All recorded periods"};
