@@ -16,7 +16,7 @@ export function managementIntent(question:string):ManagementIntent {
   const q=question.trim().toLocaleLowerCase("en");
   if(!q||q.length>1200)return null;
   const month=financialMonthFromQuestion(q);
-  if(/\b(?:who|which|show|list|find|tell|give|report|calculate|total|how much|what|nani|onyesha)\b/.test(q)&&
+  if(/^(?:please\s+)?(?:who|which|show|list|find|tell(?: me)?|give(?: me)?|report|calculate|total|how much|what|nani|onyesha)\b/.test(q)&&
       /(?:\b(?:unpaid|outstanding|debtor(?:s)?|arrears|owing|owe|owed|balances? due|not paid|hasn.t paid|haven.t paid)\b|\bmadeni\b|\bdeni\b|\bhajalipa\b)/.test(q))return {kind:"debtors",month};
   if(/(?:\b(?:how much|total|sum|collected|received|collection|paid to us|money in)\b|makusanyo)/.test(q) &&
       /\b(?:collected|received|payment|rent|money|income|collection|paid|total|how much)\b/.test(q))return {kind:"collected",month};
