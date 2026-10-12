@@ -59,6 +59,51 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .reject-outline { border-color: #f0bdc6; color: #c3334c; }
 .reject-update-form { display: grid; gap: 11px; }
 .reject-update-form .row-actions { justify-content: flex-end; }
+
+/* Keep student update decisions legible despite the generic .row-actions reset. */
+.update-review-actions .row-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.update-review-actions .row-actions form { display: flex; flex: 1 1 145px; min-width: 0; }
+.update-review-actions .row-actions button {
+  flex: 1 1 145px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+.update-review-actions .row-actions .primary-button {
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  color: #fff;
+}
+.update-review-actions .row-actions .primary-button:hover { background: var(--blue-dark); }
+.update-review-actions .row-actions .secondary-button.reject-outline {
+  background: #fff4f5;
+  border: 1px solid #b4233f;
+  color: #a71932;
+}
+.update-review-actions .row-actions .secondary-button.reject-outline:hover {
+  background: #ffe8eb;
+}
+.update-review-actions .row-actions .danger-button {
+  background: #c8324c;
+  border: 1px solid #bf2642;
+  color: #fff;
+}
+.update-review-actions .row-actions button:focus-visible {
+  outline: 3px solid #1f75d6;
+  outline-offset: 3px;
+}
+@media (max-width: 520px) {
+  .update-review-actions .row-actions form,
+  .update-review-actions .row-actions button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
 .review-success, .review-error { margin: 10px 0 0; font-size: 10px; }
 .review-success { color: #137a4c; }
 .review-error { color: #b4233a; }
