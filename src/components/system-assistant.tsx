@@ -27,6 +27,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const [submitted,setSubmitted]=useState("");
   const [messages,setMessages]=useState<Message[]>([]);
   const [busy,setBusy]=useState(false);
+  const [contextToken,setContextToken]=useState<string|null>(null);
   const [workflow,setWorkflow]=useState<"register"|"payment"|null>(null);
   const id=useRef(0);
   const messageLog=useRef<HTMLDivElement>(null);
@@ -52,6 +53,9 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       const shortcut=occupancySearchShortcut(value);
       if(shortcut){router.push("/occupancy?q="+encodeURIComponent(shortcut));return;}
     }
+    // Send the signed, short-lived room pointer only for explicit pronoun
+    // follow-ups. It is never saved to URLs, local storage, analytics or logs.
+    const isFollowup=/^(?:and\s+|okay[,\s]+|then\s+|what about\s+)?(?:how much\s+(?:has|did|does)\s+(?:he|she|they|that\s+(?:student|resident|tenant))\s+(?:paid|pay|owe)|what(?:'s| is)\s+(?:his|her|their|that\s+(?:student|resident|tenant)'?s)\s+(?:balance|rent|payment)|(?:has|did)\s+(?:he|she|they)\s+pay|show\s+(?:his|her|their)\s+(?:payments?|balance)|(?:his|her|their)\s+(?:payment|rent|balance))/i.test(value.toLowerCase());
     const requestId=++id.current;
     setMessages(items=>[...items.slice(-17),{id:requestId,role:"user",text:value}]);
     setQuestion("");
@@ -61,12 +65,14 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     try {
       const response=await fetch("/api/assistant",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff"}),
+        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:isFollowup?contextToken:null}),
         cache:"no-store",signal:AbortSignal.timeout(35000)
       });
       const result=await response.json();
       if(!response.ok)throw Error(typeof result.error==="string"?result.error:"The assistant could not respond.");
       const links=Array.isArray(result.links)?result.links.filter(safeLink).slice(0,4):[];
+      // The server signs and scopes the context after rechecking the session.
+      setContextToken(typeof result.contextToken==="string"&&result.contextToken.length<=1200?result.contextToken:null);
       const text=typeof result.text==="string"?result.text:"I could not verify an answer. Please try again.";
       setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links}]);
       if(role==="MANAGEMENT"&&workspace&&(result.workflow==="register"||result.workflow==="payment"))setWorkflow(result.workflow);
