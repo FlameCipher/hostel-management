@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { paymentReceiptIntegrityHash } from "@/lib/payment-receipt-integrity";
 import type { PrismaClient, PaymentMethod } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { validAmount, minorUnits, currencyDigits, formatMoney } from "@/lib/currency";
@@ -44,8 +45,19 @@ export async function recordPayment(database: PrismaClient, session: SessionPayl
       const normalizedReference = input.method === "MPESA" ? input.reference?.toUpperCase() : input.reference;
       const securityReference = `SH-${randomBytes(16).toString("hex").toUpperCase()}`;
       const issuedAt = new Date();
-      const integrityPayload = [session.organizationId, charge.studentId, charge.id, receiptNumber, securityReference, currency, input.amount.toFixed(currencyDigits(currency)), input.paidAt, input.method, normalizedReference || "", issuedAt.toISOString()].join("|");
-      const integrityHash = createHash("sha256").update(integrityPayload).digest("hex");
+      const integrityHash = paymentReceiptIntegrityHash({
+        organizationId: session.organizationId,
+        studentId: charge.studentId,
+        chargeId: charge.id,
+        receiptNumber,
+        securityReference,
+        currency,
+        amount: input.amount,
+        paidAt: input.paidAt,
+        method: input.method,
+        reference: normalizedReference || null,
+        issuedAt,
+      });
       const payment = await tx.payment.create({ data: { currency, organizationId: session.organizationId, studentId: charge.studentId, chargeId: charge.id, recordedById: session.userId, amount: input.amount, paidAt: new Date(`${input.paidAt}T12:00:00.000Z`), method: input.method, reference: normalizedReference || null, receiptNumber, securityReference, integrityHash, issuedAt, notes: input.notes || null } });
       paymentId = payment.id;
       requiresRoomAllocation = charge.type === "SEMESTER_RENT" && !charge.occupancyId && charge.semester?.status === "ACTIVE";
