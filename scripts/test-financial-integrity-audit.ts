@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { financialAuditNavigationRequest } from "../src/lib/financial-audit-intents";
 import {
   auditActiveOccupancy, financialAuditSummary,
   type FinancialAuditOccupancy,
@@ -103,4 +104,11 @@ assert.equal(summary.needingReview,2);
 assert.ok(summary.critical>0);
 assert.equal(summary.informational,2);
 
+assert.equal(financialAuditNavigationRequest("Show hostel financial anomalies"),true);
+assert.equal(financialAuditNavigationRequest("Audit student rent charges"),true);
+assert.equal(financialAuditNavigationRequest("Which rooms have a rent mismatch?"),true);
+assert.equal(financialAuditNavigationRequest("Open financial integrity review"),true);
+assert.equal(financialAuditNavigationRequest("Show unpaid students"),false);
+assert.equal(financialAuditNavigationRequest("Send receipt to Joseph"),false);
+assert.equal(financialAuditNavigationRequest("Set Joseph's rent to 14000"),false);
 console.log("Read-only hostel financial-integrity audit tests passed.");
