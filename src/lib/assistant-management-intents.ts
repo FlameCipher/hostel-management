@@ -40,8 +40,6 @@ export function summarizeUnpaidRows(rows:LedgerRow[],currency:string,month:strin
     item.amountMinor+=balance;item.charges++;row.rooms.forEach(r=>item.rooms.add(r));byStudent.set(row.studentId,item);
   }
   const students=[...byStudent.values()].sort((a,b)=>b.amountMinor-a.amountMinor||a.name.localeCompare(b.name));
-  const amount=(n:number)=>formatMoney(n/10**(currency==="KES"?2:2),currency);
-  // Amount formatter is currency-generic; use a known decimal precision from the registry.
   const precision=minorUnits(1,currency);
   const fmt=(n:number)=>formatMoney(n/precision,currency);
   const scope=month?`Charges due in ${month}`:"All recorded non-waived charges (all semesters)";
