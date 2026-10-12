@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { enforcePostgresVerifyFull } from "@/lib/postgres-tls-policy";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -12,7 +13,7 @@ function createPrismaClient() {
     throw new Error("DB_DATABASE_URL or DATABASE_URL is not configured");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({ connectionString: enforcePostgresVerifyFull(connectionString) });
   return new PrismaClient({ adapter });
 }
 

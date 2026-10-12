@@ -12,6 +12,7 @@ import { addUtcDays, applyChargeAmount, calculateActualDaysRent } from "@/lib/re
 import { calculateMonthlyTransferRent } from "@/lib/monthly-transfer-rent";
 import { isStandardMonthlyAdjustment } from "@/lib/monthly-rent-reconciliation";
 import { transferRentChargeIdentity } from "@/lib/transfer-charge-identity";
+import { readTransferCandidates } from "@/lib/serial-transaction-read";
 import { activeBreakHoldWhere, refreshRoomStatus } from "@/lib/room-status";
 
 export type StayFormState = { error: string };
@@ -124,10 +125,11 @@ export async function transferRoomAction(occupancyId: string, _state: StayFormSt
   const transferDate = new Date(`${parsed.data.transferDate}T12:00:00.000Z`);
   try {
     await db.$transaction(async (tx) => {
-      const [occupancy, target] = await Promise.all([
-        tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true, calculationMethod: true, calculationData: true } } }, orderBy: { createdAt: "asc" } } } }),
-        tx.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
-      ]);
+      // The Prisma interactive transaction uses one pg client; read sequentially.
+      const [occupancy, target] = await readTransferCandidates(
+        () => tx.occupancy.findFirst({ where: { id: occupancyId, organizationId: session.organizationId, status: "ACTIVE" }, include: { semester: true, room: { include: { roomType: true } }, roomStays: { orderBy: { startDate: "asc" } }, charges: { where: { type: "SEMESTER_RENT" }, include: { adjustments: { select: { reason: true, calculationMethod: true, calculationData: true } } }, orderBy: { createdAt: "asc" } } } }),
+        () => tx.room.findFirst({ where: { id: parsed.data.targetRoomId, organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, select: { studentId: true } }, breakReservations: { where: activeBreakHoldWhere, select: { studentId: true } } } }),
+      );
       if (!occupancy || !target) throw new Error("TRANSFER_UNAVAILABLE");
       if (occupancy.roomId === target.id) throw new Error("SAME_ROOM");
       if (parsed.data.rentMethod === "KEEP_FULL" && Number(occupancy.room.roomType.monthlyRate) !== Number(target.roomType.monthlyRate)) throw new Error("RENT_RECALC_REQUIRED");
