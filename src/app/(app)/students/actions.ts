@@ -7,6 +7,8 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
+import { normalizeGuardianPhone } from "@/lib/guardian-contact-review";
+import { messagingCountry } from "@/lib/whatsapp-communications";
 import { refreshChargeStatus } from "@/lib/payment-balance";
 
 export type StudentFormState = { error: string };
@@ -68,14 +70,21 @@ function guardianData(data: {
   guardianPhone: string;
   guardianRelationship?: string;
   guardianEmail: string;
-}) {
+}, country?: string | null) {
   if (!data.guardianName && !data.guardianPhone && !data.guardianRelationship && !data.guardianEmail) return null;
   return {
     name: data.guardianName,
-    phone: data.guardianPhone,
+    phone: normalizeGuardianPhone(data.guardianPhone, country),
     relationship: data.guardianRelationship || null,
     email: data.guardianEmail || null,
   };
+}
+
+async function guardianCountry(organizationId: string) {
+  const properties = await db.property.findMany({
+    where: { organizationId, active: true }, select: { countryCode: true },
+  });
+  return messagingCountry(properties, organizationId);
 }
 
 async function findDuplicateStudent(
@@ -120,7 +129,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
   ]);
   if (!roomType) return { error: "The selected accommodation type is unavailable." };
   if (!semester) return { error: "The selected semester is no longer active." };
-  const guardian = guardianData(parsed.data);
+  const guardian = guardianData(parsed.data, await guardianCountry(session.organizationId));
 
   let chargeId = "";
   try {
@@ -168,7 +177,7 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
   const duplicate = await findDuplicateStudent(session.organizationId, identifiers, studentId);
   if (duplicate) return { error: duplicateStudentMessage(duplicate) };
 
-  const guardian = guardianData(parsed.data);
+  const guardian = guardianData(parsed.data, await guardianCountry(session.organizationId));
   try {
     await db.$transaction(async (tx) => {
     await tx.student.update({
