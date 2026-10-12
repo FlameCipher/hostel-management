@@ -10,7 +10,7 @@ import { createChargeAction, recordPaymentAction, type FinanceFormState } from "
 
 const initialState: FinanceFormState = { error: "" };
 type Option = { id: string; label: string };
-type ChargeOption = Option & { balance: number; studentId: string; studentName: string; roomNumber: string | null; period: string; description: string };
+type ChargeOption = Option & { balance: number; studentId: string; studentName: string; roomNumber: string | null; period: string; description: string; needsReview?: boolean };
 
 export function ChargeForm({ students, semesters, roomTypes, selectedSemesterId }: { students: Option[]; semesters: Option[]; roomTypes: Option[]; selectedSemesterId?: string }) {
   const currency = useCurrency();
@@ -38,7 +38,7 @@ function OutstandingChargeSelector({ charges, selectedChargeId, money }: { charg
         {filtered.map((item) => <button key={item.id} type="button" aria-pressed={selected === item.id} className={`outstanding-selector-card ${selected === item.id ? "is-selected" : ""}`} onClick={() => { setSelected(item.id); setOpen(false); }}>
           <span className="outstanding-selector-card-top"><strong>{item.studentName}</strong>{selected === item.id ? <CheckCircle2 size={20} aria-label="Selected" /> : null}</span>
           <span className="outstanding-selector-meta">{item.roomNumber ? `Room ${item.roomNumber} · ` : ""}{item.period}</span>
-          <span className="outstanding-selector-description">{item.description}</span>
+          <span className="outstanding-selector-description">{item.description}</span>{item.needsReview ? <small className="muted-note">Room type differs from original charge. Management review is advised; the amount has not been recalculated.</small> : null}
           <span className="outstanding-selector-balance"><small>Outstanding balance</small><strong>{money(item.balance)}</strong></span>
         </button>)}
         {!filtered.length ? <p className="muted-note">No matching outstanding balances.</p> : null}
