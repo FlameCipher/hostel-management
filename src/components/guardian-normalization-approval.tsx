@@ -3,14 +3,16 @@
 import { useActionState, useState } from "react";
 import { CheckCircle2, LoaderCircle, ShieldAlert } from "lucide-react";
 import {
-  emptyGuardianCleanupState, normalizeExistingGuardianPhonesAction,
+  normalizeExistingGuardianPhonesAction, type GuardianCleanupState,
 } from "@/app/(app)/students/guardians/actions";
+
+const initialState: GuardianCleanupState = {error:"",success:""};
 
 export function GuardianNormalizationApproval({
   count,fingerprint,
 }: {count:number;fingerprint:string}) {
   const [state,formAction,pending] = useActionState(
-    normalizeExistingGuardianPhonesAction, emptyGuardianCleanupState,
+    normalizeExistingGuardianPhonesAction, initialState,
   );
   const [phrase,setPhrase] = useState("");
   const [approved,setApproved] = useState(false);
