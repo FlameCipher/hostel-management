@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && npm run test:monthly-transfer && npm run test:monthly-adjustment && npm run test:historical-rent && npm run test:transfer-charge && npm run test:payment-correction && npm run test:payment-correction-service && npm run test:receipt-delivery-queue && npm run test:receipt-email-guard && npm run test:receipt-pdf-idempotency && npm run test:postgres-reliability && npm run test:financial-integrity && npm run test:current-rent-display && npm run test:guardian-whatsapp-diagnostics && npm run test:guardian-review && npm run test:guardian-module && npm run test:transfer-full-module && npm run test:transfer-evidence && npm run test:visitor-operations && npm run test:visitor-requests && npm run test:gate-staff-readiness && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && npm run test:monthly-transfer && npm run test:monthly-adjustment && npm run test:historical-rent && npm run test:transfer-charge && npm run test:payment-correction && npm run test:payment-correction-service && npm run test:receipt-delivery-queue && npm run test:receipt-email-guard && npm run test:receipt-pdf-idempotency && npm run test:postgres-reliability && npm run test:financial-integrity && npm run test:current-rent-display && npm run test:guardian-whatsapp-diagnostics && npm run test:guardian-review && npm run test:guardian-module && npm run test:transfer-full-module && npm run test:transfer-evidence && npm run test:visitor-operations && npm run test:visitor-requests && npm run test:gate-staff-readiness && npm run test:gate-staff-provisioning && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -60,7 +60,8 @@
     "test:transfer-evidence": "node --import tsx scripts/test-room-transfer-evidence.ts",
     "test:visitor-operations": "node --import tsx scripts/test-visitor-operations.ts",
     "test:visitor-requests": "node --import tsx scripts/test-visitor-tenant-request.ts",
-    "test:gate-staff-readiness": "node --import tsx scripts/test-gate-staff-readiness.ts"
+    "test:gate-staff-readiness": "node --import tsx scripts/test-gate-staff-readiness.ts",
+    "test:gate-staff-provisioning": "node --import tsx scripts/test-gate-staff-provisioning.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.91",
