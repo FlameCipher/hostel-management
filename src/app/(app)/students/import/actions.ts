@@ -7,6 +7,8 @@ import { requireSession } from "@/lib/auth/session";
 import { parseCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
+import { normalizeGuardianPhone } from "@/lib/guardian-contact-review";
+import { messagingCountry } from "@/lib/whatsapp-communications";
 
 export type StudentImportState = { error: string; message: string; details: string[] };
 
@@ -62,6 +64,10 @@ export async function importStudentsAction(_state: StudentImportState, formData:
   const required = ["fullName", "phone"];
   if (required.some((name) => !headers.includes(name))) return { error: "CSV requires only the fullName and phone columns.", message: "", details: [] };
 
+  const properties = await db.property.findMany({
+    where: { organizationId: session.organizationId, active: true }, select: { countryCode: true },
+  });
+  const guardianCountry = messagingCountry(properties, session.organizationId);
   let imported = 0; let skipped = 0; let failed = 0;
   const details: string[] = [];
   for (const [offset, values] of rows.slice(1).entries()) {
@@ -82,7 +88,7 @@ export async function importStudentsAction(_state: StudentImportState, formData:
     try {
       await db.$transaction(async (tx) => {
         const hasGuardian = Boolean(item.guardianName && item.guardianPhone);
-        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: identifiers.phone, email: item.email || null, university: item.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
+        const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: identifiers.phone, email: item.email || null, university: item.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: normalizeGuardianPhone(item.guardianPhone, guardianCountry), relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
         await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_IMPORTED", entityType: "Student", entityId: student.id, metadata: { rowNumber, admissionNumber: identifiers.admissionNumber } } });
       }, { isolationLevel: "Serializable" });
       imported += 1;
