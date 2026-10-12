@@ -61,7 +61,8 @@ export function requestedFinancePeriod(question:string,explicitMonth:string|null
   }
   if(weekScope) {
     const currentDay=localDay(local.year,local.month,local.day);
-    const offset=(currentDay.getUTCDay()+6)%7;
+    const localWeekday=new Date(Date.UTC(local.year,local.month-1,local.day)).getUTCDay();
+    const offset=(localWeekday+6)%7;
     const prev=/\b(?:last|previous)\s+week\b/.test(q)?7:0;
     const start=new Date(currentDay.getTime()-(offset+prev)*86400000);
     const end=new Date(start.getTime()+7*86400000);
