@@ -7,6 +7,8 @@ import { residentAlerts } from "./resident-alerts";
 import { residentStaff, residentTenant } from "./resident-access";
 import { systemGuide, searchSystemGuide, type GuideRole } from "./system-guide";
 import { assistantConfiguration, assistantEnabled } from "./assistant-config";
+import { managementIntent, managementLedgerAnswer } from "./assistant-management-intents";
+import { staffCanViewFinance } from "./staff-navigation-policy";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -25,6 +27,18 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  if(!question.trim()||question.length>1200)return {error:"Enter a question of up to 1,200 characters.",status:400};
  const role:GuideRole=tenant?"TENANT":staff?.role==="CARETAKER"?"CARETAKER":"MANAGEMENT";
  const links=searchSystemGuide(systemGuide(role),question).map(({title,href,action})=>({title,href,action}));
+ // Deterministic, tenant-scoped queries answer from the actual ledger without
+ // giving financial records to an AI provider or granting autonomous writes.
+ if(!tenant && staff && staffCanViewFinance(staff.role)) {
+   const intent=managementIntent(question);
+   if(intent?.kind==="debtors" || intent?.kind==="collected") {
+     const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month);
+     return {mode:"records",text:result.text,links:result.links,observedAt:new Date().toISOString()};
+   }
+   if(intent?.kind==="register") return {mode:"workflow",text:"I can help you register the student through the verified hostel admission form. No student has been created. Open Add student, verify the student and guardian details, choose the appropriate accommodation and confirm the booking. The hostel records will only change after you submit the protected form.",links:[{title:"Register student",href:"/students/new",action:"Open secure registration"}]};
+   if(intent?.kind==="payment") return {mode:"workflow",text:"I can help you record a payment through the protected payment form. No payment has been recorded. Verify the existing student and charge, amount, payment method, date and transaction reference; inspect the resulting balance before you submit. The system will issue the receipt and audit record through the normal payment process.",links:[{title:"Record payment",href:"/payments/new",action:"Open secure payment form"}]};
+ }
+
  if(!assistantEnabled())return {mode:"guide",text:"AI assistance is temporarily unavailable. You can still use the documented guidance below.",links};
  const principal=tenant?`tenant:${(session as TenantSession).studentId}`:`staff:${(session as SessionPayload).userId}`;
  const now=new Date();
