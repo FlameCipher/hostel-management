@@ -1,7 +1,7 @@
 import { formatMoney, roundCurrency } from "@/lib/currency";
 import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
-import { AlertCircle, Banknote, FilePlus2, ListChecks, Mail, Plus, ReceiptText, RotateCcw, Search, WalletCards } from "lucide-react";
+import { AlertCircle, Banknote, FilePlus2, ListChecks, Mail, Plus, ReceiptText, RotateCcw, Search, ShieldCheck, WalletCards } from "lucide-react";
 import { ReceiptShareActions } from "@/components/receipt-share-actions";
 import { emailPendingReceiptAction } from "./[id]/receipt/email-action";
 import { receiptDeliveryQueueState } from "@/lib/receipt-delivery-queue";
@@ -52,7 +52,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const outstanding = rows.reduce((sum, item) => sum + item.balance, 0);
   const credits = rows.reduce((sum, item) => sum + item.credit, 0);
 
-  return <div><div className="page-heading-row"><div><p className="eyebrow">Rent collection</p><h1>Payments</h1><p>Manage rent charges, partial payments, balances and printable receipts.</p></div>{canManage ? <div className="heading-actions"><Link className="secondary-button no-underline" href="/payments/reconciliation"><ListChecks size={17} /> Reconcile M-Pesa</Link><Link className="secondary-button no-underline" href="/payments/new?mode=charge"><FilePlus2 size={17} /> Add charge</Link><Link className="primary-button no-underline" href="/payments/new"><Plus size={17} /> Record payment</Link></div> : null}</div>
+  return <div><div className="page-heading-row"><div><p className="eyebrow">Rent collection</p><h1>Payments</h1><p>Manage rent charges, partial payments, balances and printable receipts.</p></div>{canManage ? <div className="heading-actions">{canReverse?<Link className="secondary-button no-underline" href="/payments/audit"><ShieldCheck size={17}/> Financial integrity</Link>:null}<Link className="secondary-button no-underline" href="/payments/reconciliation"><ListChecks size={17} /> Reconcile M-Pesa</Link><Link className="secondary-button no-underline" href="/payments/new?mode=charge"><FilePlus2 size={17} /> Add charge</Link><Link className="primary-button no-underline" href="/payments/new"><Plus size={17} /> Record payment</Link></div> : null}</div>
     <section className="room-summary-grid payments-summary"><article className="compact-stat"><span className="metric-icon metric-blue"><Banknote size={22} /></span><div><p>Total charges</p><strong>{money(expected)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-green"><WalletCards size={22} /></span><div><p>Collected</p><strong>{money(collected)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-violet"><ReceiptText size={22} /></span><div><p>Outstanding</p><strong>{money(outstanding)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-red"><AlertCircle size={22} /></span><div><p>Credits</p><strong>{money(credits)}</strong><small>Paid above adjusted charges</small></div></article></section>
     {canManage ? <section className="panel mt-5 overflow-hidden" aria-label="Receipt delivery queue">
       <div className="panel-heading">
