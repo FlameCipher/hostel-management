@@ -20,8 +20,8 @@ export function managementIntent(question:string):ManagementIntent {
       /(?:\b(?:unpaid|outstanding|debtor(?:s)?|arrears|owing|owe|owed|balances? due|not paid|hasn.t paid|haven.t paid)\b|\bmadeni\b|\bdeni\b|\bhajalipa\b)/.test(q))return {kind:"debtors",month};
   if(/(?:\b(?:how much|total|sum|collected|received|collection|paid to us|money in)\b|makusanyo)/.test(q) &&
       /\b(?:collected|received|payment|rent|money|income|collection|paid|total|how much)\b/.test(q))return {kind:"collected",month};
-  if(/^(?:please\s+)?(?:add|register|enrol|enroll|create)(?:\s+new)?\s+(?:a\s+|this\s+)?(?:student|tenant|resident)\b/.test(q))return {kind:"register"};
-  if(/^(?:please\s+)?(?:record|add|post|enter|allocate|register)\s+(?:a\s+|this\s+|new\s+)?(?:payment|rent payment|mpesa payment|bank payment|cash payment)\b/.test(q))return {kind:"payment"};
+  if(/^(?:please\s+)?(?:add|register|enrol|enroll|create)\s+(?:(?:a|this|new)\s+){0,3}(?:student|tenant|resident)\b/.test(q))return {kind:"register"};
+  if(/^(?:please\s+)?(?:record|add|post|enter|allocate|register)\s+(?:(?:a|this|new)\s+){0,3}(?:payment|rent payment|mpesa payment|bank payment|cash payment)\b/.test(q))return {kind:"payment"};
   return null;
 }
 
