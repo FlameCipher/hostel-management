@@ -9,6 +9,7 @@ import { systemGuide, searchSystemGuide, type GuideRole } from "./system-guide";
 import { assistantConfiguration, assistantEnabled } from "./assistant-config";
 import { managementIntent, managementLedgerAnswer } from "./assistant-management-intents";
 import { staffCanViewFinance } from "./staff-navigation-policy";
+import { operationalIntent, answerOperationalQuestion } from "./assistant-operations-read";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -39,6 +40,10 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
    if(intent?.kind==="payment") return {mode:"workflow",workflow:"payment",text:"I have opened the payment review workspace below. Select the exact resident and existing charge, enter only a payment actually received, confirm the reference and expected remaining balance, then explicitly approve. No payment has been recorded yet. After confirmation, the protected service issues the receipt or opens room allocation.",links:[{title:"Payments register",href:"/payments",action:"Review payments"}]};
  }
 
+ if(!tenant && staff) {
+   const operation=operationalIntent(question);
+   if(operation) return answerOperationalQuestion(database,session.organizationId,staff.role,operation);
+ }
  if(!assistantEnabled())return {mode:"guide",text:"AI assistance is temporarily unavailable. You can still use the documented guidance below.",links};
  const principal=tenant?`tenant:${(session as TenantSession).studentId}`:`staff:${(session as SessionPayload).userId}`;
  const now=new Date();
