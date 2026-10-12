@@ -1,28 +1,26 @@
-import type { PrismaClient } from "@/generated/prisma/client";
-import type { TransferReviewRecord } from "@/lib/room-transfer-review";
+import type {Prisma,PrismaClient} from "@/generated/prisma/client";
+import type {TransferReviewRecord} from "@/lib/room-transfer-review";
 
-type Data = Pick<PrismaClient,"occupancy">;
+type Database=Pick<PrismaClient,"occupancy">;
 
-/** Every lookup is scoped to the current hostel; no cross-property fallback. */
-export async function loadTransferReviewRecord(
-  database:Data, organizationId:string, occupancyId:string,
-):Promise<TransferReviewRecord|null>{
-  const occupancy=await database.occupancy.findFirst({
-    where:{id:occupancyId,organizationId},
-    include:{
-      student:{select:{fullName:true}},
-      room:{select:{number:true,roomTypeId:true}},
-      semester:{select:{name:true,startDate:true,endDate:true}},
-      roomStays:{orderBy:{startDate:"asc"},
-        include:{room:{select:{number:true}},roomType:{select:{name:true}}}},
-      charges:{where:{type:"SEMESTER_RENT"},
-        include:{
-          payments:{where:{reversedAt:null},select:{amount:true,currency:true,studentId:true,organizationId:true}},
-          adjustments:{select:{reason:true,calculationMethod:true,explanation:true}},
-        }},
-    },
-  });
-  if(!occupancy)return null;
+const transferReviewInclude={
+  student:{select:{fullName:true}},
+  room:{select:{number:true,roomTypeId:true}},
+  semester:{select:{name:true,startDate:true,endDate:true}},
+  roomStays:{orderBy:{startDate:"asc"},include:{
+    room:{select:{number:true}},roomType:{select:{name:true}},
+  }},
+  charges:{where:{type:"SEMESTER_RENT"},include:{
+    payments:{where:{reversedAt:null},select:{
+      amount:true,currency:true,studentId:true,organizationId:true,
+    }},
+    adjustments:{select:{reason:true,calculationMethod:true,explanation:true}},
+  }},
+} as const satisfies Prisma.OccupancyInclude;
+
+type OccupancyDetails=Prisma.OccupancyGetPayload<{include:typeof transferReviewInclude}>;
+
+function asReviewRecord(occupancy:OccupancyDetails):TransferReviewRecord {
   return {
     id:occupancy.id,organizationId:occupancy.organizationId,
     studentId:occupancy.studentId,studentName:occupancy.student.fullName,
@@ -52,4 +50,33 @@ export async function loadTransferReviewRecord(
       })),
     })),
   };
+}
+
+/** Scope every lookup to one verified hostel organization. */
+export async function loadTransferReviewRecord(
+  database:Database,organizationId:string,occupancyId:string,
+):Promise<TransferReviewRecord|null>{
+  const occupancy=await database.occupancy.findFirst({
+    where:{id:occupancyId,organizationId},
+    include:transferReviewInclude,
+  });
+  return occupancy?asReviewRecord(occupancy):null;
+}
+
+/** One scoped database query for index views; prevents N+1 round trips
+ * when a landlord has dozens of properties or many historic moves.
+ */
+export async function listTransferReviewRecords(
+  database:Database,organizationId:string,limit=200,
+):Promise<TransferReviewRecord[]>{
+  const occupancies=await database.occupancy.findMany({
+    where:{
+      organizationId,
+      roomStays:{some:{endDate:{not:null}}},
+    },
+    include:transferReviewInclude,
+    orderBy:{updatedAt:"desc"},
+    take:Math.min(200,Math.max(1,Math.floor(limit))),
+  });
+  return occupancies.map(asReviewRecord).filter(row=>row.stays.length>1);
 }
