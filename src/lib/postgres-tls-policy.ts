@@ -7,6 +7,6 @@
 export function enforcePostgresVerifyFull(connectionString:string) {
   return connectionString.replace(
     /([?&]sslmode=)(prefer|require|verify-ca)(?=&|$)/gi,
-    (_whole,prefix:string,_mode:string,suffix:string)=>prefix+"verify-full"+suffix,
+    (_whole,prefix:string)=>prefix+"verify-full",
   );
 }
