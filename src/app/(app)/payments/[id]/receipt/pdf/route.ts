@@ -11,6 +11,7 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  if (session.role === "CARETAKER") return new Response("Finance permission required.", { status: 403 });
 
   const { id } = await params;
   const payment = await db.payment.findFirst({
