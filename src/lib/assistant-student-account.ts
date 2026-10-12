@@ -15,7 +15,11 @@ export function namedStudentAccountIntent(question:string): {name:string}|null {
  ];
  const match=patterns.map(p=>q.match(p)).find(Boolean);
  if(!match)return null;
- const name=match[1].replace(/^(?:student|tenant|resident)\s+/i,"").trim();
+ const name=match[1].replace(/^(?:student|tenant|resident)\s+/i,"")
+   .replace(/\s+(?:this|current|last|previous)\s+(?:month|week|year|semester)\b.*$/i,"")
+   .replace(/\s+(?:today|yesterday)\b.*$/i,"")
+   .replace(/\s+(?:in|during|for)\s+(?:20\d{2}|january|february|march|april|may|june|july|august|september|october|november|december)\b.*$/i,"")
+   .trim();
  if(name.length<2||name.length>80||!/^[\p{L}][\p{L}\p{M}\s.'’\-]{1,79}$/u.test(name))return null;
  return {name};
 }
