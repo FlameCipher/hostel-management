@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, ClipboardCheck, ShieldCheck } from "lucide-react";
 
 export default async function FinancialIntegrityPage({
   searchParams,
@@ -98,7 +98,7 @@ export default async function FinancialIntegrityPage({
         <h1>Financial integrity review</h1>
         <p>Audit active room allocations, semester rent charges, transfer history and credited payments without changing any records.</p>
       </div>
-      <Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17}/> Payments</Link>
+      <div className="heading-actions"><Link className="secondary-button no-underline" href="/occupancy/transfers"><ArrowRightLeft size={17}/> Transfer cases</Link><Link className="secondary-button no-underline" href="/payments"><ArrowLeft size={17}/> Payments</Link></div>
     </div>
     <section className="room-summary-grid payments-summary">
       <article className="compact-stat"><div><p>Active occupancies checked</p><strong>{summary.occupancies}</strong></div></article>
