@@ -46,7 +46,8 @@ test("explicit months, current and previous semester, year and conflicting perio
  assert.deepEqual(period("Last semester debtors"),{kind:"semester",which:"previous"});
  assert.equal(period("Payments this year").kind,"calendar");
  assert.equal(period("Who has not paid this month and this semester?").kind,"ambiguous");
- assert.equal(period("Show this month and last month").kind,"calendar"); // ambiguous variants rejected separately if requested as multiple scopes
+ assert.equal(period("Show this month and last month").kind,"ambiguous");
+ assert.equal(period("How much money was received in 2025?").kind,"calendar");
  assert.equal(financialMonthFromQuestion("May I see collections this semester?"),null);
  assert.equal(financialMonthFromQuestion("Total payments for May 2025"),"2025-05");
 });
