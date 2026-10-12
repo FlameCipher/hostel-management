@@ -86,7 +86,8 @@ export default async function PaymentReceiptPage({
       {paramsQuery.correction==="applied" ? <p className="review-success print-hidden" role="status">
         Financial correction saved. The original receipt remains in the audit trail; this is the newly issued receipt.
       </p>:null}
-      {paramsQuery.delivery==="email" ? <p className="review-success print-hidden" role="status">Replacement receipt emailed successfully.</p>:null}
+      {paramsQuery.delivery==="email" ? <p className="review-success print-hidden" role="status">The email provider accepted this receipt for delivery.</p>:null>
+      {paramsQuery.delivery==="in-progress" ? <p className="muted-note print-hidden" role="status">An email delivery attempt is already processing. Check the status before trying again.</p>:null>
       {paramsQuery.delivery==="failed" ? <p className="form-error print-hidden" role="alert">The receipt was saved, but email delivery failed. Check the delivery status before retrying.</p>:null}
       {paramsQuery.delivery==="already-sent" ? <p className="review-success print-hidden" role="status">This receipt was already emailed; no duplicate was sent.</p>:null}
       {paramsQuery.delivery==="no-email" ? <p className="form-error print-hidden" role="alert">No student email is recorded for this receipt.</p>:null}
