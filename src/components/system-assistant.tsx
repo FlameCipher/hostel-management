@@ -26,7 +26,7 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
       return;
     }
     if (role === "MANAGEMENT" && /^(?:find|locate|search(?: for)?|open|show|where is)\b/i.test(value.trim()) &&
-        !/\b(?:unpaid|outstanding|owe|owing|not paid|balance|deni|madeni)\b/i.test(value)) {
+        !/(?:\b(?:unpaid|outstanding|owe|owing|owed|not paid|balance|deni|madeni|debtor|debtors|arrears|received|collected|payments?)\b|hasn.t paid|haven.t paid)/i.test(value)) {
       const room = value.match(/\broom\s*(?:number\s*)?(\d+[a-z]?)\b/i);
       const subject = room?.[1] ?? value.trim()
         .replace(/^(?:find|locate|search(?: for)?|open|show|where is)\s+(?:(?:me\s+)?(?:student|resident|tenant|room)(?:\s+number)?\s+)?/i, "")
