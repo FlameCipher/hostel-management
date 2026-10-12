@@ -39,9 +39,10 @@ network-unverified checks with no known failures. None of these codes claims
 that all business operations are production-certified.
 
 GitHub Actions workflow **Hostel public release acceptance** runs the isolated
-unit tests on pull requests. Its `workflow_dispatch` can be manually triggered
-by an authorized maintainer to check the fixed production hostname. There are
-no required secrets and no automatic scheduled visitor, payment or email probes.
+unit tests and read-only public production checks on matching pull requests.
+An authorized maintainer can also manually trigger `workflow_dispatch` to
+re-run the fixed production hostname checks. There are no required secrets,
+and no automatic scheduled visitor, payment or email probes.
 
 ## Real-world owner acceptance: all are manual gates
 
