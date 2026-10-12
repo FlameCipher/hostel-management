@@ -4,6 +4,8 @@ import { StudentUpdateReviewActions } from "@/components/student-update-review-a
 import { CopyStudentUpdateLink } from "@/components/copy-student-update-link";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { guardianContactComparison } from "@/lib/guardian-contact-review";
+import { messagingCountry } from "@/lib/whatsapp-communications";
 
 function value(value: string | null | undefined) {
   return value || "Not provided";
@@ -18,6 +20,18 @@ export default async function StudentUpdateRequestsPage() {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100,
   });
+  const properties = await db.property.findMany({
+    where: { organizationId: session.organizationId, active: true }, select: { countryCode: true },
+  });
+  const country = messagingCountry(properties, session.organizationId);
+  const contactReviews = new Map(requests.map(request => [
+    request.id,
+    guardianContactComparison(
+      request.student.guardian,
+      { name: request.guardianName, phone: request.guardianPhone },
+      country,
+    ),
+  ]));
   const pending = requests.filter((item) => item.status === "PENDING").length;
   const approved = requests.filter((item) => item.status === "APPROVED").length;
   const rejected = requests.filter((item) => item.status === "REJECTED").length;
@@ -29,7 +43,10 @@ export default async function StudentUpdateRequestsPage() {
       <header><div><p className="panel-kicker">Submitted {request.createdAt.toLocaleDateString("en-KE", { dateStyle: "medium" })}</p><h2>{request.student.fullName}</h2><a className="table-phone" href={`tel:${request.student.phone}`}><Phone size={11} /> {request.student.phone}</a></div><span className={`status-pill ${request.status === "APPROVED" ? "status-paid" : request.status === "REJECTED" ? "status-maintenance" : "status-due"}`}>{request.status}</span></header>
       <div className="update-comparison-grid">
         <section><h3>Student details</h3><dl className="detail-list"><div><dt>Email</dt><dd><span>{value(request.student.email)}</span><strong>{request.email ? `Proposed: ${request.email}` : "No change"}</strong></dd></div><div><dt>Admission number</dt><dd><span>{value(request.student.admissionNumber)}</span><strong>{request.admissionNumber ? `Proposed: ${request.admissionNumber}` : "No change"}</strong></dd></div><div><dt>National ID</dt><dd><span>{value(request.student.nationalId)}</span><strong>{request.nationalId ? `Proposed: ${request.nationalId}` : "No change"}</strong></dd></div></dl></section>
-        <section><h3>Guardian details</h3><dl className="detail-list"><div><dt>Name</dt><dd><span>{value(request.student.guardian?.name)}</span><strong>Proposed: {request.guardianName}</strong></dd></div><div><dt>Relationship</dt><dd><span>{value(request.student.guardian?.relationship)}</span><strong>Proposed: {request.guardianRelationship}</strong></dd></div><div><dt>Phone</dt><dd><span>{value(request.student.guardian?.phone)}</span><strong>Proposed: {request.guardianPhone}</strong></dd></div><div><dt>Email</dt><dd><span>{value(request.student.guardian?.email)}</span><strong>{request.guardianEmail ? `Proposed: ${request.guardianEmail}` : "No email submitted"}</strong></dd></div></dl></section>
+        <section><h3>Guardian details</h3><dl className="detail-list"><div><dt>Name</dt><dd><span>{value(request.student.guardian?.name)}</span><strong>Proposed: {request.guardianName}</strong>{contactReviews.get(request.id)?.nameFormattingOnly ? <small className="muted-note">Same name; capitalization or spacing differs.</small> : null}</dd></div><div><dt>Relationship</dt><dd><span>{value(request.student.guardian?.relationship)}</span><strong>Proposed: {request.guardianRelationship}</strong></dd></div><div><dt>Phone</dt><dd><span>{value(request.student.guardian?.phone)}</span><strong>Proposed: {request.guardianPhone}</strong>{contactReviews.get(request.id)?.phoneFormattingOnly ? <small className="muted-note">Same number in a different format.</small> : null}
+        {contactReviews.get(request.id)?.proposedInternationalPhone &&
+        contactReviews.get(request.id)?.proposedInternationalPhone !== request.guardianPhone ?
+          <small className="muted-note">Stored after approval as: {contactReviews.get(request.id)?.proposedInternationalPhone}</small> : null}</dd></div><div><dt>Email</dt><dd><span>{value(request.student.guardian?.email)}</span><strong>{request.guardianEmail ? `Proposed: ${request.guardianEmail}` : "No email submitted"}</strong></dd></div></dl></section>
       </div>
       {request.status === "PENDING" ? <StudentUpdateReviewActions requestId={request.id} /> : <p className="reviewed-note">{request.status === "APPROVED" ? "Approved" : "Rejected"}{request.reviewedBy ? ` by ${request.reviewedBy.name}` : ""}{request.reviewedAt ? ` on ${request.reviewedAt.toLocaleDateString("en-KE", { dateStyle: "medium" })}` : ""}{request.reviewNotes ? ` · ${request.reviewNotes}` : ""}</p>}
     </article>) : <div className="panel inline-empty"><UserRound size={27} /><strong>No student update requests</strong><p>New submissions from the public update page will appear here.</p></div>}</section>
