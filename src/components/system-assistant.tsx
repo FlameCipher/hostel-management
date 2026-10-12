@@ -29,13 +29,18 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const [busy,setBusy]=useState(false);
   const [workflow,setWorkflow]=useState<"register"|"payment"|null>(null);
   const id=useRef(0);
-  const bottom=useRef<HTMLDivElement>(null);
+  const messageLog=useRef<HTMLDivElement>(null);
   const suggestions=role==="MANAGEMENT"
     ? ["Who hasn't paid?","Room 41 payments","Register a student","Record payment"]
     : ["Who has not checked out?","How many visitors are expected?","Find room 41"];
   const guides=searchSystemGuide(systemGuide(role),submitted).slice(0,3);
 
-  useEffect(()=>{if(messages.length) bottom.current?.scrollIntoView({behavior:"smooth",block:"nearest"});},[messages.length,busy]);
+  // Keep scrolling inside the conversation rather than jumping the entire
+  // phone viewport away from the composer when a response arrives.
+  useEffect(()=>{
+    const log=messageLog.current;
+    if(log && messages.length) log.scrollTop=log.scrollHeight;
+  },[messages.length,busy]);
 
   async function ask(raw:string) {
     const value=raw.trim();
@@ -78,7 +83,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       <span className={styles.status}><span className={styles.statusDot}/> Secure</span>
     </header>
 
-    <div className={styles.conversation} role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions text">
+    <div ref={messageLog} className={styles.conversation} role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions text">
       {messages.length===0 ? <div className={styles.welcome}>
         <span className={styles.welcomeIcon}><Sparkles size={24} aria-hidden="true"/></span>
         <h3>How can I help?</h3>
@@ -96,7 +101,6 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
         <span className={styles.messageLabel}>Checking hostel records…</span>
         <div className={styles.spinner} role="status" aria-label="Assistant responding"><span/><span/><span/></div>
       </div>}
-      <div ref={bottom}/>
     </div>
 
     <div className={styles.quickActions} aria-label="Example questions">
