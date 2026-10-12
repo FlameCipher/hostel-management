@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {reviewRoomTransfers,transferReviewFingerprint,type TransferReviewRecord} from "../src/lib/room-transfer-review";
 import {validateTransferPreflight} from "../src/lib/room-transfer-preflight";
+import {transferReviewNavigationRequest} from "../src/lib/room-transfer-review-intents";
 
 const day=(s:string)=>new Date(s+"T12:00:00.000Z");
 const shared={
@@ -142,4 +143,10 @@ assert.equal(validateTransferPreflight({...preflight(),rentMethod:"CUSTOM",
 assert.equal(validateTransferPreflight({...preflight(),stays:[]}),true,
   "Old imported records with no stay history may still use the existing controlled backfill path.");
 
+assert.equal(transferReviewNavigationRequest("Show room transfers"),true);
+assert.equal(transferReviewNavigationRequest("Review transfer history"),true);
+assert.equal(transferReviewNavigationRequest("Audit room changes"),true);
+assert.equal(transferReviewNavigationRequest("Show unpaid tenants"),false);
+assert.equal(transferReviewNavigationRequest("Change room 54 rent to 28000"),false);
+assert.equal(transferReviewNavigationRequest("Send receipt to tenant"),false);
 console.log("Full room-transfer chronology, owner override, rent scenarios, payment isolation and preflight tests passed.");
