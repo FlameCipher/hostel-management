@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { enforcePostgresVerifyFull } from "./src/lib/postgres-tls-policy";
 
 const databaseUrl = process.env.DB_DATABASE_URL_UNPOOLED
   ?? process.env.DB_DATABASE_URL
@@ -14,6 +15,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: databaseUrl,
+    url: enforcePostgresVerifyFull(databaseUrl),
   },
 });
