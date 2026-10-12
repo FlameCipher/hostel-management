@@ -7,6 +7,7 @@ import { receiptQueueNavigationRequest } from "@/lib/receipt-queue-intents";
 import { financialAuditNavigationRequest } from "@/lib/financial-audit-intents";
 import { transferReviewNavigationRequest } from "@/lib/room-transfer-review-intents";
 import styles from "./resident-services.module.css";
+import { occupancySearchShortcut } from "@/lib/assistant-search-policy";
 import { AssistantActionWorkspace, type AssistantWorkspaceData } from "./assistant-action-workspace";
 export function SystemAssistant({ role, workspace }: { role: GuideRole; workspace?: AssistantWorkspaceData }) {
   const router = useRouter();
@@ -27,16 +28,9 @@ export function SystemAssistant({ role, workspace }: { role: GuideRole; workspac
       router.push("/payments?delivery=all");
       return;
     }
-    if (role === "MANAGEMENT" && /^(?:find|locate|search(?: for)?|open|show|where is)\b/i.test(value.trim()) &&
-        !/(?:\b(?:unpaid|outstanding|owe|owing|owed|not paid|balance|deni|madeni|debtor|debtors|arrears|received|collected|payments?)\b|hasn.t paid|haven.t paid)/i.test(value)) {
-      const room = value.match(/\broom\s*(?:number\s*)?(\d+[a-z]?)\b/i);
-      const subject = room?.[1] ?? value.trim()
-        .replace(/^(?:find|locate|search(?: for)?|open|show|where is)\s+(?:(?:me\s+)?(?:student|resident|tenant|room)(?:\s+number)?\s+)?/i, "")
-        .replace(/[.!?]+$/, "").trim();
-      if (subject.length >= 2 && subject.length <= 80) {
-        router.push("/occupancy?q=" + encodeURIComponent(subject));
-        return;
-      }
+    if(role==="MANAGEMENT") {
+      const shortcut=occupancySearchShortcut(value);
+      if(shortcut){router.push("/occupancy?q="+encodeURIComponent(shortcut));return;}
     }
     setSubmitted(value);setBusy(true);setError("");setAnswer("");setLinks([]);setWorkflow(null);
     try{const response=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff"}),signal:AbortSignal.timeout(35000)});const result=await response.json();if(!response.ok)throw Error(result.error||"The assistant could not respond.");setAnswer(result.text);setMode(result.mode);if(role==="MANAGEMENT"&&workspace&&(result.workflow==="register"||result.workflow==="payment"))setWorkflow(result.workflow);setLinks(Array.isArray(result.links)?result.links.filter((l:unknown)=>!!l&&typeof l==="object"&&typeof (l as {href?:string}).href==="string"&&((l as {href:string}).href.startsWith("/")&&!((l as {href:string}).href.startsWith("//")))).slice(0,5):[]);}catch(e){setError(e instanceof Error?e.message:"The assistant could not respond. Use the guide below.");}finally{setBusy(false);}
