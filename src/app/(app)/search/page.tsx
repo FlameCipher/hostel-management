@@ -2,14 +2,14 @@ import { formatMoney } from "@/lib/currency";
 import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { BedDouble, CreditCard, Search, Users } from "lucide-react";
-import { requireSession } from "@/lib/auth/session";
+import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
 import { db } from "@/lib/db";
 import { compareRooms } from "@/lib/natural-sort";
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
-  const session = await requireSession();
+  const session = await requireStaffFinanceAccess();
   const { q: rawQuery } = await searchParams;
   const query = rawQuery?.trim() ?? "";
   const [students, rooms, payments] = query ? await Promise.all([
