@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { searchSystemGuide, systemGuide, type GuideRole } from "@/lib/system-guide";
 import { receiptQueueNavigationRequest } from "@/lib/receipt-queue-intents";
 import { financialAuditNavigationRequest } from "@/lib/financial-audit-intents";
+import { transferReviewNavigationRequest } from "@/lib/room-transfer-review-intents";
 import styles from "./resident-services.module.css";
 export function SystemAssistant({ role }: { role: GuideRole }) {
   const router = useRouter();
@@ -18,6 +19,10 @@ export function SystemAssistant({ role }: { role: GuideRole }) {
       const year=yearMatch ? Number(yearMatch[0]) : new Date().getFullYear();
       const month=match>=0 ? `&month=${year}-${String(match+1).padStart(2,"0")}` : "";
       router.push("/payments?view=outstanding"+month); return; }
+    if(role==="MANAGEMENT" && transferReviewNavigationRequest(value)){
+      router.push("/occupancy/transfers");
+      return;
+    }
     if(role==="MANAGEMENT" && financialAuditNavigationRequest(value)){
       router.push("/payments/audit");
       return;
