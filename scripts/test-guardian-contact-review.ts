@@ -47,7 +47,7 @@ const css=readFileSync("src/app/globals.css","utf8");
 assert.match(css,/\.update-review-actions \.row-actions \.primary-button/);
 assert.match(css,/\.update-review-actions \.row-actions \.secondary-button\.reject-outline/);
 assert.match(css,/\.update-review-actions \.row-actions \.danger-button/);
-assert.match(css,/\.update-review-actions \.row-actions button\s*\{[^}]*min-height:\s*44px/s);
+assert.match(css,/\.update-review-actions \.row-actions button\s*\{[^}]*min-height:\s*44px/);
 assert.match(css,/@media \(max-width: 520px\)/);
 
 console.log("Guardian international-phone, case-only review, and mobile controls tests passed.");
