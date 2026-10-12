@@ -6,7 +6,7 @@ import { ReceiptShareActions } from "@/components/receipt-share-actions";
 import { emailPendingReceiptAction } from "./[id]/receipt/email-action";
 import { receiptDeliveryQueueState } from "@/lib/receipt-delivery-queue";
 import { currentRentAccountDisplay } from "@/lib/current-rent-account-display";
-import { requireSession } from "@/lib/auth/session";
+import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
 import { db } from "@/lib/db";
 
 const chargeType: Record<string, string> = { SEMESTER_RENT: "Semester rent", BREAK_ACCOMMODATION: "Break accommodation", DAMAGE: "Damage", OTHER: "Other" };
@@ -14,7 +14,7 @@ const chargeType: Record<string, string> = { SEMESTER_RENT: "Semester rent", BRE
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string; month?: string; delivery?: string }> }) {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
-  const session = await requireSession();
+  const session = await requireStaffFinanceAccess();
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const outstandingOnly = params.view === "outstanding";
