@@ -6,10 +6,10 @@ const base:ReceiptDeliveryRow={
   hasEmail:true,hasPhone:true,
 };
 assert.deepEqual(receiptDeliveryQueueState(base),{
-  queued:true,label:"Not yet delivered",emailAvailable:true,whatsappAvailable:true,
+  queued:true,processing:false,label:"Not yet delivered",emailAvailable:true,whatsappAvailable:true,
 });
 const whatsapp=receiptDeliveryQueueState({...base,receiptDeliveryStatus:"ACTION_REQUIRED",receiptDeliveryChannel:"WHATSAPP",hasEmail:false});
-assert.deepEqual(whatsapp,{queued:true,label:"WhatsApp sharing required",emailAvailable:false,whatsappAvailable:true});
+assert.deepEqual(whatsapp,{queued:true,processing:false,label:"WhatsApp sharing required",emailAvailable:false,whatsappAvailable:true});
 const failed=receiptDeliveryQueueState({...base,receiptDeliveryStatus:"FAILED",receiptDeliveryChannel:"EMAIL"});
 assert.equal(failed.label,"Email delivery failed");
 assert.equal(failed.emailAvailable,true);
@@ -25,4 +25,25 @@ const reversed=receiptDeliveryQueueState({...base,reversedAt:new Date("2026-10-1
 assert.equal(reversed.queued,false);
 assert.equal(reversed.emailAvailable,false);
 assert.equal(reversed.whatsappAvailable,false);
+const now=new Date("2026-10-12T10:00:00Z");
+const processing=receiptDeliveryQueueState({
+  ...base,
+  receiptDeliveryStatus:"ACTION_REQUIRED",
+  receiptDeliveryChannel:"EMAIL",
+  receiptDeliveryError:"DELIVERY_PROCESSING",
+  updatedAt:new Date("2026-10-12T09:59:20Z"),
+},now);
+assert.equal(processing.processing,true);
+assert.equal(processing.label,"Sending email…");
+assert.equal(processing.emailAvailable,false);
+assert.equal(processing.whatsappAvailable,false);
+const stale=receiptDeliveryQueueState({
+  ...base,
+  receiptDeliveryStatus:"ACTION_REQUIRED",
+  receiptDeliveryChannel:"EMAIL",
+  receiptDeliveryError:"DELIVERY_PROCESSING",
+  updatedAt:new Date("2026-10-12T09:55:20Z"),
+},now);
+assert.equal(stale.processing,false);
+assert.equal(stale.emailAvailable,true);
 console.log("Receipt delivery queue status tests passed");
