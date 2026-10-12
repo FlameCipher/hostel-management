@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BarChart3, BedDouble, Bell, MessageCircle, CalendarDays, Building2, Globe, ClipboardCheck, CreditCard, CircleDollarSign, LayoutDashboard, LogOut, Menu, PackageSearch, Search, Settings, ShieldCheck, Share2, Smartphone, Users, Wrench, X } from "lucide-react";
 import { logoutAction } from "@/app/login/actions";
+import { visibleStaffNavigation, staffHome, staffNavActivePath, type HostelStaffRole } from "@/lib/staff-navigation-policy";
 import styles from "./app-shell.module.css";
 
 type NavItem = { label: string; href: string; icon: LucideIcon };
@@ -41,6 +42,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { label: "My Website", href: "/website", icon: Globe },
     { label: "Vacancy Card", href: "/vacancy-card", icon: Share2 },
     { label: "Users & Permissions", href: "/users", icon: ShieldCheck },
+    { label: "Gate readiness", href: "/gate-readiness", icon: ShieldCheck },
     { label: "Hostel Setup", href: "/setup", icon: Building2 },
     { label: "HealthFix", href: "/healthfix", icon: ShieldCheck },
     { label: "Install App", href: "/install", icon: Smartphone },
@@ -50,13 +52,18 @@ const groups: { title: string; items: NavItem[] }[] = [
 ];
 const navItems = groups.flatMap(group => group.items);
 
-function Brand({ organizationName }: { organizationName: string }) {
-  return <Link className={styles.brand} href="/dashboard"><span className={styles.brandMark}><Building2 aria-hidden="true" size={22}/></span><span><strong>{organizationName}</strong><small>PROPERTY MANAGEMENT</small></span></Link>;
+function Brand({ organizationName, home }: { organizationName: string; home: string }) {
+  return <Link className={styles.brand} href={home}><span className={styles.brandMark}><Building2 aria-hidden="true" size={22}/></span><span><strong>{organizationName}</strong><small>PROPERTY MANAGEMENT</small></span></Link>;
 }
-function Navigation({ onNavigate }: { onNavigate?: () => void }) {
+function Navigation({ userRole, onNavigate }: { userRole: HostelStaffRole; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const current = navItems.filter(item => pathname === item.href || pathname.startsWith(`${item.href}/`)).sort((a, b) => b.href.length - a.href.length)[0]?.href;
-  return <nav className={styles.navigation} aria-label="Main navigation">{groups.map(group => <div key={group.title}><p className={styles.groupTitle}>{group.title}</p>{group.items.map(({ label, href, icon: Icon }) => <Link className={`${styles.navLink} ${current === href ? styles.active : ""}`} aria-current={current === href ? "page" : undefined} href={href} key={href} onClick={onNavigate}><Icon aria-hidden="true" size={18}/><span>{label}</span></Link>)}</div>)}</nav>;
+  const allowed = new Set(visibleStaffNavigation(userRole).map(item => item.href));
+  const visibleGroups = groups.map(group => ({
+    ...group, items:group.items.filter(item=>allowed.has(item.href)),
+  })).filter(group=>group.items.length>0);
+  const current = navItems.filter(item => allowed.has(item.href) && staffNavActivePath(item.href,pathname))
+    .sort((a,b)=>b.href.length-a.href.length)[0]?.href;
+  return <nav className={styles.navigation} aria-label="Main navigation">{visibleGroups.map(group => <div key={group.title}><p className={styles.groupTitle}>{group.title}</p>{group.items.map(({ label, href, icon: Icon }) => <Link className={`${styles.navLink} ${current === href ? styles.active : ""}`} aria-current={current === href ? "page" : undefined} href={href} key={href} onClick={onNavigate}><Icon aria-hidden="true" size={18}/><span>{label}</span></Link>)}</div>)}</nav>;
 }
 function SignOut() {
   return <form action={logoutAction} className={styles.signOut}><button className={styles.navLink} type="submit"><LogOut aria-hidden="true" size={18}/><span>Sign out</span></button></form>;
@@ -65,7 +72,10 @@ export function AppShell({ children, organizationName, userName, userRole }: { c
   const [mobileOpen, setMobileOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
-  const section = navItems.filter(item => pathname === item.href || pathname.startsWith(`${item.href}/`)).sort((a, b) => b.href.length - a.href.length)[0]?.label ?? "Management";
+  const staffRole = (["OWNER","ADMIN","MANAGER","CARETAKER"].includes(userRole) ? userRole : "CARETAKER") as HostelStaffRole;
+  const available = new Set(visibleStaffNavigation(staffRole).map(item=>item.href));
+  const section = navItems.filter(item => available.has(item.href) && staffNavActivePath(item.href,pathname))
+    .sort((a,b)=>b.href.length-a.href.length)[0]?.label ?? (staffRole==="CARETAKER"?"Visitor gate":"Management");
   const role = ({ OWNER: "Owner", ADMIN: "Administrator", MANAGER: "Manager", CARETAKER: "Caretaker" } as Record<string, string>)[userRole] ?? "Staff";
   const initials = userName.trim().split(/\s+/).map(part => Array.from(part)[0]).join("").slice(0, 2).toUpperCase() || "U";
   useEffect(() => {
@@ -78,16 +88,16 @@ export function AppShell({ children, organizationName, userName, userRole }: { c
   }, [mobileOpen]);
   return <div className={styles.shell}>
     <a className={styles.skipLink} href="#workspace-content">Skip to content</a>
-    <aside className={styles.sidebar}><Brand organizationName={organizationName}/><Navigation/><SignOut/></aside>
+    <aside className={styles.sidebar}><Brand organizationName={organizationName} home={staffHome(staffRole)}/><Navigation userRole={staffRole}/><SignOut/></aside>
     <dialog ref={dialog} className={styles.drawer} id="management-navigation" aria-label="Management menu" onClose={() => setMobileOpen(false)}>
-      <div className={styles.drawerPanel}><div className={styles.drawerHeader}><Brand organizationName={organizationName}/><button type="button" className={styles.iconButton} aria-label="Close navigation" onClick={() => setMobileOpen(false)}><X size={20} aria-hidden="true"/></button></div><Navigation onNavigate={() => setMobileOpen(false)}/><SignOut/></div>
+      <div className={styles.drawerPanel}><div className={styles.drawerHeader}><Brand organizationName={organizationName} home={staffHome(staffRole)}/><button type="button" className={styles.iconButton} aria-label="Close navigation" onClick={() => setMobileOpen(false)}><X size={20} aria-hidden="true"/></button></div><Navigation userRole={staffRole} onNavigate={() => setMobileOpen(false)}/><SignOut/></div>
       <button type="button" className={styles.backdrop} aria-label="Close menu backdrop" tabIndex={-1} onClick={() => setMobileOpen(false)}/>
     </dialog>
     <div className={styles.main}><header className={styles.topbar}>
       <button className={`${styles.iconButton} ${styles.menuButton}`} type="button" onClick={() => setMobileOpen(true)} aria-label="Open management menu" aria-expanded={mobileOpen} aria-controls="management-navigation"><Menu aria-hidden="true" size={22}/></button>
       <div className={styles.workspaceName}><strong title={organizationName}>{organizationName}</strong><span>{section}</span></div>
-      <form action="/search" className={styles.search} method="get" role="search"><Search aria-hidden="true" size={17}/><input aria-label="Search" name="q" placeholder="Search your workspace…"/></form>
-      <div className={styles.headerActions}><Link className={styles.iconButton} href="/notifications" aria-label="Open reminders"><Bell aria-hidden="true" size={20}/></Link><Link href="/account" className={styles.profile} aria-label={`My account, ${userName}, ${role}`}><span className={styles.avatar}>{initials}</span><span className={styles.profileName}><strong>{userName}</strong><small>{role}</small></span></Link></div>
+      {staffRole!=="CARETAKER" ? <form action="/search" className={styles.search} method="get" role="search"><Search aria-hidden="true" size={17}/><input aria-label="Search" name="q" placeholder="Search your workspace…"/></form> : <span aria-label="Visitor gate workspace"/>}
+      <div className={styles.headerActions}>{staffRole!=="CARETAKER" ? <Link className={styles.iconButton} href="/notifications" aria-label="Open reminders"><Bell aria-hidden="true" size={20}/></Link> : <Link className={styles.iconButton} href="/visitors" aria-label="Visitor gate"><ClipboardCheck aria-hidden="true" size={20}/></Link>}<Link href="/account" className={styles.profile} aria-label={`My account, ${userName}, ${role}`}><span className={styles.avatar}>{initials}</span><span className={styles.profileName}><strong>{userName}</strong><small>{role}</small></span></Link></div>
     </header><main id="workspace-content" className={`content-area ${styles.content}`} tabIndex={-1}>{children}</main></div>
   </div>;
 }
