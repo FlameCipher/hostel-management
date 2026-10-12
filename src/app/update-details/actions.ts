@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
 import { normalizeStudentDocument, normalizeStudentPhone } from "@/lib/student-identifiers";
+import { normalizeGuardianPhone } from "@/lib/guardian-contact-review";
 import { clearStudentUpdateSession, createStudentUpdateSession, getPublicLookupFingerprint, getStudentUpdateSession } from "@/lib/student-update-session";
 
 export type StudentLookupState = { error: string };
@@ -66,6 +67,9 @@ export async function submitStudentDetailsAction(_state: StudentDetailsSubmissio
     guardianName: formData.get("guardianName"), guardianPhone: formData.get("guardianPhone"), guardianRelationship: formData.get("guardianRelationship"), guardianEmail: formData.get("guardianEmail") ?? "", consent: formData.get("consent"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Complete all required details." };
+  const propertyContext = await requestPropertyContext();
+  const guardianCountry = propertyContext.property?.organizationId === session.organizationId
+    ? propertyContext.property.countryCode : null;
 
   const student = await db.student.findFirst({ where: { id: session.studentId, organizationId: session.organizationId, status: "ACTIVE" }, select: { id: true, email: true, admissionNumber: true, nationalId: true } });
   if (!student) return { error: "This student record is no longer available for updates." };
@@ -95,7 +99,7 @@ export async function submitStudentDetailsAction(_state: StudentDetailsSubmissio
       const request = await tx.studentDetailsUpdateRequest.create({ data: {
         organizationId: session.organizationId, studentId: student.id, submittedName: session.submittedName, submittedPhone: session.submittedPhone,
         email: !student.email ? parsed.data.email.toLowerCase() : null, admissionNumber, nationalId,
-        guardianName: parsed.data.guardianName, guardianPhone: normalizeStudentPhone(parsed.data.guardianPhone), guardianRelationship: parsed.data.guardianRelationship,
+        guardianName: parsed.data.guardianName, guardianPhone: normalizeGuardianPhone(parsed.data.guardianPhone, guardianCountry), guardianRelationship: parsed.data.guardianRelationship,
         guardianEmail: parsed.data.guardianEmail ? parsed.data.guardianEmail.toLowerCase() : null, consentConfirmedAt: new Date(),
       } });
       await tx.auditLog.create({ data: { organizationId: session.organizationId, action: "STUDENT_DETAILS_UPDATE_SUBMITTED", entityType: "StudentDetailsUpdateRequest", entityId: request.id, metadata: { studentId: student.id, fields: [student.email ? null : "email", student.admissionNumber ? null : "admissionNumber", student.nationalId ? null : "nationalId", "guardian"].filter(Boolean) } } });
