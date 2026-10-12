@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { communicationManager, tenantWhere } from "@/lib/communications";
 import { managementWhatsAppContacts } from "@/lib/whatsapp-communications";
 import { manualDeliveryLabels } from "@/lib/whatsapp-policy";
+import { whatsappReadiness } from "@/lib/whatsapp-diagnostics";
 import { WhatsAppDraftForm } from "@/components/whatsapp-draft-form";
 import { updateWhatsAppDraftAction } from "./actions";
 import styles from "./whatsapp.module.css";
@@ -21,10 +22,18 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     manager ? db.notification.findMany({ where: { organizationId: session.organizationId, channel: "WHATSAPP" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * 30, take: 31 }) : [],
     db.organization.findUniqueOrThrow({ where: { id: session.organizationId }, select: { whatsappEnabled: true } }),
   ]);
-  const connection=manager?await db.whatsAppConnection.findUnique({where:{organizationId:session.organizationId},select:{displayPhone:true,enabled:true,templateName:true}}):null;
+  const connection=manager?await db.whatsAppConnection.findUnique({where:{organizationId:session.organizationId},select:{displayPhone:true,enabled:true,templateName:true,verifiedAt:true}}):null;
   const permissions=manager?await db.whatsAppConsent.findMany({where:{organizationId:session.organizationId},select:{accountId:true,audience:true,enabled:true}}):[];
   const deliveries=manager?await db.whatsAppDelivery.findMany({where:{organizationId:session.organizationId},orderBy:{createdAt:"desc"},take:30}):[];
   const itemDeliveries=manager?await db.whatsAppDelivery.findMany({where:{organizationId:session.organizationId,notificationId:{in:items.map(item=>item.id)}},select:{notificationId:true,status:true}}):[];
+  const diagnostics=whatsappReadiness({
+    enabledForProperty:organization.whatsappEnabled,
+    senderExists:!!connection,
+    senderVerified:!!connection?.verifiedAt,
+    senderEnabled:!!connection?.enabled,
+    webhookConfigured:Boolean(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+    eligibleOptIns:permissions.filter(p=>p.enabled).length,
+  });
   const cloudStatus=new Map(itemDeliveries.map(d=>[d.notificationId,d.status]));
   return <div className={styles.page}>
     <div className="page-heading-row"><div><p className="eyebrow">Tenant and staff communication</p><h1>WhatsApp</h1><p>Private conversations between your hostel management, current tenants and staff.</p></div>{manager && <Link className="secondary-button" href="/communications">Communication centre</Link>}</div>
@@ -36,7 +45,23 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     </section>
     {manager && <>
       {["OWNER","ADMIN"].includes(session.role)&&<WhatsAppConnectionForm connection={connection}/>}
-      <section className={`panel ${styles.draft}`}><h2>Automatic delivery status</h2><p>Accepted means Meta accepted the message. Delivered and Read require a verified provider callback. Review means the outcome is uncertain and needs reconciliation before retrying.</p>{deliveries.length?deliveries.map(d=><p key={d.id}><strong>{d.status}</strong> · {d.createdAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}{d.error?` · ${d.error}`:""}</p>):<p>No automatic deliveries yet.</p>}</section>
+      <section className={`panel ${styles.draft}`} aria-label="WhatsApp automatic delivery readiness">
+        <h2>WhatsApp Business delivery readiness</h2>
+        <p role="status"><strong>{diagnostics.ready ? "Ready for consented automatic delivery" : "Automatic delivery not ready"}</strong></p>
+        <div className="room-summary-grid payments-summary">
+          <article className="compact-stat"><div><p>Business sender</p><strong>{diagnostics.senderLabel}</strong></div></article>
+          <article className="compact-stat"><div><p>Meta webhook</p><strong>{diagnostics.webhookLabel}</strong></div></article>
+          <article className="compact-stat"><div><p>Recipient permissions</p><strong>{diagnostics.recipientLabel}</strong></div></article>
+        </div>
+        {diagnostics.blockers.length > 0 ? <div className="mt-4">
+          <h3>Required setup before automatic sending</h3>
+          <ul>{diagnostics.blockers.map(b=><li key={b}>{b}</li>)}</ul>
+        </div> : null}
+        <p className="muted-note">Manual WhatsApp links work independently of automatic delivery. A queued or opened message is not delivered. Do not send automatic messages without a verified sender and recipient permission.</p>
+        <h3>Recent provider delivery results</h3>
+        <p>Accepted means Meta accepted the message. Delivered and Read require a verified provider callback. Review means the outcome is uncertain and needs reconciliation before retrying.</p>
+        {deliveries.length ? deliveries.map(d=><p key={d.id}><strong>{d.status}</strong> · {d.createdAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}{d.error?` · ${d.error}`:""}</p>) : <p>No automatic deliveries yet.</p>}
+      </section>
       <details className={`panel ${styles.draft}`}><summary>Record recipient WhatsApp permission</summary><p>Use this only when the person has explicitly agreed. Record how and when permission was obtained. Recipients can also manage their preference in their own account.</p>{[...tenants.map(t=>({id:t.id,name:t.fullName,audience:"tenant"})),...staff.map(s=>({id:s.id,name:s.name,audience:"staff"}))].map(person=><form action={recordWhatsAppPermission} key={`${person.audience}:${person.id}`} className={styles.compose}><h3>{person.name}</h3><p>{permissions.find(p=>p.accountId===person.id&&p.audience===person.audience)?.enabled?"Permission recorded":"Permission not recorded"}</p><input type="hidden" name="accountId" value={person.id}/><input type="hidden" name="audience" value={person.audience}/><label className="field-group"><span>Permission evidence (date and method)</span><input name="evidence" minLength={5} maxLength={300}/></label><label><input type="checkbox" name="confirmed"/> I obtained this person’s permission for hostel WhatsApp updates.</label><label><input type="checkbox" name="enabled"/> Allow automatic updates; leave unchecked to record withdrawal.</label><button className="secondary-button">Save permission</button></form>)}</details>
       {params.error && <p className={styles.error} role="alert">{params.error.slice(0, 300)}</p>}
       {organization.whatsappEnabled ? <WhatsAppDraftForm automatic={!!connection?.enabled} requestId={randomUUID()} tenants={tenants.map(t => ({ id: t.id, name: t.fullName, phone: t.phone }))} staff={staff}/> : <section className="panel"><p>Enable WhatsApp in <Link href="/settings">Settings</Link> to prepare messages.</p></section>}

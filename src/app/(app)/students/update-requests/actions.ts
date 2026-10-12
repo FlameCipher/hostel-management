@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { normalizeStudentDocument } from "@/lib/student-identifiers";
+import { normalizeStudentDocument, normalizeGuardianPhone } from "@/lib/student-identifiers";
 
 export type UpdateReviewState = { error: string; success: string };
 
@@ -52,8 +52,8 @@ export async function approveStudentUpdateAction(requestId: string, _state: Upda
       } });
       await tx.guardian.upsert({
         where: { studentId: current.studentId },
-        create: { studentId: current.studentId, name: current.guardianName, phone: current.guardianPhone, relationship: current.guardianRelationship, email: current.guardianEmail },
-        update: { name: current.guardianName, phone: current.guardianPhone, relationship: current.guardianRelationship, email: current.guardianEmail },
+        create: { studentId: current.studentId, name: current.guardianName, phone: normalizeGuardianPhone(current.guardianPhone), relationship: current.guardianRelationship, email: current.guardianEmail },
+        update: { name: current.guardianName, phone: normalizeGuardianPhone(current.guardianPhone), relationship: current.guardianRelationship, email: current.guardianEmail },
       });
       await tx.studentDetailsUpdateRequest.update({ where: { id: current.id }, data: { status: "APPROVED", reviewedById: session.userId, reviewedAt: new Date(), reviewNotes: null } });
       await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_DETAILS_UPDATE_APPROVED", entityType: "StudentDetailsUpdateRequest", entityId: current.id, metadata: { studentId: current.studentId } } });

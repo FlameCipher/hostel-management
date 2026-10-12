@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
+import { matchingStudentIdentifier, normalizeStudentIdentifiers, normalizeGuardianPhone } from "@/lib/student-identifiers";
 import { refreshChargeStatus } from "@/lib/payment-balance";
 
 export type StudentFormState = { error: string };
@@ -72,7 +72,7 @@ function guardianData(data: {
   if (!data.guardianName && !data.guardianPhone && !data.guardianRelationship && !data.guardianEmail) return null;
   return {
     name: data.guardianName,
-    phone: data.guardianPhone,
+    phone: normalizeGuardianPhone(data.guardianPhone),
     relationship: data.guardianRelationship || null,
     email: data.guardianEmail || null,
   };
