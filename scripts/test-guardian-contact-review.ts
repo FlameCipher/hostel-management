@@ -43,7 +43,7 @@ const first=guardianContactComparison(null,{name:"Guardian A",phone:"0714464701"
 assert.equal(first.nameSame,false);
 assert.equal(first.phoneSame,false);
 
-const css=readFileSync(new URL("../src/app/globals.css",import.meta.url),"utf8");
+const css=readFileSync("src/app/globals.css","utf8");
 assert.match(css,/\.update-review-actions \.row-actions \.primary-button/);
 assert.match(css,/\.update-review-actions \.row-actions \.secondary-button\.reject-outline/);
 assert.match(css,/\.update-review-actions \.row-actions \.danger-button/);
