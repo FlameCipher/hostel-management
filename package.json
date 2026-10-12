@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && npm run test:monthly-transfer && npm run test:monthly-adjustment && npm run test:historical-rent && npm run test:transfer-charge && npm run test:payment-correction && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
+    "build": "prisma generate --config prisma.config.ts && npm run test:recovery && npm run test:terms && npm run test:communications && npm run test:whatsapp && npm run test:resident-services && npm run test:hostel-app && npm run test:assistant && npm run test:contact && npm run test:invitations && npm run test:healthfix && npm run test:sso && npm run test:access && npm run test:domains && npm run test:onboarding && npm run test:account && npm run test:tenant-session && npm run test:photography && npm run test:bookings && npm run test:location && npm run test:currency && npm run test:rent && npm run test:monthly-transfer && npm run test:monthly-adjustment && npm run test:historical-rent && npm run test:transfer-charge && npm run test:payment-correction && npm run test:payment-correction-service && node scripts/verify-recovery-migration.mjs && prisma migrate deploy --config prisma.config.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -45,7 +45,8 @@
     "test:recovery:database": "node --import tsx scripts/test-recovery-database.mjs",
     "test:services:database": "node --import tsx scripts/test-service-delivery-database.mjs",
     "backup:verify": "node --import tsx scripts/verify-backup-restore.mjs",
-    "test:assistant": "node --import tsx --test scripts/test-openai-assistant.ts"
+    "test:assistant": "node --import tsx --test scripts/test-openai-assistant.ts",
+    "test:payment-correction-service": "node --import tsx scripts/test-payment-correction-service.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.91",
