@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { financialAuditNavigationRequest } from "../src/lib/financial-audit-intents";
+import { possibleTransferRentTreatments } from "../src/lib/financial-audit-rent-preview";
 import {
   auditActiveOccupancy, financialAuditSummary,
   type FinancialAuditOccupancy,
@@ -111,4 +112,17 @@ assert.equal(financialAuditNavigationRequest("Open financial integrity review"),
 assert.equal(financialAuditNavigationRequest("Show unpaid students"),false);
 assert.equal(financialAuditNavigationRequest("Send receipt to Joseph"),false);
 assert.equal(financialAuditNavigationRequest("Set Joseph's rent to 14000"),false);
+const possible=possibleTransferRentTreatments(joseph,date("2026-09-01"),date("2026-12-24"));
+assert.ok(possible);
+assert.equal(possible!.recordedRent,18000);
+assert.equal(possible!.recordedBalance,9000);
+assert.deepEqual(possible!.monthly.lines.map(x=>x.rate),[4500,3500,3500,3500]);
+assert.equal(possible!.monthly.total,15000);
+assert.equal(possible!.monthly.balance,6000);
+assert.equal(possible!.destinationSemester.total,14000);
+assert.equal(possible!.destinationSemester.balance,5000);
+assert.equal(possibleTransferRentTreatments(sheila,date("2026-09-01"),date("2026-12-24")),null,
+  "Owner-approved overrides must not offer an automatic month-based reprice.");
+assert.equal(possibleTransferRentTreatments(sameRate,date("2026-09-01"),date("2026-12-24")),null);
+assert.equal(possibleTransferRentTreatments(duplicate,date("2026-09-01"),date("2026-12-24")),null);
 console.log("Read-only hostel financial-integrity audit tests passed.");
