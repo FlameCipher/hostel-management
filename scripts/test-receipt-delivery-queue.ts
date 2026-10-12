@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { receiptDeliveryQueueState, type ReceiptDeliveryRow } from "../src/lib/receipt-delivery-queue";
+import { receiptQueueNavigationRequest } from "../src/lib/receipt-queue-intents";
 
 const base:ReceiptDeliveryRow={
   receiptDeliveryStatus:"PENDING",receiptDeliveryChannel:null,reversedAt:null,
@@ -46,4 +47,9 @@ const stale=receiptDeliveryQueueState({
 },now);
 assert.equal(stale.processing,false);
 assert.equal(stale.emailAvailable,true);
+assert.equal(receiptQueueNavigationRequest("Show pending receipts"),true);
+assert.equal(receiptQueueNavigationRequest("Open receipt delivery queue"),true);
+assert.equal(receiptQueueNavigationRequest("Which receipts have not been sent?"),true);
+assert.equal(receiptQueueNavigationRequest("Send receipt to the student"),false);
+assert.equal(receiptQueueNavigationRequest("Show unpaid students"),false);
 console.log("Receipt delivery queue status tests passed");
