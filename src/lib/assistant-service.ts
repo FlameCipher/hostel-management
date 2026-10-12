@@ -74,7 +74,7 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  // Personal tenant statements are not the same as public room-type rates.
  if(tenant && /\b(?:my|mine)\b/i.test(question) && /\b(?:rent|charges?|payments?|balance|receipt|statement|paid|owing)\b/i.test(question))
    return {mode:"guide",text:"Your own recorded charges, payments and rent balance are in your private account statement. I cannot infer your individual negotiated rent from public accommodation prices.",links:[{title:"My statement",href:"/tenant/account",action:"Open my statement"}]};
- const knowledge=await answerHostelKnowledge(database,session.organizationId,role==="PUBLIC"?"TENANT":role,question);
+ const knowledge=await answerHostelKnowledge(database,session.organizationId,role,question);
  if(knowledge)return knowledge;
  if(isPrivateFinanceQuestion(question))return {
    mode:"guide",text:"This question may involve private financial records. I cannot safely answer it from a general AI model without an exact verified student, room and accounting period. Please ask, for example, ‘What is the balance for Sheila Nyaboke?’ or ‘Who owes rent this semester?’, or open your authorized ledger. No records were changed.",
