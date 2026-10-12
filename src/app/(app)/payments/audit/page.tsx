@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { possibleTransferRentTreatments } from "@/lib/financial-audit-rent-preview";
 import {
   auditActiveOccupancy, financialAuditSummary,
   type FinancialAuditOccupancy,
@@ -23,7 +24,7 @@ export default async function FinancialIntegrityPage({
     include:{
       student:{select:{fullName:true,admissionNumber:true}},
       room:{include:{roomType:true}},
-      semester:{select:{name:true}},
+      semester:{select:{name:true,startDate:true,endDate:true}},
       roomStays:{
         orderBy:{startDate:"asc"},
         include:{room:{select:{number:true}}},
@@ -73,6 +74,7 @@ export default async function FinancialIntegrityPage({
       admissionNumber:o.student.admissionNumber,
       semester:o.semester.name,
       findings:auditActiveOccupancy(input),
+      preview:possibleTransferRentTreatments(input,o.semester.startDate,o.semester.endDate),
       hasOwnerAdjustments:input.charges.some((c)=>c.adjustments.some((a)=>a.reason==="RATE_CORRECTION" || a.calculationMethod==="CUSTOM")),
     };
   });
@@ -151,7 +153,14 @@ export default async function FinancialIntegrityPage({
                   <strong className="table-subtext">{finding.title}</strong>
                   <small className="table-subtext">{finding.detail}</small>
                 </div>
-              ):<span className="status-pill status-full">No flags</span>}</td>
+              ):<span className="status-pill status-full">No flags</span>}
+                {row.preview ? <div className="mt-3">
+                  <strong className="table-subtext">Possible agreements for owner review only</strong>
+                  <small className="table-subtext">Month-of-transfer pricing: {money(row.preview.monthly.total,row.preview.currency)} rent · {money(row.preview.monthly.balance,row.preview.currency)} remaining.</small>
+                  <small className="table-subtext">Full destination-room semester rate: {money(row.preview.destinationSemester.total,row.preview.currency)} rent · {money(row.preview.destinationSemester.balance,row.preview.currency)} remaining.</small>
+                  <small className="table-subtext">These are illustrations, not corrections or instructions to charge the student.</small>
+                </div> : null}
+              </td>
               <td><Link className="table-action" href={"/occupancy/"+encodeURIComponent(row.id)}>View occupancy</Link></td>
             </tr>;
           })}</tbody>
