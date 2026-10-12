@@ -8,9 +8,11 @@ const monthNames=["january","february","march","april","may","june","july","augu
 export function financialMonthFromQuestion(question:string):string|null {
   const numeric=question.match(/\b(20\d{2})-(0[1-9]|1[0-2])\b/);
   if(numeric)return numeric[0];
-  const word=monthNames.findIndex(name=>new RegExp(`\\b${name}\\b`,"i").test(question));
+  const word=monthNames.findIndex(name=>name==="may"
+    ? /(?:\b(?:for|in|during|of|month)\s+may\b|\bmay\s+(?:20\d{2}\b|collections?|payments?|rent|balances?)\b|\bmay\s*$)/i.test(question)
+    : new RegExp(`\\b${name}\\b`,"i").test(question));
   if(word<0)return null;
-  const year=question.match(/\b20\d{2}\b/)?.[0]??String(new Date().getUTCFullYear());
+  const year=question.match(/\b20\d{2}\b/)?.[0]??new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Nairobi",year:"numeric"}).format(new Date());
   return `${year}-${String(word+1).padStart(2,"0")}`;
 }
 export function managementIntent(question:string):ManagementIntent {
