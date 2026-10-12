@@ -6,7 +6,7 @@ import { ArrowLeft, Building2, Download, Mail, PencilLine } from "lucide-react";
 import { emailPendingReceiptAction } from "./email-action";
 import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { ReceiptShareActions } from "@/components/receipt-share-actions";
-import { requireSession } from "@/lib/auth/session";
+import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
 import { db } from "@/lib/db";
 import "@/components/receipt-toolbar.css";
 
@@ -19,7 +19,7 @@ export default async function PaymentReceiptPage({
   searchParams: Promise<{delivery?: string; correction?: string}>;
 }) {
 
-  const session = await requireSession();
+  const session = await requireStaffFinanceAccess();
   const { id } = await params;
   const paramsQuery=await searchParams;
   const payment = await db.payment.findFirst({

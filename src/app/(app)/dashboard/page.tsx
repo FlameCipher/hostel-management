@@ -3,7 +3,7 @@ import { formatMoney, roundCurrency } from "@/lib/currency";
 import { managementCurrency } from "@/lib/organization-currency";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Banknote, BedDouble, CalendarDays, DoorOpen, Users, MessageCircle, Smartphone, CircleAlert } from "lucide-react";
-import { requireSession } from "@/lib/auth/session";
+import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
 import { db } from "@/lib/db";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 import { requestPropertyContext } from "@/lib/property-host";
@@ -13,7 +13,7 @@ import styles from "./dashboard.module.css";
 export default async function DashboardPage() {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
-  const session = await requireSession();
+  const session = await requireStaffFinanceAccess();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
   const [rooms, students, charges, recentPayments] = await Promise.all([
     db.room.findMany({ where: { organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, include: { student: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, include: { student: true } } }, orderBy: { number: "asc" } }),

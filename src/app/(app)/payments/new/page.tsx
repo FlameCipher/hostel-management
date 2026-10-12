@@ -10,7 +10,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
-  if (session.role === "CARETAKER") redirect("/payments");
+  if (session.role === "CARETAKER") redirect("/visitors");
   const params = await searchParams;
   const [students, semesters, roomTypes, charges] = await Promise.all([
     db.student.findMany({ where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "CHECKED_OUT"] } }, orderBy: { fullName: "asc" } }),
