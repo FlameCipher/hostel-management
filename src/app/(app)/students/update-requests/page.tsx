@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { CheckCircle2, ClipboardList, Clock3, Phone, UserRound, XCircle } from "lucide-react";
 import { StudentUpdateReviewActions } from "@/components/student-update-review-actions";
 import { CopyStudentUpdateLink } from "@/components/copy-student-update-link";
@@ -31,7 +32,7 @@ export default async function StudentUpdateRequestsPage() {
   const rejected = requests.filter((item) => item.status === "REJECTED").length;
 
   return <div>
-    <div className="page-heading-row"><div><p className="eyebrow">Student data completion</p><h1>Detail update requests</h1><p>Review student submissions before changing the official register.</p></div><CopyStudentUpdateLink /></div>
+    <div className="page-heading-row"><div><p className="eyebrow">Student data completion</p><h1>Detail update requests</h1><p>Review student submissions before changing the official register.</p></div><div className="heading-actions"><Link href="/students/guardians" className="secondary-button no-underline">Guardian register</Link><CopyStudentUpdateLink /></div></div>
     <section className="room-summary-grid" aria-label="Update request summary"><article className="compact-stat"><span className="metric-icon metric-blue"><ClipboardList size={22} /></span><div><p>Total requests</p><strong>{requests.length}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-sky"><Clock3 size={22} /></span><div><p>Pending review</p><strong>{pending}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-green"><CheckCircle2 size={22} /></span><div><p>Approved</p><strong>{approved}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-red"><XCircle size={22} /></span><div><p>Rejected</p><strong>{rejected}</strong></div></article></section>
     <section className="update-request-list mt-5">{requests.length ? requests.map((request) => <article className="panel update-request-card" key={request.id}>
       <header><div><p className="panel-kicker">Submitted {request.createdAt.toLocaleDateString("en-KE", { dateStyle: "medium" })}</p><h2>{request.student.fullName}</h2><a className="table-phone" href={`tel:${request.student.phone}`}><Phone size={11} /> {request.student.phone}</a></div><span className={`status-pill ${request.status === "APPROVED" ? "status-paid" : request.status === "REJECTED" ? "status-maintenance" : "status-due"}`}>{request.status}</span></header>
