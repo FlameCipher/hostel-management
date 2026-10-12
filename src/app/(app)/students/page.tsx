@@ -1,6 +1,6 @@
 import { FormSelect } from "@/components/form-select";
 import Link from "next/link";
-import { BedDouble, ClipboardList, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound } from "lucide-react";
+import { BedDouble, ClipboardList, FileUp, GraduationCap, Mail, Pencil, Phone, Plus, Search, ShieldAlert, Trash2, UserCheck, UserRound, Users } from "lucide-react";
 import { StudentStatus, type StudentStatus as StudentStatusType } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -50,6 +50,10 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
             { fullName: { contains: query, mode: "insensitive" } },
             ...phoneVariants.map((phone) => ({ phone: { contains: phone } })),
             { admissionNumber: { contains: query, mode: "insensitive" } },
+            { guardian: { is: { name: { contains: query, mode: "insensitive" } } } },
+            ...phoneVariants.map((phone)=>({
+              guardian: { is: { phone: { contains: phone } } },
+            })),
             {
               occupancies: {
                 some: {
@@ -90,8 +94,8 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
   return (
     <div>
       <div className="page-heading-row">
-        <div><p className="eyebrow">Tenant management</p><h1>Students</h1><p>Manage student records, JKUAT details, guardians and current accommodation.</p></div>
-        {canManageStudents ? <div className="heading-actions">{canDeleteStudents ? <Link className="secondary-button no-underline" href="/students/update-requests"><ClipboardList size={18} /> Update requests{pendingUpdates ? ` (${pendingUpdates})` : ""}</Link> : null}<Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
+        <div><p className="eyebrow">Tenant management</p><h1>Students</h1><p>Manage student records, JKUAT details, guardian contacts, registration approvals and current accommodation.</p></div>
+        {canManageStudents ? <div className="heading-actions">{canDeleteStudents ? <Link className="secondary-button no-underline" href="/students/update-requests"><ClipboardList size={18} /> Update requests{pendingUpdates ? ` (${pendingUpdates})` : ""}</Link> : null}<Link className="secondary-button no-underline" href="/students/guardians"><Users size={18} /> Guardians</Link><Link className="secondary-button no-underline" href="/students/import"><FileUp size={18} /> Import CSV</Link><Link className="primary-button no-underline" href="/students/new"><Plus size={18} /> Add student</Link></div> : null}
       </div>
 
       <section className="room-summary-grid" aria-label="Student summary">
@@ -104,7 +108,7 @@ export default async function StudentsPage({ searchParams }: StudentsPageProps) 
       <section className="panel mt-5 overflow-hidden">
         <div className="panel-heading room-list-heading"><div><p className="panel-kicker">Student register</p><h2>{students.length} matching student{students.length === 1 ? "" : "s"}</h2></div></div>
         <form className="filter-bar student-filter-bar" method="get">
-          <label className="filter-search"><Search size={17} /><input aria-label="Search students by name, phone, room or admission number" defaultValue={query} name="q" placeholder="Search name, phone, room or admission number" /></label>
+          <label className="filter-search"><Search size={17} /><input aria-label="Search students by name, phone, room or admission number" defaultValue={query} name="q" placeholder="Search student, guardian, phone, room or admission" /></label>
           <FormSelect aria-label="Filter by student status" defaultValue={status ?? ""} name="status"><option value="">All statuses</option>{Object.values(StudentStatus).map((value) => <option key={value} value={value}>{studentStatusLabels[value]}</option>)}</FormSelect>
           <button className="secondary-button" type="submit">Apply filters</button>
           {(query || status) ? <Link className="text-link" href="/students">Clear</Link> : null}

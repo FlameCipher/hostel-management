@@ -61,7 +61,7 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
 
   return (
     <div className="form-page">
-      <div className="page-heading-row"><div><p className="eyebrow">Student register</p><h1>Edit student</h1><p>Update student and guardian information.</p></div></div>
+      <div className="page-heading-row"><div><p className="eyebrow">Student register</p><h1>Edit student</h1><p>Update student and guardian information.</p></div><Link href="/students/guardians" className="secondary-button no-underline">Guardian register</Link></div>
       <StudentForm student={{
         id: student.id, fullName: student.fullName, phone: student.phone, email: student.email ?? "", university: student.university,
         admissionNumber: student.admissionNumber ?? "", nationalId: student.nationalId ?? "",
