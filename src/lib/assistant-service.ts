@@ -17,6 +17,7 @@ import { answerHostelKnowledge } from "./assistant-knowledge-reader";
 import { issueAssistantContext, readAssistantContext, isRoomFinanceFollowup } from "./assistant-conversation-context";
 import { personSearchIntent, isPersonSearchFollowup } from "./assistant-person-intents";
 import { answerPersonSearch } from "./assistant-person-search";
+import { announcementIntent, prepareAnnouncementDraft } from "./assistant-announcement";
 import { financialBalanceIntent, genderReportIntent, contextualBalanceFollowup } from "./assistant-report-intents";
 import { answerOutstandingTotal } from "./assistant-outstanding-total";
 import { answerStudentGenderReport } from "./assistant-student-demographics";
@@ -107,6 +108,10 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
      }
      return answer;
    }
+ }
+ if(!tenant && staff && staff.role!=="CARETAKER") {
+   const requestedAnnouncement=announcementIntent(question);
+   if(requestedAnnouncement)return prepareAnnouncementDraft(database,session.organizationId,requestedAnnouncement);
  }
  if(genderReportIntent(question))return {mode:"guide",text:"Student demographic counts are available only to authenticated hostel management. Students can request corrections to their personal information through the approved channels.",links:[]};
  // Personal tenant statements are not the same as public room-type rates.
