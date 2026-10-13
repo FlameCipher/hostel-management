@@ -4,7 +4,7 @@
  */
 export type PersonSearchIntent={kind:"student-search";name:string;asksAvailability:boolean};
 const NAME=/^[\p{L}][\p{L}\p{M}.'’\- ]{1,99}$/u;
-const stopwords=/^(?:rooms?|hostels?|beds?|prices?|rates?|rent|visitor|visitors|students?|tenants?|guardians?|owners?|staff|caretakers?|security|gate|office|management|vacancies|availability|anyone|somebody|someone|everybody|everyone|there|here|today|tomorrow|yesterday|payments?|receipts?|balances?|accounts?)$/i;
+const stopwords=/^(?:rooms?|hostels?|beds?|prices?|rates?|rent|visitor|visitors|students?|tenants?|guardians?|owners?|staff|caretakers?|security|gate|office|management|vacancies|availability|anyone|somebody|someone|everybody|everyone|one|ones|them|they|he|she|there|here|today|tomorrow|yesterday|payments?|receipts?|balances?|accounts?)$/i;
 function personName(raw:string):string|null {
   const value=raw.replace(/\s+/g," ").trim().replace(/[?!.]+$/,"").trim();
   if(value.length<2||value.length>100||!NAME.test(value)||stopwords.test(value))return null;
