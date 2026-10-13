@@ -10,7 +10,7 @@ import { studentStatusLabels } from "@/lib/students";
 type StudentDefaults = {
   id: string; fullName: string; phone: string; email: string; university: string; admissionNumber: string;
   nationalId: string; admittedAt: string; status: "ACTIVE" | "CHECKED_OUT" | "SUSPENDED" | "ARCHIVED";
-  notes: string; guardianName: string; guardianPhone: string; guardianRelationship: string; guardianEmail: string;
+  notes: string; gender?: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | null; guardianName: string; guardianPhone: string; guardianRelationship: string; guardianEmail: string;
 };
 
 type Option = { id: string; label: string };
@@ -37,6 +37,7 @@ export function StudentForm({
         <label className="field-group form-span-2"><span>Full name *</span><input defaultValue={student?.fullName} maxLength={120} name="fullName" placeholder="Student’s full name" required /></label>
         <label className="field-group"><span>Phone number *</span><input defaultValue={student?.phone} inputMode="tel" name="phone" placeholder="e.g. 0712 345 678" required /></label>
         <label className="field-group"><span>Student email</span><input defaultValue={student?.email} name="email" placeholder="Used for automatic receipts" type="email" /></label>
+        <label className="field-group"><span>Gender (optional, self-reported)</span><FormSelect defaultValue={student?.gender??""} name="gender"><option value="">Not recorded</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option><option value="PREFER_NOT_TO_SAY">Prefer not to say</option></FormSelect><small>Optional. Used for authorized aggregate student statistics. Do not guess from the name.</small></label>
         <label className="field-group"><span>Admission number</span><input defaultValue={student?.admissionNumber} maxLength={50} name="admissionNumber" placeholder="JKUAT admission number" /></label>
         <label className="field-group"><span>University *</span><input defaultValue={student?.university ?? "JKUAT"} maxLength={100} name="university" required /></label>
         <label className="field-group"><span>National ID</span><input defaultValue={student?.nationalId} maxLength={30} name="nationalId" placeholder="Optional" /></label>
