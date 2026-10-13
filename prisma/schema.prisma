@@ -62,6 +62,14 @@ enum StudentStatus {
   ARCHIVED
 }
 
+/** Optional student-provided demographic information; never guessed from names. */
+enum StudentGender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
 enum OccupancyStatus {
   RESERVED
   ACTIVE
@@ -619,6 +627,7 @@ model Student {
   id              String        @id @default(cuid())
   organizationId  String
   fullName        String
+  gender          StudentGender?
   phone           String
   email           String?
   university      String        @default("JKUAT")

@@ -17,6 +17,9 @@ import { answerHostelKnowledge } from "./assistant-knowledge-reader";
 import { issueAssistantContext, readAssistantContext, isRoomFinanceFollowup } from "./assistant-conversation-context";
 import { personSearchIntent, isPersonSearchFollowup } from "./assistant-person-intents";
 import { answerPersonSearch } from "./assistant-person-search";
+import { financialBalanceIntent, genderReportIntent, contextualBalanceFollowup } from "./assistant-report-intents";
+import { answerOutstandingTotal } from "./assistant-outstanding-total";
+import { answerStudentGenderReport } from "./assistant-student-demographics";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -67,6 +70,18 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
    }
    const named=namedStudentAccountIntent(question);
    if(named) return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},named.name,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+   if(genderReportIntent(question))return answerStudentGenderReport(database,session.organizationId);
+   // Bare "How much is balance?" refers to the last verified room/student only
+   // when the client provides a valid signed context. Otherwise report the clearly
+   // labeled total outstanding for the entire hostel, not collections.
+   if(contextualBalanceFollowup(question)) {
+     const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
+     if(subject?.kind==="room")return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     if(subject?.kind==="student-search")return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+   }
+   const balance=financialBalanceIntent(question);
+   if(balance==="bank-unavailable")return {mode:"guide",text:"I can verify outstanding hostel charges and recorded payments, but I do not have a verified live bank, M-Pesa or cash-wallet account balance. Please reconcile those accounts before reporting cash available.",links:[{title:"Reconciliation",href:"/payments/reconciliation",action:"Review payments"}]};
+   if(balance==="outstanding")return answerOutstandingTotal(database,session.organizationId,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
    const intent=managementIntent(question);
    if(intent?.kind==="debtors" || intent?.kind==="collected") {
      const result=await managementLedgerAnswer(database,session.organizationId,intent.kind,intent.month,requestedFinancePeriod(question,intent.month));
@@ -93,6 +108,7 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
      return answer;
    }
  }
+ if(genderReportIntent(question))return {mode:"guide",text:"Student demographic counts are available only to authenticated hostel management. Students can request corrections to their personal information through the approved channels.",links:[]};
  // Personal tenant statements are not the same as public room-type rates.
  if(tenant && /\b(?:my|mine)\b/i.test(question) && /\b(?:rent|charges?|payments?|balance|receipt|statement|paid|owing)\b/i.test(question))
    return {mode:"guide",text:"Your own recorded charges, payments and rent balance are in your private account statement. I cannot infer your individual negotiated rent from public accommodation prices.",links:[{title:"My statement",href:"/tenant/account",action:"Open my statement"}]};
