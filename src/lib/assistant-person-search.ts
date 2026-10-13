@@ -42,7 +42,7 @@ export async function answerPersonSearch(db:PrismaClient,organizationId:string,r
    :"These are registered student and room-allocation records, not proof a person is physically present. You can ask which of these students is currently registered.")+
    "\nNo student or payment records were changed.",
   links:[link("Student register","/students","Open students"),link("Occupancy","/occupancy","Check allocations")],
-  contextName:broad?tokens[0]:name
+  contextName:broad?name.trim().split(/\s+/)[0]:name
  };
 }
 export {personSearchIntent};
