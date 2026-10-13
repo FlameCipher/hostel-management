@@ -11,6 +11,8 @@ import { transferReviewNavigationRequest } from "@/lib/room-transfer-review-inte
 import { occupancySearchShortcut } from "@/lib/assistant-search-policy";
 import { personSearchIntent, isPersonSearchFollowup } from "@/lib/assistant-person-intents";
 import { AssistantActionWorkspace, type AssistantWorkspaceData } from "@/components/assistant-action-workspace";
+import { AssistantAnnouncementReview } from "@/components/assistant-announcement-review";
+import type { AnnouncementDraft } from "@/lib/assistant-announcement";
 import { contextualBalanceFollowup } from "@/lib/assistant-report-intents";
 import styles from "./assistant-chat.module.css";
 
@@ -31,6 +33,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const [busy,setBusy]=useState(false);
   const [contextToken,setContextToken]=useState<string|null>(null);
   const [workflow,setWorkflow]=useState<"register"|"payment"|null>(null);
+  const [announcement,setAnnouncement]=useState<AnnouncementDraft|null>(null);
   const id=useRef(0);
   const messageLog=useRef<HTMLDivElement>(null);
   const suggestions=role==="MANAGEMENT"
@@ -66,6 +69,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     setSubmitted(value);
     setBusy(true);
     setWorkflow(null);
+    setAnnouncement(null);
     try {
       const response=await fetch("/api/assistant",{
         method:"POST",headers:{"Content-Type":"application/json"},
@@ -80,6 +84,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       const text=typeof result.text==="string"?result.text:"I could not verify an answer. Please try again.";
       setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links}]);
       if(role==="MANAGEMENT"&&workspace&&(result.workflow==="register"||result.workflow==="payment"))setWorkflow(result.workflow);
+      if(role==="MANAGEMENT"&&result.workflow==="announcement"&&result.draft&&typeof result.draft==="object")setAnnouncement(result.draft as AnnouncementDraft);
     } catch(error) {
       const text=error instanceof Error?error.message:"Connection interrupted. Please try again.";
       setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",mode:"error",text}]);
@@ -127,6 +132,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     </form>
     <p className={styles.helper}><ShieldCheck size={12} style={{verticalAlign:"-2px"}} aria-hidden="true"/> Live answers use permitted records. Financial changes require confirmation. Never enter passwords or PINs here.</p>
     {workflow&&workspace?<AssistantActionWorkspace key={workflow} kind={workflow} data={workspace} onClose={()=>setWorkflow(null)}/>:null}
+    {announcement?<AssistantAnnouncementReview key={announcement.requestId} draft={announcement} onClose={()=>setAnnouncement(null)}/>:null}
     {submitted&&guides.length>0?<details className={styles.extras}>
       <summary>Related help and system instructions</summary>
       {guides.map(item=><div className={styles.guide} key={item.href+item.title}>
