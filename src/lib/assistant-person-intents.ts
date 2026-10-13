@@ -8,6 +8,7 @@ const stopwords=/^(?:rooms?|hostels?|beds?|prices?|rates?|rent|visitor|visitors|
 function personName(raw:string):string|null {
   const value=raw.replace(/\s+/g," ").trim().replace(/[?!.]+$/,"").trim();
   if(value.length<2||value.length>100||!NAME.test(value)||stopwords.test(value))return null;
+  if(/^(?:(?:the|our|my)\s+)?(?:hostel|rooms?|beds?|vacancies?|office|gate|compound|building|website|system|management)\b/i.test(value))return null;
   if(value.split(" ").length>6)return null;
   return value;
 }
