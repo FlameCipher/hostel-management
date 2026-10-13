@@ -108,6 +108,7 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
      return answer;
    }
  }
+ if(genderReportIntent(question))return {mode:"guide",text:"Student demographic counts are available only to authenticated hostel management. Students can request corrections to their personal information through the approved channels.",links:[]};
  // Personal tenant statements are not the same as public room-type rates.
  if(tenant && /\b(?:my|mine)\b/i.test(question) && /\b(?:rent|charges?|payments?|balance|receipt|statement|paid|owing)\b/i.test(question))
    return {mode:"guide",text:"Your own recorded charges, payments and rent balance are in your private account statement. I cannot infer your individual negotiated rent from public accommodation prices.",links:[{title:"My statement",href:"/tenant/account",action:"Open my statement"}]};
