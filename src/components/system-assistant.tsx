@@ -29,6 +29,7 @@ const safeLink = (candidate:unknown):candidate is ChatLink => {
 export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:AssistantWorkspaceData}) {
   const router=useRouter();
   const narrator=useAssistantNarrator(role==="TENANT"?"tenant":"staff");
+  const privateNarrationConfirmed=useRef<Set<number>>(new Set());
   const [question,setQuestion]=useState("");
   const [submitted,setSubmitted]=useState("");
   const [messages,setMessages]=useState<Message[]>([]);
@@ -116,14 +117,22 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
              narrator.state.id===message.id&&narrator.state.status==="paused"?"Resume narration":
              narrator.state.id===message.id&&narrator.state.status==="loading"?"Cancel loading voice":"Read response aloud"}
            aria-pressed={narrator.state.id===message.id&&narrator.state.status==="playing"}
-           onClick={()=>void narrator.toggle(message.id,message.text,message.voiceTicket)}>
+           disabled={!message.voiceTicket}
+           onClick={()=>{
+            if(message.mode!=="ai"&&!privateNarrationConfirmed.current.has(message.id)){
+              const allowed=window.confirm("Kinari's actual narrator uses OpenAI speech generation. This answer may contain private student or financial information. Do you approve sending this answer to the speech provider for reading aloud?");
+              if(!allowed)return;
+              privateNarrationConfirmed.current.add(message.id);
+            }
+            void narrator.toggle(message.id,message.text,message.voiceTicket);
+           }}>
            {narrator.state.id===message.id&&narrator.state.status==="loading"?<LoaderCircle size={15} className={styles.spinning}/>:
              narrator.state.id===message.id&&narrator.state.status==="playing"?<Pause size={15}/>:
              narrator.state.id===message.id&&narrator.state.status==="paused"?<Play size={15}/>:<Volume2 size={15}/>}
            <span>{narrator.state.id===message.id&&narrator.state.status==="loading"?"Preparing voice…":
              narrator.state.id===message.id&&narrator.state.status==="playing"?"Pause":
              narrator.state.id===message.id&&narrator.state.status==="paused"?"Resume":
-             message.voiceTicket?"Listen · Kinari voice":"Listen"}</span>
+             message.voiceTicket?"Listen · Kinari voice":"Kinari voice unavailable"}</span>
           </button>
           {narrator.state.id===message.id&&["playing","paused","loading"].includes(narrator.state.status)?
            <button type="button" className={styles.narrationButton} onClick={narrator.stop} aria-label="Stop reading this response">
@@ -153,7 +162,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
         <button className={styles.send} type="submit" disabled={busy||!question.trim()} aria-label="Send question"><SendHorizontal size={20} aria-hidden="true"/></button>
       </div>
     </form>
-    <p className={styles.helper}><ShieldCheck size={12} style={{verticalAlign:"-2px"}} aria-hidden="true"/> Live answers use permitted records. Financial changes require confirmation. Never enter passwords or PINs here.</p>
+    <p className={styles.helper}><ShieldCheck size={12} style={{verticalAlign:"-2px"}} aria-hidden="true"/> Kinari narrator is generated on demand using OpenAI speech. Reading a private hostel answer requires your consent for that message; no ordinary phone voice is substituted. Financial changes still require confirmation.</p>
     {workflow&&workspace?<AssistantActionWorkspace key={workflow} kind={workflow} data={workspace} onClose={()=>setWorkflow(null)}/>:null}
     {announcement?<AssistantAnnouncementReview key={announcement.requestId} draft={announcement} onClose={()=>setAnnouncement(null)}/>:null}
     {submitted&&guides.length>0?<details className={styles.extras}>
