@@ -64,6 +64,7 @@ export function AssistantActionWorkspace({ kind, data, onClose }: Props) {
           { label: "Registered mobile", value: field(f, "phone") },
           { label: "Admission number", value: field(f, "admissionNumber") || "Not supplied" },
           { label: "Guardian", value: guardian || "Not supplied" },
+          { label: "Gender", value: ({MALE:"Male",FEMALE:"Female",OTHER:"Other",PREFER_NOT_TO_SAY:"Prefer not to say"} as Record<string,string>)[field(f,"gender")] ?? "Not recorded" },
           { label: "Accommodation type", value: room.label },
           { label: "Active semester", value: semester.label },
           { label: "Initial rent charge", value: formatMoney(room.semesterRate, data.currency) },
@@ -116,6 +117,7 @@ export function AssistantActionWorkspace({ kind, data, onClose }: Props) {
           <label className="field-group"><span>Registered phone *</span><input name="phone" type="tel" required pattern="[+0-9() .-]{9,20}" /></label>
           <label className="field-group"><span>Email (optional)</span><input name="email" type="email" /></label>
           <label className="field-group"><span>University *</span><input name="university" defaultValue="JKUAT" required /></label>
+          <label className="field-group"><span>Gender (optional, self-reported)</span><select name="gender" defaultValue=""><option value="">Not recorded</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option><option value="PREFER_NOT_TO_SAY">Prefer not to say</option></select></label>
           <label className="field-group"><span>Admission number</span><input name="admissionNumber" maxLength={50} /></label>
           <label className="field-group"><span>National ID (optional)</span><input name="nationalId" maxLength={30} /></label>
           <label className="field-group"><span>Admission date *</span><input name="admittedAt" type="date" defaultValue={today} required /></label>
