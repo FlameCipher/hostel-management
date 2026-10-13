@@ -38,6 +38,7 @@ export function AssistantAnnouncementReview({draft,onClose}:{draft:AnnouncementD
   </div><button type="button" className="secondary-button" disabled={pending} onClick={onClose}>Close</button></div>
   <div className="form-grid">
    <div><strong>{draft.recipientCount}</strong><small> Current eligible hostel tenants</small></div>
+   <div><strong>{draft.portalEnabledCount}</strong><small> Have activated portal access</small></div>
    <div><strong>{draft.emailCount}</strong><small> Have a recorded email address</small></div>
    <div><strong>{draft.whatsappOptInCount}</strong><small> Recorded WhatsApp opt-ins (not proof of delivery)</small></div>
   </div>
@@ -61,7 +62,7 @@ export function AssistantAnnouncementReview({draft,onClose}:{draft:AnnouncementD
    <label className="check-field"><input name="whatsapp" type="checkbox" checked={whatsapp} onChange={e=>{setWhatsapp(e.target.checked);changed();}}/>
     Prepare WhatsApp copies. Automatic delivery requires consent, verified Business sender and webhook; otherwise delivery remains manual.
    </label>
-   <p className="muted-note">All current tenants with an active/reserved hostel allocation will receive a private portal notice after publication. This is not an SMS blast, WhatsApp group or proof of WhatsApp/email delivery. Students outside the current tenant audience are not included.</p>
+   <p className="muted-note">A private portal notice will be created for all eligible current tenants after approval. Only {draft.portalEnabledCount} currently have activated portal access to read it; others require account activation. This is not an SMS blast, WhatsApp group or proof of WhatsApp/email delivery. Students outside the current tenant audience are not included.</p>
    {review?<div className="panel" role="region" aria-label="Announcement approval preview" style={{padding:14}}>
     <h3>Confirm before publishing</h3>
     <p><strong>{review.title}</strong></p>
