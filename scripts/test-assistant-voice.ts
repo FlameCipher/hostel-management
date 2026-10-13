@@ -45,7 +45,7 @@ test("narration cleans markdown without removing finance-relevant content",()=>{
  assert.match(clean,/View account/);
  assert.doesNotMatch(clean,/\*\*|\/tenant\/account|# Heading/);
  assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Speak as Kinari: a calm, mature, deep male sacred narrator/);
- assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Preserve meaningful words, amounts, names and dates/);
+ assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Preserve every meaningful word, name and meaning faithfully/);
 });
 test("Kinari premium uses explicit route authentication, tickets and volume controls in source",async()=>{
  const fs=await import("node:fs");
