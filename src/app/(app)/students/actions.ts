@@ -17,6 +17,7 @@ const optionalPhoneSchema = z.union([z.literal(""), phoneSchema]);
 
 const studentSchema = z.object({
   fullName: z.string().trim().min(2, "Enter the student’s full name.").max(120),
+  gender: z.union([z.literal(""),z.enum(["MALE","FEMALE","OTHER","PREFER_NOT_TO_SAY"])]).optional(),
   phone: phoneSchema,
   email: z.union([z.literal(""), z.string().trim().email("Enter a valid student email.")]),
   university: z.string().trim().min(2, "Enter the university name.").max(100),
@@ -52,6 +53,7 @@ async function requireStudentManager() {
 function studentValues(formData: FormData) {
   return {
     fullName: formData.get("fullName"), phone: formData.get("phone"), email: formData.get("email"), university: formData.get("university"),
+    gender: formData.get("gender") ?? undefined,
     admissionNumber: formData.get("admissionNumber"), nationalId: formData.get("nationalId"),
     admittedAt: formData.get("admittedAt"), status: formData.get("status"), notes: formData.get("notes"),
     guardianName: formData.get("guardianName"), guardianPhone: formData.get("guardianPhone"),
@@ -128,6 +130,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
     const student = await tx.student.create({
       data: {
         organizationId: session.organizationId, fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null,
+        gender: parsed.data.gender || null,
         university: parsed.data.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status,
         notes: parsed.data.notes || null,
@@ -175,6 +178,7 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
       where: { id: studentId },
       data: {
         fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null, university: parsed.data.university,
+        ...(parsed.data.gender !== undefined ? {gender: parsed.data.gender || null} : {}),
         admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId,
         admittedAt: new Date(`${parsed.data.admittedAt}T12:00:00.000Z`), status: parsed.data.status, notes: parsed.data.notes || null,
       },
