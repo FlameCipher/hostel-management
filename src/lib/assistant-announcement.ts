@@ -6,7 +6,7 @@ import { managedPropertyHost } from "@/lib/property-host-policy";
 export type AnnouncementIntent={kind:"account-update"|"general";audience:"ALL"};
 export type AnnouncementDraft={
   requestId:string;title:string;body:string;category:"GENERAL";
-  audience:"ALL";recipientCount:number;emailCount:number;whatsappOptInCount:number;
+  audience:"ALL";recipientCount:number;portalEnabledCount:number;emailCount:number;whatsappOptInCount:number;
   propertyName:string;updateLink:string|null;loginLink:string|null;registerLink:string|null;
 };
 
@@ -48,7 +48,7 @@ export function accountUpdateText(propertyName:string,updateLink:string,loginLin
 export async function prepareAnnouncementDraft(database:PrismaClient,organizationId:string,intent:AnnouncementIntent){
  const [properties,students,consents]=await Promise.all([
   database.property.findMany({where:{organizationId,active:true,publicListing:true},select:{id:true,name:true,customDomain:true},take:3}),
-  database.student.findMany({where:tenantWhere(organizationId),select:{id:true,email:true},take:5001}),
+  database.student.findMany({where:tenantWhere(organizationId),select:{id:true,email:true,portalEnabled:true},take:5001}),
   database.whatsAppConsent.findMany({where:{organizationId,audience:"tenant",enabled:true},select:{accountId:true},take:5001})
  ]);
  const base=[{title:"Communication centre",href:"/communications",action:"Review announcement centre"}];
@@ -61,6 +61,7 @@ export async function prepareAnnouncementDraft(database:PrismaClient,organizatio
   const text=accountUpdateText(property.name,origin+"/update-details",origin+"/tenant/login",origin+"/tenant/register");
   const consentSet=new Set(consents.map(c=>c.accountId));
   const draft:AnnouncementDraft={requestId:randomUUID(),...text,category:"GENERAL",audience:"ALL",recipientCount:students.length,
+   portalEnabledCount:students.filter(s=>s.portalEnabled).length,
    emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
    whatsappOptInCount:students.filter(s=>consentSet.has(s.id)).length,
    propertyName:property.name,updateLink:origin+"/update-details",loginLink:origin+"/tenant/login",registerLink:origin+"/tenant/register"};
@@ -72,6 +73,6 @@ export async function prepareAnnouncementDraft(database:PrismaClient,organizatio
  }
  return {mode:"workflow" as const,workflow:"announcement" as const,
   text:"I have opened an announcement editor for "+students.length+" current tenants. Please write the exact notice, review the audience and approve before publishing. No messages have been sent.",
-  links:base,draft:{requestId:randomUUID(),title:"Hostel management announcement",body:"",category:"GENERAL",audience:"ALL",recipientCount:students.length,emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
+  links:base,draft:{requestId:randomUUID(),title:"Hostel management announcement",body:"",category:"GENERAL",audience:"ALL",recipientCount:students.length,portalEnabledCount:students.filter(s=>s.portalEnabled).length,emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
    whatsappOptInCount:students.filter(s=>consents.some(c=>c.accountId===s.id)).length,propertyName:properties.length===1?properties[0].name:"Hostel",updateLink:null,loginLink:null,registerLink:null} satisfies AnnouncementDraft};
 }
