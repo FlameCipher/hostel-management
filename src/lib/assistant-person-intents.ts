@@ -36,5 +36,5 @@ export function personSearchIntent(question:string):PersonSearchIntent|null {
 export function isPersonSearchFollowup(question:string):boolean {
  const q=question.trim().toLowerCase();
  if(!q||q.length>200||/\broom\s*\d+/i.test(q))return false;
- return /^(?:(?:and|then|okay|so)\s+)?(?:which\s+(?:one|of them)\s+(?:is|are)\s+(?:available|active|registered|here|staying)|(?:is|are)\s+(?:he|she|they|that (?:person|student))\s+(?:available|active|registered|here|staying)|where\s+(?:is|are)\s+(?:he|she|they)\s+(?:staying|living)|(?:tell me|show me)\s+(?:more about|their room|his room|her room)|which\s+(?:one|of them)\??)/i.test(q);
+ return /^(?:(?:and|then|okay|so)\s+)?(?:which\s+(?:one|of them)\s+(?:is|are)\s+(?:currently\s+)?(?:available|active|registered|here|staying)|(?:is|are)\s+(?:he|she|they|that (?:person|student))\s+(?:currently\s+)?(?:available|active|registered|here|staying)|where\s+(?:is|are)\s+(?:he|she|they)\s+(?:staying|living)|(?:tell me|show me)\s+(?:more about|their room|his room|her room)|which\s+(?:one|of them)\??)/i.test(q);
 }
