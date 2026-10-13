@@ -15,6 +15,8 @@ import { operationalIntent, answerOperationalQuestion } from "./assistant-operat
 import { roomAccountIntent, answerRoomAccount } from "./assistant-room-account";
 import { answerHostelKnowledge } from "./assistant-knowledge-reader";
 import { issueAssistantContext, readAssistantContext, isRoomFinanceFollowup } from "./assistant-conversation-context";
+import { personSearchIntent, isPersonSearchFollowup } from "./assistant-person-intents";
+import { answerPersonSearch } from "./assistant-person-search";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -45,8 +47,22 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
    }
    if(isRoomFinanceFollowup(question)) {
      const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
-     if(!subject)return {mode:"guide",text:"Which room or student are you asking about? Please give the room number again. I won't guess or show unrelated payments.",links:[{title:"Rooms",href:"/rooms",action:"Find room"}]};
+     if(!subject)return {mode:"guide",text:"Which room or student are you asking about? Please give a room number or a registered student name again. I will not guess or show unrelated payments.",links:[{title:"Rooms",href:"/rooms",action:"Find room"}]};
+     if(subject.kind==="student-search")return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
      const answer=await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     return {...answer,contextToken};
+   }
+   const person=personSearchIntent(question);
+   if(person) {
+     const found=await answerPersonSearch(database,session.organizationId,staff.role,person.name,person.asksAvailability);
+     const {contextName,...answer}=found;
+     return {...answer,contextToken:contextName?issueAssistantContext({kind:"student-search",query:contextName},pointerPrincipal,secret):null};
+   }
+   if(isPersonSearchFollowup(question)) {
+     const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
+     if(subject?.kind!=="student-search")return {mode:"guide",text:"Which student do you mean? Please give the registered name again so I can search the student register.",links:[{title:"Students",href:"/students",action:"Open students"}]};
+     const found=await answerPersonSearch(database,session.organizationId,staff.role,subject.query,true);
+     const {contextName,...answer}=found;
      return {...answer,contextToken};
    }
    const named=namedStudentAccountIntent(question);
@@ -61,6 +77,12 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  }
 
  if(!tenant && staff) {
+   // Caretakers may use the visitor gate but cannot search all students by name.
+   const person=personSearchIntent(question);
+   if(person) {
+     const result=await answerPersonSearch(database,session.organizationId,staff.role,person.name,person.asksAvailability);
+     const {contextName:unused,...answer}=result;void unused;return answer;
+   }
    const operation=operationalIntent(question);
    if(operation) {
      const answer=await answerOperationalQuestion(database,session.organizationId,staff.role,operation);
