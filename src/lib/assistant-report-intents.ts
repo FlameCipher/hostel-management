@@ -14,6 +14,8 @@ export type BalanceIntent="outstanding"|"bank-unavailable"|null;
 export function financialBalanceIntent(question:string):BalanceIntent {
  const q=question.trim().toLowerCase();
  if(!q||q.length>1200)return null;
+ // Pronouns or a named owner may indicate a private account, not the hostel total.
+ if(/\b(?:his|her|their)\s+(?:outstanding\s+)?balance\b|\b(?:student|tenant|resident)(?:\u0027s|’s)\s+balance\b/i.test(q))return null;
  if(/\b(?:bank|account balance|mpesa balance|m-pesa balance|cash balance|wallet balance)\b/i.test(q)
      && /\b(?:balance|remaining|left|money)\b/i.test(q))return"bank-unavailable";
  if(/\b(?:balance|balances|outstanding|arrears|debt|debts|unpaid|owing|owed|due|remaining)\b/i.test(q)&&
