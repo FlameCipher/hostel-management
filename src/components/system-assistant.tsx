@@ -9,6 +9,7 @@ import { receiptQueueNavigationRequest } from "@/lib/receipt-queue-intents";
 import { financialAuditNavigationRequest } from "@/lib/financial-audit-intents";
 import { transferReviewNavigationRequest } from "@/lib/room-transfer-review-intents";
 import { occupancySearchShortcut } from "@/lib/assistant-search-policy";
+import { personSearchIntent, isPersonSearchFollowup } from "@/lib/assistant-person-intents";
 import { AssistantActionWorkspace, type AssistantWorkspaceData } from "@/components/assistant-action-workspace";
 import styles from "./assistant-chat.module.css";
 
@@ -50,8 +51,10 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       if(transferReviewNavigationRequest(value)){router.push("/occupancy/transfers");return;}
       if(financialAuditNavigationRequest(value)){router.push("/payments/audit");return;}
       if(receiptQueueNavigationRequest(value)){router.push("/payments?delivery=all");return;}
-      const shortcut=occupancySearchShortcut(value);
-      if(shortcut){router.push("/occupancy?q="+encodeURIComponent(shortcut));return;}
+      if(!personSearchIntent(value)) {
+        const shortcut=occupancySearchShortcut(value);
+        if(shortcut){router.push("/occupancy?q="+encodeURIComponent(shortcut));return;}
+      }
     }
     // Send the signed, short-lived room pointer only for explicit pronoun
     // follow-ups. It is never saved to URLs, local storage, analytics or logs.
@@ -65,7 +68,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     try {
       const response=await fetch("/api/assistant",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:isFollowup?contextToken:null}),
+        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:(isFollowup||isPersonSearchFollowup(value))?contextToken:null}),
         cache:"no-store",signal:AbortSignal.timeout(35000)
       });
       const result=await response.json();

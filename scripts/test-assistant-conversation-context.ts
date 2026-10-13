@@ -24,3 +24,14 @@ test("follow-up parser is conservative and never assumes a new identity",()=>{
  for(const q of ["What is the password?","Register that student","Who is in room 12?","Send him a receipt","How much have we collected?"])
   assert.equal(isRoomFinanceFollowup(q),false,q);
 });
+
+test("student-name pointer is authenticated, expires, and never grants finance access",()=>{
+ const token=issueAssistantContext({kind:"student-search",query:"David Kirumba"},a,key,now);
+ assert.ok(token);
+ assert.deepEqual(readAssistantContext(token,a,key,new Date(now.getTime()+1000)),{kind:"student-search",query:"David Kirumba"});
+ assert.equal(readAssistantContext(token,{...a,organizationId:"other-hostel"},key,now),null);
+ assert.equal(readAssistantContext(token,{...a,role:"CARETAKER"},key,now),null);
+ assert.equal(readAssistantContext(token,{...a,sessionVersion:4},key,now),null);
+ assert.equal(readAssistantContext(token,a,key,new Date(now.getTime()+900001)),null);
+ assert.equal(issueAssistantContext({kind:"student-search",query:"../../private-secrets"} as any,a,key,now),null);
+});
