@@ -91,13 +91,14 @@ test("full authorized assistant routes screenshot questions before model and vac
   const one=await answerHostelQuestion(db,session,false,"Am looking for David kirumba",provider);
   assert.equal(one.mode,"records");
   assert.match(one.text,/David Kirumba/);
-  assert.ok(typeof one.contextToken==="string");
+  const pointer="contextToken" in one && typeof one.contextToken==="string"?one.contextToken:null;
+  assert.ok(pointer);
   const two=await answerHostelQuestion(db,session,false,"Which David is available",provider);
   assert.equal(two.mode,"records");
   assert.match(two.text,/David Njoroge/);
   assert.doesNotMatch(two.text,/free bed spaces/);
   assert.equal(calls.other,0);
-  const three=await answerHostelQuestion(db,session,false,"Which one is active?",provider,one.contextToken);
+  const three=await answerHostelQuestion(db,session,false,"Which one is active?",provider,pointer);
   assert.equal(three.mode,"records");
   assert.match(three.text,/David Kirumba/);
  }finally{if(prev===undefined)delete process.env.SESSION_SECRET;else process.env.SESSION_SECRET=prev;}
