@@ -11,6 +11,7 @@ import { transferReviewNavigationRequest } from "@/lib/room-transfer-review-inte
 import { occupancySearchShortcut } from "@/lib/assistant-search-policy";
 import { personSearchIntent, isPersonSearchFollowup } from "@/lib/assistant-person-intents";
 import { AssistantActionWorkspace, type AssistantWorkspaceData } from "@/components/assistant-action-workspace";
+import { contextualBalanceFollowup } from "@/lib/assistant-report-intents";
 import styles from "./assistant-chat.module.css";
 
 type ChatLink = { title:string; href:string; action:string };
@@ -68,7 +69,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     try {
       const response=await fetch("/api/assistant",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:(isFollowup||isPersonSearchFollowup(value))?contextToken:null}),
+        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:(isFollowup||isPersonSearchFollowup(value)||contextualBalanceFollowup(value))?contextToken:null}),
         cache:"no-store",signal:AbortSignal.timeout(35000)
       });
       const result=await response.json();
