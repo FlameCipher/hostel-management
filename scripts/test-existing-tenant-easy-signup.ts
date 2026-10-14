@@ -35,7 +35,7 @@ test("manager retains independent identity verification, unique exact match shor
  assert.match(actions,/reviewTenantRegistration/);
  assert.match(service,/portalEnabled: false/);
  assert.match(service,/normalizedResidentName\(student.fullName\) !== normalizedResidentName\(row.fullName\)/);
- assert.match(service,/whatsappNumber\(student.phone, row.property.countryCode\) !== row.phone/);
+ assert.match(service,/whatsappNumber\(student.phone, registrationCountryCode\(row.property.countryCode,row.organizationId\)\) !== row.phone/);
  assert.match(service,/input\.verified/);
 });
 test("even exact existing details only make pending request; no portal is created or activated",async()=>{
