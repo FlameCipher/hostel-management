@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requestPropertyContext } from "@/lib/property-host";
 import { createBookingTicket } from "@/lib/booking-requests";
 import { TenantRegistrationForm } from "@/components/tenant-registration-forms";
+import { registrationCountryCode } from "@/lib/tenant-registration";
 import styles from "@/components/resident-services.module.css";
 export const dynamic="force-dynamic";
 export const metadata={title:"Existing student account",robots:{index:false,follow:false}};
@@ -15,7 +16,7 @@ export default async function TenantRegistrationPage(){
     <p style={{margin:0,lineHeight:1.5}}>Already living here? Get access to your room details, rent statement, receipts and hostel messages.</p>
    </header>
    <section className={`panel ${styles.card}`}>
-    <TenantRegistrationForm ticket={createBookingTicket(`registration:${property.id}`)} countryCode={property.countryCode}/>
+    <TenantRegistrationForm ticket={createBookingTicket(`registration:${property.id}`)} countryCode={registrationCountryCode(property.countryCode,property.organizationId)} hostelName={property.name}/>
    </section>
    <p className={styles.meta}>Only for students already staying at this hostel. Management verifies your registered name, mobile number and room before activation. Creating an account is free and does not book another room or change your rent.</p>
    <div className={styles.actions}>

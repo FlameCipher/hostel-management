@@ -7,13 +7,22 @@ import { publishedWhere } from "./property-host-policy";
 import { residentStaff } from "./resident-access";
 import { whatsappNumber } from "./whatsapp-policy";
 import { normalizedResidentName } from "./resident-policy";
+/**
+ * MMAMBUGUA HOSTEL is a verified Kenya-based organization. Older records can
+ * lack a countryCode, but residents must still be able to enter the 07/01
+ * mobile number management holds on file. Never guess the country for other
+ * organizations, or override an explicitly configured different country.
+ */
+export function registrationCountryCode(countryCode:string|null|undefined,organizationId:string):string|null {
+ return countryCode || (organizationId==="mama-mbugua-hostel"?"KE":null);
+}
 const schema = z.object({ fullName: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(30), roomNumber: z.string().trim().min(1).max(40), password: z.string().min(10).max(128).refine(v => Buffer.byteLength(v, "utf8") <= 72), confirmation: z.string().max(128), consent: z.literal(true) }).refine(v => v.password === v.confirmation);
 export async function submitTenantRegistration(db: PrismaClient, propertyId: string, raw: unknown, ticket: unknown, fingerprint: string, now = new Date()): Promise<{ error?: string; success?: string }> {
   const parsed = schema.safeParse(raw), signed = verifyBookingTicket(ticket, `registration:${propertyId}`, now);
   if (!parsed.success || !signed || !fingerprint) return { error: "Complete your details and matching passwords (10 characters minimum, up to 72 UTF-8 bytes). Refresh this page if it has expired." };
   const property = await db.property.findFirst({ where: { id: propertyId, ...publishedWhere() } });
   if (!property) return { error: "Open your hostel website to register." };
-  const phone = whatsappNumber(parsed.data.phone, property.countryCode);
+  const phone = whatsappNumber(parsed.data.phone, registrationCountryCode(property.countryCode,property.organizationId));
   if (!phone) return { error: "Use your registered phone number with country code, for example +254…" };
   if (await db.tenantRegistration.count({ where: { fingerprint, createdAt: { gte: new Date(now.getTime() - 3600000) } } }) >= 5) return { error: "Too many requests. Please wait an hour or contact management." };
   const passwordHash = await hash(parsed.data.password, 12);
@@ -48,7 +57,7 @@ export async function reviewTenantRegistration(db: PrismaClient, session: Sessio
     if (input.approve) {
       if (!input.verified || !input.studentId || !row.passwordHash) return { error: "Select the existing tenant and confirm that you independently verified their identity in person or through the contact already on file." };
       const student = await tx.student.findFirst({ where: { id: input.studentId, organizationId: session.organizationId, status: "ACTIVE", portalEnabled: false, portalPasswordHash: null, portalLastLoginAt: null, portalInviteBlocked: false, occupancies: { some: { organizationId: session.organizationId, status: "ACTIVE", room: { organizationId: session.organizationId, propertyId: row.propertyId, number: { equals: row.roomNumber, mode: "insensitive" } }, semester: { organizationId: session.organizationId } } } } });
-      if (!student || !row.property.active || whatsappNumber(student.phone, row.property.countryCode) !== row.phone || normalizedResidentName(student.fullName) !== normalizedResidentName(row.fullName)) return { error: "The name, registered phone and current room must match this hostel's existing tenant record. Existing, disabled or previously used portal accounts require the account recovery process." };
+      if (!student || !row.property.active || whatsappNumber(student.phone, registrationCountryCode(row.property.countryCode,row.organizationId)) !== row.phone || normalizedResidentName(student.fullName) !== normalizedResidentName(row.fullName)) return { error: "The name, registered phone and current room must match this hostel's existing tenant record. Existing, disabled or previously used portal accounts require the account recovery process." };
       await tx.student.update({ where: { id: student.id }, data: { portalEnabled: true, portalPasswordHash: row.passwordHash } });
       await tx.tenantPortalInvitation.updateMany({ where: { organizationId: session.organizationId, studentId: student.id, usedAt: null }, data: { tokenHash: null, status: "ACTIVATED", usedAt: now } });
     }
