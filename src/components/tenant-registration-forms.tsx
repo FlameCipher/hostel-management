@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { PasswordInput } from "@/components/password-input";
 import { HostelInstallCard } from "./hostel-app";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, type FormEvent } from "react";
 import { registerTenantAction, reviewRegistrationAction } from "@/app/tenant/register/actions";
 import styles from "./resident-services.module.css";
 import signup from "./existing-tenant-signup.module.css";
@@ -13,16 +13,38 @@ type Step=1|2;
  * This is NOT new student admission. The request is linked only after an
  * existing occupant's registered identity and room are checked by management.
  */
-export function TenantRegistrationForm({ ticket, countryCode }: { ticket: string; countryCode?:string|null }) {
+export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ticket: string; countryCode?:string|null; hostelName:string }) {
   const [state,action,pending]=useActionState(registerTenantAction,{});
   const [step,setStep]=useState<Step>(1);
+  const [formError,setFormError]=useState("");
   const form=useRef<HTMLFormElement>(null);
   const localPhone=countryCode==="KE";
   function next(){
     const fields=Array.from(form.current?.querySelectorAll<HTMLInputElement>("[data-identity-input]")??[]);
     const invalid=fields.find(input=>!input.checkValidity());
     if(invalid){invalid.reportValidity();invalid.focus();return;}
+    setFormError("");
     setStep(2);
+  }
+  function guardSubmit(event:FormEvent<HTMLFormElement>) {
+    // Mobile Enter/Go must advance the visible first step, never try to submit
+    // invisible password inputs or silently create an incomplete request.
+    if(step===1){event.preventDefault();next();return;}
+    const form=event.currentTarget;
+    const password=form.elements.namedItem("password");
+    const confirmation=form.elements.namedItem("confirmation");
+    if(!(password instanceof HTMLInputElement)||!(confirmation instanceof HTMLInputElement)){
+      event.preventDefault();setFormError("Please enter and confirm your password.");return;
+    }
+    if(password.value!==confirmation.value) {
+      event.preventDefault();setFormError("Passwords do not match. Check both entries and try again.");
+      confirmation.focus();return;
+    }
+    if(new TextEncoder().encode(password.value).length>72) {
+      event.preventDefault();setFormError("Your password is too long. Use fewer characters.");
+      password.focus();return;
+    }
+    setFormError("");
   }
   if(state.success)return <section className={signup.confirmation} role="status">
     <span className={signup.tag}>Step 2 of 2 complete · Request received</span>
@@ -33,7 +55,7 @@ export function TenantRegistrationForm({ ticket, countryCode }: { ticket: string
     <Link className="primary-button" href="/tenant/login">Student sign in</Link>
     <details className={signup.install}><summary>Install hostel app on my phone (optional)</summary><HostelInstallCard/></details>
   </section>;
-  return <form ref={form} action={action} className={signup.form}>
+  return <form ref={form} action={action} onSubmit={guardSubmit} className={signup.form}>
     <input name="ticket" type="hidden" value={ticket}/>
     <input name="website" type="hidden" value=""/>
     <div className={signup.steps} aria-label="Registration progress">
@@ -42,7 +64,7 @@ export function TenantRegistrationForm({ ticket, countryCode }: { ticket: string
     </div>
     <fieldset hidden={step!==1} className={signup.fieldset} aria-label="Verify existing hostel details">
       <legend className={signup.legend}>Confirm your existing hostel details</legend>
-      <p className={signup.intro}>Use the same details you gave MMAMBUGUA HOSTEL when you moved in.</p>
+      <p className={signup.intro}>Use the same details you gave {hostelName} when you moved in.</p>
       <label className="field-group"><span>Your registered full name *</span>
         <input data-identity-input name="fullName" type="text" autoComplete="name" autoCapitalize="words" minLength={2} maxLength={120}
           placeholder="e.g. Mary Wanjiku" required/>
@@ -59,7 +81,7 @@ export function TenantRegistrationForm({ ticket, countryCode }: { ticket: string
       <button type="button" className="primary-button" onClick={next}>Continue →</button>
       <p className={signup.help}>Already have an active account? <Link href="/tenant/login">Sign in instead</Link>.</p>
     </fieldset>
-    <fieldset hidden={step!==2} className={signup.fieldset} aria-label="Create account password">
+    <fieldset hidden={step!==2} disabled={step!==2} className={signup.fieldset} aria-label="Create account password">
       <legend className={signup.legend}>Create your sign-in password</legend>
       <p className={signup.intro}>Use a password you can remember and keep private. You will use your mobile number to sign in.</p>
       <label className="field-group"><span>Create password *</span>
@@ -73,11 +95,12 @@ export function TenantRegistrationForm({ ticket, countryCode }: { ticket: string
         <span>I live at this hostel and am requesting access to my own student account. Management may verify my details.</span>
       </label>
       <div className={signup.buttons}>
-        <button type="button" className="secondary-button" disabled={pending} onClick={()=>setStep(1)}>← Edit my details</button>
+        <button type="button" className="secondary-button" disabled={pending} onClick={()=>{setFormError("");setStep(1);}}>← Edit my details</button>
         <button className="primary-button" type="submit" disabled={pending}>{pending?"Submitting…":"Submit registration"}</button>
       </div>
       <p className={signup.help}>Management will verify your identity and current room before granting access. No extra rent is charged.</p>
     </fieldset>
+    {formError?<p className="form-error" role="alert">{formError}</p>:null}
     {state.error?<div className="form-error" role="alert">{state.error}<br/>If you entered a different name, number or room, select <strong>Edit my details</strong>.</div>:null}
   </form>;
 }
