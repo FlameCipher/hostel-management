@@ -21,3 +21,26 @@ test("tenant audience requires a current allocation in the same hostel",()=>{con
 test("Nairobi schedule converts to UTC and rejects past or malformed date",()=>{const now=new Date("2026-10-08T00:00:00Z");assert.equal(scheduledDate("2026-10-10T08:00",now)?.toISOString(),"2026-10-10T05:00:00.000Z");assert.equal(scheduledDate("2026-10-01T08:00",now),null);assert.equal(scheduledDate("invalid",now),null)});
 test("Nairobi day uses local midnight",()=>{assert.equal(nairobiDay(new Date("2026-10-09T21:01:00Z")),"2026-10-10")});
 test("balance subtracts provided unreversed payments and never negative",()=>{assert.equal(outstanding("18000.10",[{amount:"5000.05"}]),13000.05);assert.equal(outstanding("100",[{amount:"101"}]),0)});
+
+test("notice composer offers all or selected tenants, search and review confirmation", async()=>{
+ const { readFileSync } = await import("node:fs");
+ const source=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
+ assert.match(source,/name="audience" value="ALL"/);
+ assert.match(source,/name="audience" value="SELECTED"/);
+ assert.match(source,/name="studentIds" type="checkbox"/);
+ assert.match(source,/Select all shown/);
+ assert.match(source,/Clear selection/);
+ assert.match(source,/recipientCount === 0 \|\| !confirmed/);
+ assert.match(source,/private hostel inbox/);
+ assert.match(source,/WhatsApp copies are queued as drafts/);
+});
+test("WhatsApp composer has all or selected recipients with explicit approval",async()=>{
+ const { readFileSync } = await import("node:fs");
+ const source=readFileSync(new URL("../src/components/whatsapp-draft-form.tsx",import.meta.url),"utf8");
+ assert.match(source,/name="selection" value="ALL"/);
+ assert.match(source,/name="selection" value="SELECTED"/);
+ assert.match(source,/Select all shown/);
+ assert.match(source,/Clear selection/);
+ assert.match(source,/!reviewed/);
+ assert.match(source,/Each message stays private/);
+});
