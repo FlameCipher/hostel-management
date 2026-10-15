@@ -39,7 +39,7 @@ export function WhatsAppDraftForm({ tenants, staff, requestId, automatic=false }
     <p className={styles.note}>{automatic?"Your business sender will send eligible messages automatically to opted-in recipients. Review the message and recipients before queueing. Other messages remain as manual drafts.":"Use international phone numbers, for example +254714464701. Open each draft, review it and tap Send in WhatsApp."}</p>
     <p role="status"><strong>{selection === "ALL" ? contacts.length : selected.length} recipient{(selection === "ALL" ? contacts.length : selected.length) === 1 ? "" : "s"} selected.</strong> Each message stays private.</p>
     <label className="check-field"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)}/>I have checked the recipients and message.</label>
-    {state.error && <p className={styles.error} role="alert">{state.error}</p>
+    {state.error && <p className={styles.error} role="alert">{state.error}</p>}
     {state.success && <p className={styles.success} role="status">{state.success}</p>}
     <div className={styles.actions}><button className="primary-button" disabled={pending || !!state.success || (selection === "ALL" ? contacts.length : selected.length) === 0 || !reviewed}>{pending ? "Preparing…" : automatic?"Queue private messages":"Prepare private drafts"}</button>{state.success && <a className="secondary-button" href="/communications/whatsapp">Write another message</a>}</div>
   </form>;
