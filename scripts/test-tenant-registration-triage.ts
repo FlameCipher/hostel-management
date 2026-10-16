@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {
   comparablePhone,registrationIdentityKey,registrationReviewLabels,
   registrationCaseKind,registrationCaseLabels,
@@ -121,7 +122,6 @@ const renamed=triageTenantRegistrations([
 assert.equal(renamed.caseCounts.conflicts,2,"Both identities using the same phone remain separate blocked cases.");
 assert.equal(renamed.caseCounts.verifyIdentity,0,"A matching application with conflicting phone claimant is not ready for human identity checking.");
 
-const {readFileSync}=await import("node:fs");
 const managementPage=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
 assert.match(managementPage,/registrationCaseKind\(g\)===focus/);
 assert.match(managementPage,/triage\.caseCounts\.verifyIdentity/);
