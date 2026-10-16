@@ -10,9 +10,43 @@ import { db } from "@/lib/db";
 
 
 export default async function OccupancyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await requireSession();
+  // Gate staff may verify a current allocation, but must not query guardians,
+  // receipts, payment allocations, rent adjustments or historical rate snapshots.
+  // This branch runs before the separate management finance query below.
+  if (session.role === "CARETAKER") {
+    const { id } = await params;
+    const gateOccupancy = await db.occupancy.findFirst({
+      where: { id, organizationId: session.organizationId },
+      select: {
+        status: true, checkInAt: true,
+        student: { select: { fullName: true, phone: true } },
+        room: { select: { number: true, roomType: { select: { name: true } } } },
+        semester: { select: { name: true } },
+      },
+    });
+    if (!gateOccupancy) notFound();
+    return <div>
+      <div className="page-heading-row"><div>
+        <p className="eyebrow">Read-only gate allocation</p>
+        <h1>{gateOccupancy.student.fullName}</h1>
+        <p>Room {gateOccupancy.room.number} · {gateOccupancy.semester.name}</p>
+      </div><Link className="secondary-button" href="/visitors">Visitor gate</Link></div>
+      <section className="panel mt-5"><div className="panel-heading"><div>
+        <p className="panel-kicker">Resident verification</p><h2>Current room record</h2>
+      </div><BedDouble size={19} /></div>
+      <dl className="detail-list">
+        <div><dt>Room</dt><dd>{gateOccupancy.room.number}</dd></div>
+        <div><dt>Accommodation type</dt><dd>{gateOccupancy.room.roomType.name}</dd></div>
+        <div><dt>Recorded occupancy</dt><dd>{gateOccupancy.status}</dd></div>
+        <div><dt>Check-in date</dt><dd>{gateOccupancy.checkInAt.toLocaleDateString("en-KE", { timeZone: "Africa/Nairobi" })}</dd></div>
+        <div><dt>Resident phone</dt><dd><a href={`tel:${gateOccupancy.student.phone}`}><Phone size={12} /> {gateOccupancy.student.phone}</a></dd></div>
+      </dl><p className="muted-note">This is a recorded allocation, not proof that the resident or visitor is physically present. Verify identity at the gate.</p></section>
+      <Link className="text-link" href="/occupancy">Back to resident allocations</Link>
+    </div>;
+  }
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
-  const session = await requireSession();
   const { id } = await params;
   const occupancy = await db.occupancy.findFirst({
     where: { id, organizationId: session.organizationId },
