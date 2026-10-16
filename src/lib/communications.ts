@@ -10,6 +10,9 @@ export const communicationSchema = z.object({
  audience: z.enum(["ALL", "SELECTED"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
  category: z.enum(["GENERAL", "EXAM", "HOLIDAY", "BALANCE"]),
  publishAt: z.date(), email: z.boolean().default(false), whatsapp: z.boolean(), requestId: z.string().uuid(),
+ // Optional for non-UI internal callers. The management composer always sends
+ // its reviewed preview count, and publishing fails closed when records change.
+ expectedRecipientCount: z.number().int().min(1).max(5000).optional(),
 });
 export function tenantWhere(organizationId: string): Prisma.StudentWhereInput {
  return { organizationId, status: "ACTIVE", occupancies: { some: { organizationId, status: { in: ["ACTIVE", "RESERVED"] }, room: { organizationId }, semester: { organizationId } } } };
@@ -45,6 +48,8 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const ids=[...new Set(value.studentIds)];
  const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
  if(!students.length || students.length>5000 || (value.audience === "SELECTED" && students.length !== ids.length)) return {error:"Recipients must be current tenants of this hostel. Maximum 5,000 recipients."};
+ if(value.expectedRecipientCount!==undefined && students.length!==value.expectedRecipientCount)
+   return {error:"The recipient register changed since your review. Refresh the notice, check the recipients again, and confirm before saving."};
  const accessiblePortals=students.filter(student=>student.portalEnabled && student.portalPasswordHash!==null).length;
  const awaitingPortal=students.length-accessiblePortals;
  let added=0;
