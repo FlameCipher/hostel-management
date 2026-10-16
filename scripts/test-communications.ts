@@ -51,11 +51,12 @@ test("WhatsApp composer has all or selected recipients with explicit approval",a
 test("published notices distinguish portal access from unread inbox records and external delivery",async()=>{
  const f=fixture(["one","two"],true,["one"]);
  const response=await publishCommunication(f.db,session,{...input,audience:"ALL",studentIds:[],email:false,whatsapp:false});
- assert.match(response.success??"",/Saved 2 private tenant notices/);
- assert.match(response.success??"",/1 recipient currently has portal access, and 1 cannot read/);
- assert.match(response.success??"",/No email copies requested/);
- assert.match(response.success??"",/No WhatsApp copies requested/);
- assert.match(response.success??"",/actual delivery and read statuses/);
+ const message="success" in response ? response.success : "";
+ assert.match(message,/Saved 2 private tenant notices/);
+ assert.match(message,/1 recipient currently has portal access, and 1 cannot read/);
+ assert.match(message,/No email copies requested/);
+ assert.match(message,/No WhatsApp copies requested/);
+ assert.match(message,/actual delivery and read statuses/);
  assert.equal(f.messages.size,2);
  assert.equal(f.audits.length,1);
  const audit=f.audits[0] as {data:{metadata:Record<string,unknown>}};
@@ -66,8 +67,9 @@ test("published notices distinguish portal access from unread inbox records and 
 test("requested email and WhatsApp remain explicitly queued or draft, not delivered",async()=>{
  const f=fixture(["one"],true,[]);
  const response=await publishCommunication(f.db,session,{...input,email:true,whatsapp:true});
- assert.match(response.success??"",/Email copies requested for queue processing, not confirmed delivered/);
- assert.match(response.success??"",/WhatsApp copies requested as drafts, not sent/);
+ const message="success" in response ? response.success : "";
+ assert.match(message,/Email copies requested for queue processing, not confirmed delivered/);
+ assert.match(message,/WhatsApp copies requested as drafts, not sent/);
  assert.equal(f.messages.size,1);
 });
 
