@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { registrationCountryCode } from "@/lib/tenant-registration";
 import {
   triageTenantRegistrations,registrationReviewLabels,
+  registrationCaseKind,registrationCaseLabels,type RegistrationCaseKind,
   type ReviewRegistration,type RegisteredTenant,
 } from "@/lib/tenant-registration-triage";
 import { RegistrationReviewForm } from "@/components/tenant-registration-forms";
@@ -15,7 +16,7 @@ export const metadata={title:"Tenant registration verification",robots:{index:fa
 
 export default async function RegistrationsPage({
   searchParams,
-}:{searchParams:Promise<{page?:string;history?:string;q?:string}>}){
+}:{searchParams:Promise<{page?:string;history?:string;q?:string;focus?:string}>}){
   const session=await requireSession();
   if(!(await residentStaff(db,session,true)))return <section className="panel">
     <h1>Tenant verification unavailable</h1>
@@ -25,6 +26,9 @@ export default async function RegistrationsPage({
   const history=params.history==="1";
   const page=Math.max(1,Math.min(10000,Number.parseInt(params.page??"1",10)||1));
   const search=(params.q??"").trim().slice(0,80).toLowerCase();
+  const focusOptions=["VERIFY_IDENTITY","CONFLICT","RECORD_REVIEW","EXISTING_ACCOUNT","EXPIRED"];
+  const focus:RegistrationCaseKind|"ALL"=focusOptions.includes(params.focus??"")
+    ? params.focus as RegistrationCaseKind:"ALL";
   const now=new Date();
 
   const [pending,allPending,properties,students,activeStudents,portalEnabled,
@@ -78,9 +82,10 @@ export default async function RegistrationsPage({
     propertyId=>countryByProperty.get(propertyId)??null,now,
   );
   const propertyById=new Map(properties.map(p=>[p.id,p]));
-  const groups=triage.groups.filter(g=>!search||
-    [g.fullName,g.phone,...g.rooms,propertyById.get(g.propertyId)?.name??""]
-      .join(" ").toLowerCase().includes(search));
+  const groups=triage.groups.filter(g=>
+    (focus==="ALL" || registrationCaseKind(g)===focus) &&
+    (!search || [g.fullName,g.phone,...g.rooms,propertyById.get(g.propertyId)?.name??""]
+      .join(" ").toLowerCase().includes(search)));
   const first=groups.slice(0,500);
   const missingEmail=pendingInvitations.find(r=>r.status==="MISSING_EMAIL")?._count._all??0;
   const expiredEmail=pendingInvitations.find(r=>r.status==="EXPIRED")?._count._all??0;
@@ -114,6 +119,15 @@ export default async function RegistrationsPage({
       <p><strong>{triage.counts.repeatSubmissions}</strong> extra submissions from repeat applicants;
         <strong> {triage.counts.conflictingRooms}</strong> applicant groups contain conflicting room claims;
         <strong> {triage.counts.conflictingPhoneGroups}</strong> groups share a phone with a different registered name.</p>
+      <h3>Distinct applicant cases requiring management review</h3>
+      <p><strong>{triage.caseCounts.verifyIdentity}</strong> cases have a matching current record and can proceed to
+        <strong> independent human identity checking</strong> (not automatic approval);
+        <strong> {triage.caseCounts.conflicts}</strong> have conflicting claims;
+        <strong> {triage.caseCounts.recordReview}</strong> require resident-record review;
+        <strong> {triage.caseCounts.existingAccount}</strong> already have a portal account; and
+        <strong> {triage.caseCounts.expired}</strong> are expired.</p>
+      <p className={styles.meta}>Case totals count people-and-phone groups, not repeat applications.
+        A matched student is not an authenticated applicant. No automated approval or rejection takes place.</p>
       <p>{eligibleStudents} active resident records meet the existing portal activation prerequisites.
         No account is activated by reviewing this screen.</p>
       {!complete?<p className="form-error" role="alert">The pending register exceeds the reviewed limit.
@@ -151,13 +165,27 @@ export default async function RegistrationsPage({
             <input name="q" defaultValue={params.q??""} maxLength={80}
               placeholder="Student, phone, property or room" aria-label="Search applicants"/>
           </label>
+          <label className="field-group"><span>Review priority</span>
+            <select name="focus" defaultValue={focus} aria-label="Filter registration cases by priority">
+              <option value="ALL">All applicant cases</option>
+              <option value="VERIFY_IDENTITY">Identity verification needed ({triage.caseCounts.verifyIdentity})</option>
+              <option value="CONFLICT">Conflicting claims ({triage.caseCounts.conflicts})</option>
+              <option value="RECORD_REVIEW">Resident record issues ({triage.caseCounts.recordReview})</option>
+              <option value="EXISTING_ACCOUNT">Existing portal access ({triage.caseCounts.existingAccount})</option>
+              <option value="EXPIRED">Expired ({triage.caseCounts.expired})</option>
+            </select>
+          </label>
           <button className="secondary-button" type="submit">Filter applications</button>
         </form>
+        <p role="status">Showing {groups.length} of {triage.caseCounts.verifyIdentity+
+          triage.caseCounts.conflicts+triage.caseCounts.recordReview+
+          triage.caseCounts.existingAccount+triage.caseCounts.expired} distinct applicant cases.</p>
         <p>Review one existing student identity at a time. A repeated submission is not a separate resident,
           and claiming different rooms requires particular care. No bulk approval is available.</p>
       </section>
       {first.map(g=><section key={g.key} className={`panel ${styles.card} mt-4`}>
         <h2>{g.fullName}</h2>
+        <p className={styles.meta}><strong>{registrationCaseLabels[registrationCaseKind(g)]}</strong></p>
         <p><strong>{propertyById.get(g.propertyId)?.name??"Hostel"}</strong> · {g.phone}
           {" · "}{g.submissions.length} application{g.submissions.length===1?"":"s"}</p>
         {g.submissions.length>1?<p className={styles.warning}>
