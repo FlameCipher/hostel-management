@@ -112,7 +112,8 @@ export default async function RegistrationsPage({
         <strong> {triage.counts.blocked}</strong> require additional identity or room review.
         Exact matching does not replace in-person or independent verification.</p>
       <p><strong>{triage.counts.repeatSubmissions}</strong> extra submissions from repeat applicants;
-        <strong> {triage.counts.conflictingRooms}</strong> applicant identity groups contain conflicting room claims.</p>
+        <strong> {triage.counts.conflictingRooms}</strong> applicant groups contain conflicting room claims;
+        <strong> {triage.counts.conflictingPhoneGroups}</strong> groups share a phone with a different registered name.</p>
       <p>{eligibleStudents} active resident records meet the existing portal activation prerequisites.
         No account is activated by reviewing this screen.</p>
       {!complete?<p className="form-error" role="alert">The pending register exceeds the reviewed limit.
@@ -160,12 +161,16 @@ export default async function RegistrationsPage({
         <p><strong>{propertyById.get(g.propertyId)?.name??"Hostel"}</strong> · {g.phone}
           {" · "}{g.submissions.length} application{g.submissions.length===1?"":"s"}</p>
         {g.submissions.length>1?<p className={styles.warning}>
-          Repeat applications from this identity. Check which one was submitted by the verified tenant.
-          Different passwords may have been chosen; approving one must not approve the others.
+          Repeat submissions from this identity. Only the latest application may be approved after independent identity verification. Earlier passwords are invalidated when the valid request is finally approved.
         </p>:null}
         {g.conflictingRooms?<p className={styles.warning}>
           <strong>Conflicting room claims:</strong> {g.rooms.join(", ")}.
           Confirm the room presently assigned in the student register before proceeding.
+        </p>:null}
+        {g.conflictingPhoneClaims?<p className={styles.warning}>
+          <strong>Conflicting identities:</strong> This mobile number also appears on a
+          pending request with a different submitted name in the same hostel property.
+          Resolve those requests individually before activating either account.
         </p>:null}
         {g.submissions.map((entry,index)=>{
           const r=entry.request;
@@ -179,7 +184,20 @@ export default async function RegistrationsPage({
               expires {r.expiresAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}</small>
             {!complete?<p className={styles.warning}>This is a partial register.
                 Review all pending applications before activation.</p>:null}
-            <RegistrationReviewForm id={r.id} candidates={candidates}/>
+            <RegistrationReviewForm id={r.id} candidates={candidates}
+              blockApproval={
+                !complete || index!==0 || g.conflictingRooms ||
+                g.conflictingPhoneClaims || entry.kind!=="EXACT_MATCH"
+              }
+              blockReason={
+                !complete?"The pending register is incomplete. Review the full queue.":
+                index!==0?"This is an older submitted password. Review only the newest application.":
+                g.conflictingRooms?"Different room claims for this same identity must be resolved first.":
+                g.conflictingPhoneClaims?"The phone is associated with different submitted identities.":
+                entry.kind!=="EXACT_MATCH"?registrationReviewLabels[entry.kind]:
+                undefined
+              }
+            />
           </article>;
         })}
       </section>)}
