@@ -51,6 +51,7 @@ export function CommunicationForm({
     <h2>Publish a tenant notice</h2>
     <p>Choose recipients, write the notice, and review access before publishing. Each recipient gets a private inbox record, not a group chat or guaranteed delivered phone message.</p>
     <input name="requestId" type="hidden" value={requestId}/>
+    <input name="expectedRecipientCount" type="hidden" value={recipientCount}/>
 
     <fieldset>
       <legend><strong>1. Send to</strong></legend>
@@ -76,10 +77,13 @@ export function CommunicationForm({
       </div>
       <div style={{maxHeight:220,overflowY:"auto",marginTop:12}}>
         {visible.length ? visible.map(student => <label className="check-field" key={student.id}>
-          <input name="studentIds" type="checkbox" value={student.id} checked={selected.includes(student.id)} onChange={event => toggleTenant(student.id,event.target.checked)}/>
+          <input type="checkbox" value={student.id} checked={selected.includes(student.id)} onChange={event => toggleTenant(student.id,event.target.checked)}/>
           {student.fullName}
         </label>) : <p>No matching tenants.</p>}
       </div>
+      {/* Keep the complete chosen audience in the form even when search hides checkboxes.
+          Never derive submitted studentIds from only the currently visible results. */}
+      {selected.map(id => <input key={id} type="hidden" name="studentIds" value={id}/>)}
       <p role="status"><strong>{selected.length} tenant{selected.length === 1 ? "" : "s"} selected</strong></p>
     </fieldset>}
 
@@ -118,7 +122,7 @@ export function CommunicationForm({
     <p className="policy-note">Saved, queued and drafted notices are <strong>not proof of delivery or reading</strong>. Check the message history and delivery statuses before assuming tenants were notified.</p>
     {audience === "ALL" && <p className="policy-note">This includes tenants who have already paid. For a rent-arrears notice, choose Selected tenants if you only want to contact those who owe. Never put a named tenant’s balance in a notice to everyone.</p>}
     <label className="check-field">
-      <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>
+      <input type="checkbox" name="confirmed" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>
       I have checked the recipients and the message.
     </label>
 

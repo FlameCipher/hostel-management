@@ -5,10 +5,17 @@ import { db } from "@/lib/db";
 import { communicationManager, publishCommunication, scheduledDate } from "@/lib/communications";
 export type CommunicationState={error?:string;success?:string};
 export async function publishAction(_state:CommunicationState, form:FormData):Promise<CommunicationState> {
- const session=await requireSession(); const date=scheduledDate(String(form.get("publishAt")??""));
+ const session=await requireSession();
+ // Client-side disabled buttons are not authorization. Require the owner/admin/
+ // manager to submit an explicit review acknowledgement with a stable count.
+ if(form.get("confirmed")!=="on") return {error:"Review and confirm the selected recipients and notice before saving."};
+ const expected=Number(form.get("expectedRecipientCount"));
+ if(!Number.isSafeInteger(expected) || expected<1 || expected>5000 || String(form.get("expectedRecipientCount"))!==String(expected))
+   return {error:"The reviewed recipient count is unavailable. Refresh the notice and select recipients again."};
+ const date=scheduledDate(String(form.get("publishAt")??""));
  if(!date) return {error:"Choose a future date within one year. Schedule uses Nairobi time."};
  try {
- const result=await publishCommunication(db,session,{title:form.get("title"),body:form.get("body"),audience:form.get("audience"),studentIds:form.getAll("studentIds"),category:form.get("category"),publishAt:date,email:form.get("email")==="on",whatsapp:form.get("whatsapp")==="on",requestId:form.get("requestId")});
+ const result=await publishCommunication(db,session,{title:form.get("title"),body:form.get("body"),audience:form.get("audience"),studentIds:form.getAll("studentIds"),expectedRecipientCount:expected,category:form.get("category"),publishAt:date,email:form.get("email")==="on",whatsapp:form.get("whatsapp")==="on",requestId:form.get("requestId")});
  revalidatePath("/communications"); revalidatePath("/tenant/messages"); return result;
  } catch { return {error:"Publication could not be confirmed. Refresh the communication history before retrying."}; }
 }
