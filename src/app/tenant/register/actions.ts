@@ -16,8 +16,17 @@ export async function registerTenantAction(_s: ResidentState, f: FormData): Prom
 }
 export async function reviewRegistrationAction(_s: ResidentState, f: FormData): Promise<ResidentState> {
   const session = await requireSession();
+  const decision=f.get("decision");
+  if(decision!=="APPROVE"&&decision!=="REJECT")
+    return {error:"Choose a valid approve or reject action."};
   try {
-    const result = await reviewTenantRegistration(db, session, { id: f.get("id"), studentId: f.get("studentId") ?? "", approve: f.get("decision") === "APPROVE", verified: f.get("verified") === "on" });
+    const result = await reviewTenantRegistration(db, session, {
+      id:f.get("id"),studentId:f.get("studentId")??"",
+      approve:decision==="APPROVE",
+      verified:f.get("verified")==="on",
+      rejectionReason:f.get("rejectionReason")||undefined,
+      reviewNote:f.get("reviewNote")??"",
+    });
     for (const path of ["/students/registrations", "/students", "/dashboard", "/assistant"]) revalidatePath(path);
     return result;
   } catch { return { error: "Could not confirm this review. Refresh before retrying." }; }
