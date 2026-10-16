@@ -27,7 +27,11 @@ test("notice composer offers all or selected tenants, search and review confirma
  const source=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
  assert.match(source,/name="audience" value="ALL"/);
  assert.match(source,/name="audience" value="SELECTED"/);
- assert.match(source,/name="studentIds" type="checkbox"/);
+ assert.match(source,/selected\.map\(id => <input key=\{id\} type="hidden" name="studentIds" value=\{id\}\/>\)/);
+ assert.doesNotMatch(source,/name="studentIds" type="checkbox"/,
+   "Visible filtered checkboxes must not decide the submitted recipient list.");
+ assert.match(source,/name="expectedRecipientCount" type="hidden" value=\{recipientCount\}/);
+ assert.match(source,/name="confirmed" checked=\{confirmed\}/);
  assert.match(source,/Select all shown/);
  assert.match(source,/Clear selection/);
  assert.match(source,/recipientCount === 0 \|\| !confirmed/);
@@ -81,4 +85,40 @@ test("only portal access flags are passed to the client, never password hashes",
  const form=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
  assert.match(form,/portalReady: boolean/);
  assert.doesNotMatch(form,/portalPasswordHash/);
+});
+
+test("recipient count change rejects the entire transaction before any notice is written",async()=>{
+ const f=fixture(["one","two"],true);
+ const result=await publishCommunication(f.db,session,{
+   ...input,audience:"ALL",studentIds:[],expectedRecipientCount:3,
+ });
+ assert.match(result.error??"",/recipient register changed/i);
+ assert.equal(f.messages.size,0);
+ assert.equal(f.audits.length,0);
+});
+test("selected tenant count must match the approved preview",async()=>{
+ const f=fixture(["one","two"],true);
+ const result=await publishCommunication(f.db,session,{
+   ...input,studentIds:["one","two"],expectedRecipientCount:1,
+ });
+ assert.match(result.error??"",/recipient register changed/i);
+ assert.equal(f.messages.size,0);
+});
+test("matching reviewed count preserves idempotent private notice saves",async()=>{
+ const f=fixture(["one","two"],true);
+ const payload={...input,studentIds:["one","two"],expectedRecipientCount:2};
+ const a=await publishCommunication(f.db,session,payload);
+ const b=await publishCommunication(f.db,session,payload);
+ assert.ok("success" in a);
+ assert.ok("success" in b);
+ assert.equal(f.messages.size,2);
+ assert.equal(f.audits.length,1);
+});
+test("management action rejects missing acknowledgement and invalid count before sending",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const action=readFileSync(new URL("../src/app/(app)/communications/actions.ts",import.meta.url),"utf8");
+ assert.match(action,/form\.get\("confirmed"\)!=="on"/);
+ assert.match(action,/Number\.isSafeInteger\(expected\)/);
+ assert.match(action,/expectedRecipientCount:expected/);
+ assert.match(action,/Review and confirm the selected recipients/);
 });
