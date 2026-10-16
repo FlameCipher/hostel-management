@@ -15,7 +15,7 @@ export function CommunicationForm({
   students,
   requestId,
 }: {
-  students: Array<{ id: string; fullName: string }>;
+  students: Array<{ id: string; fullName: string; portalReady: boolean }>;
   requestId: string;
 }) {
   const [state, action, pending] = useActionState(publishAction, {});
@@ -28,6 +28,11 @@ export function CommunicationForm({
     student.fullName.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   const recipientCount = audience === "ALL" ? students.length : selected.length;
+  const selectedIds = new Set(selected);
+  const accessiblePortals = students.filter(student =>
+    student.portalReady && (audience === "ALL" || selectedIds.has(student.id))
+  ).length;
+  const pendingPortalAccess = recipientCount - accessiblePortals;
 
   function changeAudience(next: Audience) {
     setAudience(next);
@@ -43,8 +48,8 @@ export function CommunicationForm({
   }
 
   return <form action={action} className="panel entity-form">
-    <h2>Send a notice</h2>
-    <p>Choose who receives it, write your notice, then confirm. Every tenant receives a private message, not a group chat.</p>
+    <h2>Publish a tenant notice</h2>
+    <p>Choose recipients, write the notice, and review access before publishing. Each recipient gets a private inbox record, not a group chat or guaranteed delivered phone message.</p>
     <input name="requestId" type="hidden" value={requestId}/>
 
     <fieldset>
@@ -108,7 +113,9 @@ export function CommunicationForm({
     </details>
 
     <h3>3. Review and send</h3>
-    <p role="status"><strong>{recipientCount} tenant{recipientCount === 1 ? "" : "s"} will receive this notice</strong> in their private hostel inbox.</p>
+    <p role="status"><strong>{recipientCount} private notice record{recipientCount === 1 ? "" : "s"} will be saved</strong> in the hostel system. {accessiblePortals} selected recipient{accessiblePortals === 1 ? "" : "s"} currently have enabled portal access.</p>
+    {pendingPortalAccess > 0 && <p className="policy-note" role="status"><strong>{pendingPortalAccess} selected tenant{pendingPortalAccess === 1 ? "" : "s"} cannot yet read their hostel inbox because their portals are not activated.</strong> Their notices stay saved. Email copies must be separately requested and successfully delivered; WhatsApp copies are drafts requiring manual sending or a verified automated sender.</p>}
+    <p className="policy-note">Saved, queued and drafted notices are <strong>not proof of delivery or reading</strong>. Check the message history and delivery statuses before assuming tenants were notified.</p>
     {audience === "ALL" && <p className="policy-note">This includes tenants who have already paid. For a rent-arrears notice, choose Selected tenants if you only want to contact those who owe. Never put a named tenant’s balance in a notice to everyone.</p>}
     <label className="check-field">
       <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>
@@ -118,7 +125,7 @@ export function CommunicationForm({
     {state.error && <p className="form-error" role="alert">{state.error}</p>}
     {state.success && <p className="form-success" role="status">{state.success}</p>}
     <button type="submit" className="primary-button" disabled={pending || !!state.success || recipientCount === 0 || !confirmed}>
-      {pending ? "Publishing…" : `Send notice to ${recipientCount} tenant${recipientCount === 1 ? "" : "s"}`}
+      {pending ? "Saving…" : `Save notices for ${recipientCount} tenant${recipientCount === 1 ? "" : "s"}`}
     </button>
     {state.success && <a className="secondary-button" href="/communications">Write another notice</a>}
   </form>;
