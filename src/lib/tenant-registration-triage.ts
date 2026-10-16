@@ -37,6 +37,30 @@ export type RegistrationReviewGroup = {
   rooms:string[];
   latest:Date;
 };
+export type RegistrationCaseKind =
+  | "VERIFY_IDENTITY" | "CONFLICT" | "RECORD_REVIEW" | "EXISTING_ACCOUNT" | "EXPIRED";
+
+/** One applicant group is one review case, however many submissions it contains.
+ * This label is only a queue priority. It NEVER proves the applicant's identity.
+ * Owners must still verify through the existing registered contact or in person.
+ */
+export function registrationCaseKind(group:RegistrationReviewGroup):RegistrationCaseKind {
+  if(group.conflictingRooms || group.conflictingPhoneClaims) return "CONFLICT";
+  const latest=group.submissions[0];
+  if(!latest || latest.kind==="EXPIRED") return "EXPIRED";
+  if(latest.kind==="ALREADY_ENABLED") return "EXISTING_ACCOUNT";
+  if(latest.kind==="EXACT_MATCH" && latest.matchingStudentIds.length===1)
+    return "VERIFY_IDENTITY";
+  return "RECORD_REVIEW";
+}
+export const registrationCaseLabels:Record<RegistrationCaseKind,string>={
+  VERIFY_IDENTITY:"Candidate for independent identity verification",
+  CONFLICT:"Conflicting room or phone claims — resolve first",
+  RECORD_REVIEW:"Missing, inconsistent or ineligible resident record",
+  EXISTING_ACCOUNT:"Existing portal account — use login or recovery",
+  EXPIRED:"Request expired — new submission required",
+};
+
 export function comparablePhone(phone:string,country:string|null) {
   return whatsappNumber(phone,country) ?? phone.trim().replace(/[^0-9]/g,"");
 }
@@ -125,11 +149,22 @@ export function triageTenantRegistrations(
     ]);
     group.conflictingPhoneClaims=(byPropertyPhone.get(phoneKey)?.size??0)>1;
   }
-  const groups=[...grouped.values()].sort((a,b)=>b.latest.getTime()-a.latest.getTime());
+  const groups=[...grouped.values()].sort((a,b)=>
+    b.latest.getTime()-a.latest.getTime() || a.key.localeCompare(b.key));
+  // Break equal submission timestamps using the same ID order as the approval
+  // transaction so the UI never labels a different attempt "newest".
   for(const g of groups)g.submissions.sort((a,b)=>
-    b.request.createdAt.getTime()-a.request.createdAt.getTime());
+    b.request.createdAt.getTime()-a.request.createdAt.getTime() ||
+    b.request.id.localeCompare(a.request.id));
+  const caseCounts={
+    verifyIdentity:groups.filter(g=>registrationCaseKind(g)==="VERIFY_IDENTITY").length,
+    conflicts:groups.filter(g=>registrationCaseKind(g)==="CONFLICT").length,
+    recordReview:groups.filter(g=>registrationCaseKind(g)==="RECORD_REVIEW").length,
+    existingAccount:groups.filter(g=>registrationCaseKind(g)==="EXISTING_ACCOUNT").length,
+    expired:groups.filter(g=>registrationCaseKind(g)==="EXPIRED").length,
+  };
   return {
-    groups,results,
+    groups,results,caseCounts,
     counts:{
       requests:results.length,identities:groups.length,
       exactEligible:results.filter(x=>x.kind==="EXACT_MATCH").length,
