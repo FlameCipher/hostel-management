@@ -136,13 +136,14 @@ export function RegistrationReviewForm({
       You must still independently verify the student's identity; a matching
       submission alone does not authorize activation.
     </p>:null}
+    {candidates.length===0}<span className="sr-only">No matching existing resident selected</span>
     {!canApprove&&!blockedReason?<p className={styles.warning}>
       An eligible exact match is required for activation. Check the official
       student register, contact or current room before considering this request.
     </p>:null}
     <label className="check-field">
       <input type="checkbox" name="verified"/>
-      <span>I independently verified this student in person or using a
+      <span>I independently verified this tenant in person or using a
         trusted contact already on file. I am not relying on submitted details alone.</span>
     </label>
     <label className="field-group">
