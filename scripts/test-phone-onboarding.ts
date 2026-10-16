@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildPhoneOnboardingDraft, type PhoneOnboardingInput } from "../src/lib/phone-onboarding";
+import { buildPhoneOnboardingDraft, pendingPhoneClaim, type PhoneOnboardingInput } from "../src/lib/phone-onboarding";
+import { readFileSync } from "node:fs";
 
 function sample(overrides: Partial<PhoneOnboardingInput> = {}): PhoneOnboardingInput {
   return {
@@ -76,4 +77,37 @@ test("never makes network calls or changes data when preparing a draft", () => {
   assert.equal(new URL(result.whatsappHref).protocol, "https:");
   assert.equal(result.url.includes("?"), false);
   assert.equal(result.url.includes("#"), false);
+});
+
+test("holds a new WhatsApp invitation when the registered number already has a pending application", () => {
+  const result = buildPhoneOnboardingDraft(sample({ pendingRegistration: true }));
+  assert.equal(result.ready, false);
+  if (!result.ready) assert.match(result.reason, /pending registration.*same hostel property/i);
+  const unknown = buildPhoneOnboardingDraft(sample({ queueComplete: false }));
+  assert.equal(unknown.ready, false);
+  if (!unknown.ready) assert.match(unknown.reason, /queue could not be fully checked/i);
+});
+
+test("same-property active phone claim prevents duplicate outreach but never proves identity", () => {
+  const stays=[{propertyId:"mmambugua-property",countryCode:"KE"}];
+  const requests=[{propertyId:"mmambugua-property",phone:"254714464700"}];
+  assert.equal(pendingPhoneClaim("0714 464 700",stays,requests,"mama-mbugua-hostel"),true);
+  assert.equal(pendingPhoneClaim("+254714464700",stays,requests,"mama-mbugua-hostel"),true);
+  assert.equal(pendingPhoneClaim("0714464700",stays,[{propertyId:"other-property",phone:"254714464700"}],"mama-mbugua-hostel"),false);
+  assert.equal(pendingPhoneClaim(null,stays,requests,"mama-mbugua-hostel"),false);
+  assert.equal(pendingPhoneClaim("0714464700",[{propertyId:"mmambugua-property",countryCode:"UG"}],requests,"different-hostel"),false);
+  assert.equal(pendingPhoneClaim("0714464700",[{propertyId:"mmambugua-property",countryCode:null}],requests,"mama-mbugua-hostel"),true);
+  assert.equal(pendingPhoneClaim("0714464700",[{propertyId:"mmambugua-property",countryCode:null}],requests,"international-hostel"),false);
+});
+
+test("mobile onboarding reads only active pending phone claims and blocks incomplete review queues", () => {
+  const page = readFileSync("src/app/(app)/communications/invitations/mobile/page.tsx", "utf8");
+  assert.match(page,/expiresAt:\s*\{ gt: now \}/);
+  assert.match(page,/organizationId: session.organizationId, status: "PENDING"/);
+  assert.match(page,/select:\s*\{ propertyId: true, phone: true \}/);
+  assert.match(page,/take:\s*501/);
+  assert.match(page,/queueComplete = pending.length <= 500/);
+  assert.match(page,/pendingPhoneClaim\(/);
+  assert.match(page,/pendingRegistration, queueComplete, stays/);
+  assert.doesNotMatch(page,/sendWhatsapp|publishCommunication\(/);
 });

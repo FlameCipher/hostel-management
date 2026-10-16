@@ -1,5 +1,6 @@
 import { managedPropertyHost } from "@/lib/property-host-policy";
 import { whatsappLink, whatsappNumber } from "@/lib/whatsapp-policy";
+import { registrationCountryCode } from "@/lib/tenant-registration";
 
 /**
  * Only prepare a public, non-bearer registration link. This does not issue
@@ -15,10 +16,33 @@ export type PhoneOnboardingStay = {
     publicListing: boolean;
   };
 };
+/** Read-only, property-scoped check of an *unverified claim* on a registered phone.
+ * This only suppresses repeat outreach; it must never auto-approve a student.
+ */
+export function pendingPhoneClaim(
+  phone: string | null,
+  stays: readonly { propertyId: string; countryCode: string | null }[],
+  requests: readonly { propertyId: string; phone: string }[],
+  organizationId: string,
+): boolean {
+  if (!phone) return false;
+  return stays.some(stay => {
+    const registered = whatsappNumber(phone, registrationCountryCode(stay.countryCode, organizationId));
+    return Boolean(registered && requests.some(request =>
+      request.propertyId === stay.propertyId && request.phone === registered,
+    ));
+  });
+}
+
 export type PhoneOnboardingInput = {
   status: string;
   phone: string | null;
   accountEligible: boolean;
+  // True when a current same-property request already claims this student's registered phone.
+  // This is not proof the applicant is that student: management must verify the identity.
+  pendingRegistration?: boolean;
+  // Suppress new drafts if the latest registration backlog could not be fully checked.
+  queueComplete?: boolean;
   stays: PhoneOnboardingStay[];
 };
 
@@ -28,6 +52,8 @@ export type PhoneOnboardingDraft =
 
 export function buildPhoneOnboardingDraft(input: PhoneOnboardingInput): PhoneOnboardingDraft {
   if (!input.accountEligible) return { ready: false, reason: "Account is no longer eligible. Review the existing resident record." };
+  if (input.queueComplete === false) return { ready: false, reason: "The registration queue could not be fully checked. Review existing applications before contacting this student." };
+  if (input.pendingRegistration) return { ready: false, reason: "A pending registration already claims this registered number at the same hostel property. Verify that request first; do not send another registration invitation." };
   if (!["MISSING_EMAIL", "EXPIRED"].includes(input.status)) {
     return { ready: false, reason: "This resident's invitation needs the normal email/provider workflow." };
   }
