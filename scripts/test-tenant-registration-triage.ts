@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {
   comparablePhone,registrationIdentityKey,registrationReviewLabels,
+  registrationCaseKind,registrationCaseLabels,
   triageTenantRegistrations,type RegisteredTenant,type ReviewRegistration,
 } from "../src/lib/tenant-registration-triage";
 
@@ -48,6 +50,13 @@ assert.equal(triage.counts.repeatSubmissions,2);
 assert.equal(triage.counts.duplicateApplicants,2);
 assert.equal(triage.counts.conflictingRooms,1);
 assert.equal(triage.counts.expired,1);
+assert.deepEqual(triage.caseCounts,{
+  verifyIdentity:1,conflicts:1,recordReview:2,existingAccount:1,expired:1,
+}, "Count distinct applicant groups, not repeated requests, for the management review.");
+assert.equal(registrationCaseKind(triage.groups.find(g=>g.submissions.some(x=>x.request.id==="a"))!),"VERIFY_IDENTITY");
+assert.equal(registrationCaseKind(triage.groups.find(g=>g.fullName.toLowerCase()==="joseph omesa oirere")!),"CONFLICT");
+assert.match(registrationCaseLabels.VERIFY_IDENTITY,/independent identity verification/);
+
 assert.equal(triage.results.find(x=>x.request.id==="a")?.kind,"EXACT_MATCH");
 assert.equal(triage.results.find(x=>x.request.id==="b")?.kind,"EXACT_MATCH");
 assert.equal(triage.results.find(x=>x.request.id==="c")?.kind,"WRONG_ROOM");
@@ -97,4 +106,27 @@ assert.equal(sharedPhone.groups.filter(g=>g.conflictingPhoneClaims).length,2);
 assert.equal(sharedPhone.groups.find(g=>g.fullName==="Foreign Tenant")?.conflictingPhoneClaims,false);
 assert.equal(triage.groups.every(g=>g.conflictingPhoneClaims===false),true,
   "Distinct legitimate phones must not receive a conflict warning.");
+const equalTime=triageTenantRegistrations([
+  req("older-id","Resident One","0712345678","24","2026-10-15T09:00:00Z"),
+  req("newer-id","Resident One","254712345678","24","2026-10-15T09:00:00Z"),
+],[student("student-1","Resident One","0712345678","24")],()=>"KE",now);
+assert.deepEqual(equalTime.groups[0].submissions.map(x=>x.request.id),["older-id","newer-id"].sort((a,b)=>b.localeCompare(a)),
+  "When timestamps tie, the server's newest-ID sorting order must win.");
+assert.equal(equalTime.caseCounts.verifyIdentity,1);
+assert.equal(equalTime.counts.exactEligible,2);
+
+const renamed=triageTenantRegistrations([
+  req("phone-one","Resident One","0712345678","24","2026-10-14T09:00:00Z"),
+  req("phone-two","Different Name","+254712345678","24","2026-10-15T09:00:00Z"),
+],[student("student-1","Resident One","0712345678","24")],()=>"KE",now);
+assert.equal(renamed.caseCounts.conflicts,2,"Both identities using the same phone remain separate blocked cases.");
+assert.equal(renamed.caseCounts.verifyIdentity,0,"A matching application with conflicting phone claimant is not ready for human identity checking.");
+
+const managementPage=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
+assert.match(managementPage,/registrationCaseKind\(g\)===focus/);
+assert.match(managementPage,/triage\.caseCounts\.verifyIdentity/);
+assert.match(managementPage,/No automated approval or rejection takes place/);
+assert.match(managementPage,/name="focus" defaultValue=\{focus\}/);
+assert.match(managementPage,/independent human identity checking/);
+assert.match(managementPage,/blockApproval=\{/);
 console.log("Tenant registration triage: exact matches, duplicates, conflicting rooms, cross-hostel protection, expired and inactive accounts passed.");
