@@ -1,5 +1,6 @@
 import { managedPropertyHost } from "@/lib/property-host-policy";
 import { whatsappLink, whatsappNumber } from "@/lib/whatsapp-policy";
+import { registrationCountryCode } from "@/lib/tenant-registration";
 
 /**
  * Only prepare a public, non-bearer registration link. This does not issue
@@ -15,6 +16,24 @@ export type PhoneOnboardingStay = {
     publicListing: boolean;
   };
 };
+/** Read-only, property-scoped check of an *unverified claim* on a registered phone.
+ * This only suppresses repeat outreach; it must never auto-approve a student.
+ */
+export function pendingPhoneClaim(
+  phone: string | null,
+  stays: readonly { propertyId: string; countryCode: string | null }[],
+  requests: readonly { propertyId: string; phone: string }[],
+  organizationId: string,
+): boolean {
+  if (!phone) return false;
+  return stays.some(stay => {
+    const registered = whatsappNumber(phone, registrationCountryCode(stay.countryCode, organizationId));
+    return Boolean(registered && requests.some(request =>
+      request.propertyId === stay.propertyId && request.phone === registered,
+    ));
+  });
+}
+
 export type PhoneOnboardingInput = {
   status: string;
   phone: string | null;
