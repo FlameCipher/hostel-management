@@ -59,7 +59,8 @@ export default async function OccupancyDetailPage({ params }: { params: Promise<
     },
   });
   if (!occupancy) notFound();
-  const canManage = session.role !== "CARETAKER" && occupancy.status === "ACTIVE";
+  // CARETAKER already returned from the separate field-limited view.
+  const canManage = occupancy.status === "ACTIVE";
   const canReviewRent = ["OWNER","ADMIN","MANAGER"].includes(session.role);
   const rentCharges = occupancy.charges.filter((charge) => charge.type === "SEMESTER_RENT");
   let rentReview: ReturnType<typeof reconcileHistoricalTransfer> | null = null;
