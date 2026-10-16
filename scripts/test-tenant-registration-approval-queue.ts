@@ -114,7 +114,7 @@ function fixture(opts?:{
     tenantPortalInvitation:{updateMany:async()=>{deletedTokens++;return {count:0}}},
     auditLog:{create:async({data}:{data:Record<string,unknown>})=>{audits.push(data);return {}}},
   };
-  const db={$transaction:async(fn:(tx:typeof tx)=>Promise<unknown>)=>fn(tx)} as unknown as PrismaClient;
+  const db={$transaction:async(fn:(client:typeof tx)=>Promise<unknown>)=>fn(tx)} as unknown as PrismaClient;
   return {db,rows,audits,
     get enabled(){return studentEnabled},
     get hash(){return accountHash},
