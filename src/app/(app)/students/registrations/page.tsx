@@ -106,7 +106,7 @@ export default async function RegistrationsPage({
       <article className="compact-stat"><div><p>Applicant identity groups</p><strong>{triage.counts.identities}</strong></div></article>
     </section>
 
-    <section className={\`panel \${styles.card} mt-5\`}>
+    <section className={`panel ${styles.card} mt-5`}>
       <h2>Approval readiness</h2>
       <p><strong>{triage.counts.exactEligible}</strong> requests match one eligible registered name, phone and active room;
         <strong> {triage.counts.blocked}</strong> require additional identity or room review.
@@ -130,7 +130,7 @@ export default async function RegistrationsPage({
         Invitation links and self-registration are different routes to the same existing student account.</p>
     </section>
 
-    {history?<section className={\`panel \${styles.card} mt-5\`}>
+    {history?<section className={`panel ${styles.card} mt-5`}>
       <h2>Reviewed registration history</h2>
       {historyPage.length?historyPage.map(r=><article key={r.id} className="mt-4">
         <strong>{r.fullName}</strong>
@@ -143,7 +143,7 @@ export default async function RegistrationsPage({
         {historyItems.length>20?<Link href={"?history=1&page="+(page+1)}>Next</Link>:null}
       </nav>
     </section>:<>
-      <section className={\`panel \${styles.card} mt-5\`}>
+      <section className={`panel ${styles.card} mt-5`}>
         <h2>Pending applicant groups</h2>
         <form method="get" className="filter-bar student-filter-bar">
           <label className="filter-search"><span>Search</span>
@@ -155,7 +155,7 @@ export default async function RegistrationsPage({
         <p>Review one existing student identity at a time. A repeated submission is not a separate resident,
           and claiming different rooms requires particular care. No bulk approval is available.</p>
       </section>
-      {first.map(g=><section key={g.key} className={\`panel \${styles.card} mt-4\`}>
+      {first.map(g=><section key={g.key} className={`panel ${styles.card} mt-4`}>
         <h2>{g.fullName}</h2>
         <p><strong>{propertyById.get(g.propertyId)?.name??"Hostel"}</strong> · {g.phone}
           {" · "}{g.submissions.length} application{g.submissions.length===1?"":"s"}</p>
@@ -183,7 +183,7 @@ export default async function RegistrationsPage({
           </article>;
         })}
       </section>)}
-      {!groups.length?<section className={\`panel \${styles.card} mt-4\`}>
+      {!groups.length?<section className={`panel ${styles.card} mt-4`}>
         <p>No matching pending applications.</p>
       </section>:null}
     </>}
