@@ -99,6 +99,24 @@ for(const path of [
 }
 assert.ok(read("src/app/(app)/occupancy/[id]/page.tsx").includes("{canReviewRent ? <>"),
   "Caretaker must not see ledger and rent adjustment details by opening occupancy URLs.");
+// Operational read models must be separated too: hiding buttons is insufficient
+// if a caretaker can still render break charges or fetch the full rent ledger.
+const occupancyListSource = read("src/app/(app)/occupancy/page.tsx");
+assert.match(occupancyListSource,/canManage \? db\.breakPeriod\.findMany/);
+assert.match(occupancyListSource,/canManage \? db\.breakReservation\.findMany/);
+assert.match(occupancyListSource,/canManage \? <section className="panel mt-5 overflow-hidden">/);
+assert.match(occupancyListSource,/canManage \? await managementCurrency\(\) : "KES"/);
+const occupancyDetailSource = read("src/app/(app)/occupancy/[id]/page.tsx");
+const gateStart = occupancyDetailSource.indexOf('if (session.role === "CARETAKER") {');
+const managementStart = occupancyDetailSource.indexOf("const currency = await managementCurrency();");
+assert.ok(gateStart >= 0 && managementStart > gateStart,
+  "Caretaker must branch to its limited read model before management finance queries.");
+const gateModel = occupancyDetailSource.slice(gateStart, managementStart);
+assert.match(gateModel,/select:\s*\{/);
+assert.match(gateModel,/Read-only gate allocation/);
+assert.doesNotMatch(gateModel,/guardian:|charges:|payments:|roomStays:|adjustments:|monthlyRateSnapshot|semesterRateSnapshot/,
+  "Caretaker-only read model must not query management finance or guardian records.");
+
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));
 assert.ok(read("src/app/(app)/gate-readiness/page.tsx").includes("staffMayReviewGateReadiness"));
