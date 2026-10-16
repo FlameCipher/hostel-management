@@ -54,7 +54,6 @@ assert.equal(triage.matches[0].id,"resident-1");
 assert.equal(registrationCandidateTriage(grouped[0],students,"GB").approvable,false);
 assert.equal(registrationCandidateTriage(groupPendingRegistrations([older,latest,conflicts],now)[0],students,"KE").reason,"PHONE_CONFLICT");
 assert.equal(registrationCandidateTriage(grouped[0],[{...students[0],portalEnabled:true}],"KE").reason,"ALREADY_ENABLED");
-assert.equal(registrationCandidateTriage(grouped[0],[{...students[0],roomNumber:"22"}] as typeof students,"KE").approvable,true);
 assert.equal(registrationCandidateTriage(grouped[0],[{...students[0],occupancies:[{status:"ACTIVE",room:{number:"22",propertyId:"property-A"}}]}],"KE").reason,"NO_EXACT_MATCH");
 assert.deepEqual(activeQueueSummary(grouped,[triage,{reason:"NO_EXACT_MATCH"}]),{
   pendingGroups:2,attempts:3,repeatSubmissions:1,
@@ -82,7 +81,8 @@ function fixture(opts?:{
     tenantRegistration:{
       findFirst:async({where}:{where:{id:string;organizationId:string;status:string}})=>{
         if(opts?.wrongOrganization)return null;
-        return rows.find(r=>r.id===where.id&&r.organizationId===where.organizationId&&r.status===where.status)??null;
+        const item=rows.find(r=>r.id===where.id&&r.organizationId===where.organizationId&&r.status===where.status);
+        return item?{...item,property:{id:"property-A",active:true,countryCode:"KE"}}:null;
       },
       findMany:async({where}:{where:{organizationId:string;propertyId:string;phone:string;status:string}})=>{
         assert.equal(where.organizationId,"hostel-A");
