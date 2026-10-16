@@ -104,11 +104,15 @@ export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ti
     {state.error?<div className="form-error" role="alert">{state.error}<br/>If you entered a different name, number or room, select <strong>Edit my details</strong>.</div>:null}
   </form>;
 }
-export function RegistrationReviewForm({ id, candidates }: { id: string; candidates: Array<{ id: string; label: string }> }) {
+export function RegistrationReviewForm({ id, candidates, blockApproval=false, blockReason }: { id: string; candidates: Array<{ id: string; label: string }>; blockApproval?: boolean; blockReason?:string }) {
   const [state,action,pending]=useActionState(reviewRegistrationAction,{});
   const single=candidates.length===1;
   return <form action={action}>
     <input type="hidden" name="id" value={id}/>
+    {blockReason?<p className={styles.warning} role="status">
+      {blockReason} Approval is blocked until the issue is resolved.
+      You can reject an invalid request with an explanation.
+    </p>:null}
     <label className="field-group"><span>{single?"Existing resident matching this request":"Link to the verified existing resident"}</span>
       <select name="studentId" defaultValue={single?candidates[0].id:""}>
         <option value="">{candidates.length?"Select verified tenant":"No exact record match found"}</option>
@@ -120,11 +124,26 @@ export function RegistrationReviewForm({ id, candidates }: { id: string; candida
     <label className="check-field"><input type="checkbox" name="verified"/>
       <span>I independently verified this tenant in person or through their contact already on file. Submitted details alone are not proof of identity.</span>
     </label>
+    <label className="field-group"><span>Reason if rejecting *</span>
+      <select name="rejectionReason" defaultValue="">
+        <option value="">Choose a reason when rejecting</option>
+        <option value="NO_MATCH">No eligible existing resident match</option>
+        <option value="WRONG_PHONE">Registered phone differs</option>
+        <option value="WRONG_ROOM">Current room is different</option>
+        <option value="CONFLICTING_REQUEST">Conflicting identity using the same phone</option>
+        <option value="DUPLICATE">Repeated or obsolete registration</option>
+        <option value="OTHER">Other verified reason</option>
+      </select>
+    </label>
+    <label className="field-group"><span>Management review note (optional)</span>
+      <textarea name="reviewNote" rows={2} maxLength={300}
+        placeholder="Avoid passwords or full identity document numbers"/>
+    </label>
     {state.error?<p role="alert" className="form-error">{state.error}</p>:null}
     {state.success?<p role="status" className="form-success">{state.success}</p>:null}
     <div className={styles.actions}>
-      <button className="primary-button" name="decision" value="APPROVE" disabled={pending||!!state.success||candidates.length===0}>Verify & activate account</button>
-      <button className="secondary-button" name="decision" value="REJECT" disabled={pending||!!state.success}>Reject request</button>
+      <button className="primary-button" name="decision" value="APPROVE" disabled={pending||!!state.success||candidates.length===0||blockApproval}>Verify & activate account</button>
+      <button className="secondary-button" name="decision" value="REJECT" disabled={pending||!!state.success}>Reject with reason</button>
     </div>
   </form>;
 }

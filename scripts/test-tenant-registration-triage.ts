@@ -87,4 +87,14 @@ const blocked=triageTenantRegistrations([
 })],()=>"KE",now);
 assert.equal(blocked.results[0].kind,"INELIGIBLE");
 
+const sharedPhone=triageTenantRegistrations([
+  req("one","Resident One","0712345678","24","2026-10-14T09:00:00Z"),
+  req("two","Different Resident","+254712345678","25","2026-10-15T09:00:00Z"),
+  req("other-hostel","Foreign Tenant","0712345678","7","2026-10-15T09:00:00Z","hostel-B","property-B"),
+],students,()=> "KE",now);
+assert.equal(sharedPhone.counts.conflictingPhoneGroups,2);
+assert.equal(sharedPhone.groups.filter(g=>g.conflictingPhoneClaims).length,2);
+assert.equal(sharedPhone.groups.find(g=>g.fullName==="Foreign Tenant")?.conflictingPhoneClaims,false);
+assert.equal(triage.groups.every(g=>g.conflictingPhoneClaims===false),true,
+  "Distinct legitimate phones must not receive a conflict warning.");
 console.log("Tenant registration triage: exact matches, duplicates, conflicting rooms, cross-hostel protection, expired and inactive accounts passed.");
