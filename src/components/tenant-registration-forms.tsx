@@ -104,27 +104,73 @@ export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ti
     {state.error?<div className="form-error" role="alert">{state.error}<br/>If you entered a different name, number or room, select <strong>Edit my details</strong>.</div>:null}
   </form>;
 }
-export function RegistrationReviewForm({ id, candidates }: { id: string; candidates: Array<{ id: string; label: string }> }) {
+export function RegistrationReviewForm({
+  id,candidates,blockedReason,repeatCount=1,
+}:{
+  id:string;
+  candidates:Array<{id:string;label:string}>;
+  blockedReason?:string;
+  repeatCount?:number;
+}) {
   const [state,action,pending]=useActionState(reviewRegistrationAction,{});
   const single=candidates.length===1;
+  const canApprove=single&&!blockedReason;
   return <form action={action}>
     <input type="hidden" name="id" value={id}/>
-    <label className="field-group"><span>{single?"Existing resident matching this request":"Link to the verified existing resident"}</span>
-      <select name="studentId" defaultValue={single?candidates[0].id:""}>
-        <option value="">{candidates.length?"Select verified tenant":"No exact record match found"}</option>
+    {repeatCount>1?<p className={styles.notice}>
+      {repeatCount} submissions for the same registered name, phone and room.
+      This is the latest request. After independent verification and approval,
+      earlier identical requests are archived without creating additional accounts.
+    </p>:null}
+    {blockedReason?<p className={styles.warning} role="status">{blockedReason}
+      Account activation is blocked until this is resolved.</p>:null}
+    <label className="field-group">
+      <span>{single?"Matching existing resident":"Match to the verified current tenant"}</span>
+      <select name="studentId" defaultValue={canApprove?candidates[0].id:""}>
+        <option value="">{candidates.length?"Select verified tenant":"No exact record available"}</option>
         {candidates.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
       </select>
     </label>
-    {single?<p className={styles.meta}>One name, registered mobile and room match was found. Verify the student independently before approval.</p>:null}
-    {candidates.length===0?<p className={styles.warning}>This request cannot be activated until management has independently verified and corrected the existing student record.</p>:null}
-    <label className="check-field"><input type="checkbox" name="verified"/>
-      <span>I independently verified this tenant in person or through their contact already on file. Submitted details alone are not proof of identity.</span>
+    {canApprove?<p className={styles.meta}>
+      The recorded name, registered phone and current room match one student.
+      You must still independently verify the student's identity; a matching
+      submission alone does not authorize activation.
+    </p>:null}
+    {!canApprove&&!blockedReason?<p className={styles.warning}>
+      An eligible exact match is required for activation. Check the official
+      student register, contact or current room before considering this request.
+    </p>:null}
+    <label className="check-field">
+      <input type="checkbox" name="verified"/>
+      <span>I independently verified this student in person or using a
+        trusted contact already on file. I am not relying on submitted details alone.</span>
+    </label>
+    <label className="field-group">
+      <span>Rejection reason (required only if rejecting)</span>
+      <select name="rejectionReason" defaultValue="">
+        <option value="">Choose a reason if rejecting</option>
+        <option value="NO_MATCH">No matching existing resident</option>
+        <option value="WRONG_PHONE">Phone details are inconsistent</option>
+        <option value="WRONG_ROOM">Current room does not match</option>
+        <option value="CONFLICTING_REQUEST">Same phone used with different details</option>
+        <option value="DUPLICATE">Duplicate / superseded attempt</option>
+        <option value="OTHER">Other documented reason</option>
+      </select>
+    </label>
+    <label className="field-group">
+      <span>Review note (optional; for management audit)</span>
+      <textarea name="reviewNote" maxLength={300} rows={2}
+        placeholder="Do not put passwords or full identity-document numbers here."/>
     </label>
     {state.error?<p role="alert" className="form-error">{state.error}</p>:null}
     {state.success?<p role="status" className="form-success">{state.success}</p>:null}
     <div className={styles.actions}>
-      <button className="primary-button" name="decision" value="APPROVE" disabled={pending||!!state.success||candidates.length===0}>Verify & activate account</button>
-      <button className="secondary-button" name="decision" value="REJECT" disabled={pending||!!state.success}>Reject request</button>
+      <button className="primary-button" name="decision" value="APPROVE"
+        disabled={pending||!!state.success||!canApprove}>
+        Verify &amp; activate this existing account
+      </button>
+      <button className="secondary-button" name="decision" value="REJECT"
+        disabled={pending||!!state.success}>Reject with reason</button>
     </div>
   </form>;
 }
