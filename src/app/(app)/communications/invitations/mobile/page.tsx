@@ -3,6 +3,8 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { invitationManager, inviteCandidateWhere } from "@/lib/portal-invitations";
 import { buildPhoneOnboardingDraft, type PhoneOnboardingStay } from "@/lib/phone-onboarding";
+import { registrationCountryCode } from "@/lib/tenant-registration";
+import { whatsappNumber } from "@/lib/whatsapp-policy";
 import { ArrowLeft, MessageCircle, ShieldCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,8 @@ export default async function MobileOnboardingPage({
     usedAt: null,
     student: inviteCandidateWhere(session.organizationId),
   };
-  const [all, items] = await Promise.all([
+  const now = new Date();
+  const [all, items, pending] = await Promise.all([
     db.tenantPortalInvitation.count({ where }),
     db.tenantPortalInvitation.findMany({
       where,
@@ -43,7 +46,7 @@ export default async function MobileOnboardingPage({
                   select: {
                     number: true,
                     property: {
-                      select: { name: true, countryCode: true, customDomain: true, active: true, publicListing: true },
+                      select: { id: true, name: true, countryCode: true, customDomain: true, active: true, publicListing: true },
                     },
                   },
                 },
@@ -56,21 +59,43 @@ export default async function MobileOnboardingPage({
       skip: (page - 1) * 20,
       take: 21,
     }),
+    // Read-only complete current-property phone-claim index, capped to protect
+    // approvals and outreach from partial queues. No applicant passwords loaded.
+    db.tenantRegistration.findMany({
+      where: {
+        organizationId: session.organizationId, status: "PENDING",
+        expiresAt: { gt: now },
+      },
+      select: { propertyId: true, phone: true },
+      take: 501,
+    }),
   ]);
+  const queueComplete = pending.length <= 500;
   const current = items.slice(0, 20).map(item => {
     const stays: PhoneOnboardingStay[] = item.student.occupancies.map(o => ({
       roomNumber: o.room.number, property: o.room.property,
     }));
+    // A phone match is only a reason to HOLD outreach. It does not prove
+    // that the pending application belongs to this registered student.
+    const pendingRegistration = item.student.occupancies.some(o => {
+      const property = o.room.property;
+      const number = whatsappNumber(
+        item.student.phone,
+        registrationCountryCode(property.countryCode, session.organizationId),
+      );
+      return Boolean(number && pending.some(r => r.propertyId === property.id && r.phone === number));
+    });
     return {
-      ...item,
+      ...item, pendingRegistration,
       draft: buildPhoneOnboardingDraft({
         status: item.status, phone: item.student.phone,
         accountEligible: !item.student.portalEnabled,
-        stays,
+        pendingRegistration, queueComplete, stays,
       }),
     };
   });
   const ready = current.filter(item => item.draft.ready).length;
+  const awaitingReview = current.filter(item => item.pendingRegistration).length;
   return <div>
     <div className="page-heading-row">
       <div>
@@ -86,11 +111,13 @@ export default async function MobileOnboardingPage({
     <div className="room-summary-grid mt-5">
       <article className="compact-stat"><div><p>Eligible missing or expired email invitations</p><strong>{all}</strong></div></article>
       <article className="compact-stat"><div><p>Safe drafts on this page</p><strong>{ready}/{current.length}</strong></div></article>
+      <article className="compact-stat"><div><p>Pending phone claims to review on this page</p><strong>{awaitingReview}</strong></div></article>
     </div>
 
     <section className="panel mt-5">
       <h2><ShieldCheck size={19} aria-hidden="true" /> No automatic account activation</h2>
       <p>These are personal WhatsApp drafts, not sent messages. Confirm the intended resident's current number and permission to contact them before pressing Send in your own WhatsApp app. Opening a draft is never recorded as delivered.</p>
+      <p>Before preparing any invitation we check active registrations for the same registered phone and property. A match pauses outreach for management review; it does not establish who submitted the request. If the register exceeds 500 entries, all drafts are withheld until the full queue is reviewed.</p>
       <p>Every link goes to that resident's published hostel domain and its public registration page. It contains no password, private activation token, room number or payment balance. The student chooses a password, and management must independently approve the exact name, phone and current room match.</p>
       <div className="heading-actions">
         <Link href="/students/registrations" className="secondary-button">Review registration approvals</Link>
@@ -100,7 +127,7 @@ export default async function MobileOnboardingPage({
 
     <section className="panel mt-5">
       <h2>Resident contact review</h2>
-      <p>Only missing-email or expired invitations are included. Provider-accepted, pending and already activated invitations are intentionally excluded to reduce duplicate contact.</p>
+      <p>Only missing-email or expired invitation records are included. Provider-accepted and already activated invitations are excluded. A student whose number is already associated with a pending portal request must be reviewed in the registration queue, not asked to register again.</p>
       {!current.length && <p>No currently eligible phone-onboarding candidates in this view.</p>}
       {current.map(item => <article key={item.id} className="panel mt-4">
         <h3>{item.student.fullName}</h3>
@@ -114,7 +141,7 @@ export default async function MobileOnboardingPage({
             <a className="secondary-button" href={item.draft.url} target="_blank" rel="noopener noreferrer">Preview student registration</a>
           </div>
           <small>External WhatsApp opens only when selected; you must personally confirm the recipient and press Send. No delivery status is inferred.</small>
-        </> : <p role="status">{item.draft.reason} <Link href="/students">Check student records</Link>.</p>}
+        </> : <p role="status">{item.draft.reason} <Link href={item.pendingRegistration ? "/students/registrations" : "/students"}>{item.pendingRegistration ? "Review pending registrations" : "Check student records"}</Link>.</p>}
       </article>)}
     </section>
     <nav className="heading-actions mt-5" aria-label="Mobile onboarding pages">
