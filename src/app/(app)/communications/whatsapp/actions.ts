@@ -7,8 +7,15 @@ import { actOnManualNotification, prepareWhatsAppDrafts, type WhatsAppResult } f
 
 export async function prepareWhatsAppAction(_state: WhatsAppResult, form: FormData): Promise<WhatsAppResult> {
   const session = await requireSession();
+  // A disabled button is not a backend approval. Require the reviewed audience
+  // and compare its count with current role/tenant scoped recipients.
+  if (form.get("reviewed") !== "on") return {error:"Review and confirm the WhatsApp recipients and message before preparing drafts."};
+  const expected = Number(form.get("expectedRecipientCount"));
+  if (!Number.isSafeInteger(expected) || expected < 1 || expected > 500 ||
+      String(form.get("expectedRecipientCount")) !== String(expected))
+    return {error:"The reviewed WhatsApp recipient count is missing. Refresh the form and choose recipients again."};
   try {
-    const result = await prepareWhatsAppDrafts(db, session, { requestId: form.get("requestId"), audience: form.get("audience"), selection: form.get("selection"), recipientIds: form.getAll("recipientIds"), message: form.get("message") });
+    const result = await prepareWhatsAppDrafts(db, session, { requestId: form.get("requestId"), audience: form.get("audience"), selection: form.get("selection"), recipientIds: form.getAll("recipientIds"), expectedRecipientCount: expected, message: form.get("message") });
     revalidatePath("/communications/whatsapp"); revalidatePath("/notifications"); return result;
   } catch { return { error: "Drafts could not be confirmed. Refresh the list before trying again." }; }
 }
