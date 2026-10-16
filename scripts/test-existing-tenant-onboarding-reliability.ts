@@ -85,7 +85,10 @@ test("registration and approval use the same verified country function",()=>{
  const management=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
  assert.match(service,/whatsappNumber\(parsed.data.phone, registrationCountryCode\(property.countryCode,property.organizationId\)\)/);
  assert.match(service,/whatsappNumber\(student.phone, registrationCountryCode\(row.property.countryCode,row.organizationId\)\)/);
- assert.match(management,/whatsappNumber\(t.phone, registrationCountryCode\(r.property.countryCode,s.organizationId\)\)/);
+ const triage=readFileSync("src/lib/tenant-registration-triage.ts","utf8");
+ assert.match(management,/registrationCandidateTriage\(/);
+ assert.match(management,/registrationCountryCode\(property\?\.countryCode,session.organizationId\)/);
+ assert.match(triage,/whatsappNumber\(student.phone,countryCode\)/);
  assert.match(service,/input.verified/);
  assert.match(service,/portalEnabled: false/);
 });
