@@ -126,7 +126,7 @@ export function RegistrationReviewForm({
       Account activation is blocked until this is resolved.</p>:null}
     <label className="field-group">
       <span>{single?"Matching existing resident":"Match to the verified current tenant"}</span>
-      <select name="studentId" defaultValue={canApprove?candidates[0].id:""}>
+      <select name="studentId" defaultValue={single?candidates[0].id:""}>
         <option value="">{candidates.length?"Select verified tenant":"No exact record available"}</option>
         {candidates.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
       </select>
