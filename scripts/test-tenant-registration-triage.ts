@@ -61,7 +61,7 @@ const sheila=triage.groups.find(g=>g.phone==="0712345678");
 assert.equal(sheila?.submissions.length,2);
 assert.equal(sheila?.conflictingRooms,false);
 assert.deepEqual(sheila?.submissions.map(x=>x.request.id),["b","a"]);
-const joseph=triage.groups.find(g=>g.fullName==="Joseph Omesa Oirere");
+const joseph=triage.groups.find(g=>g.fullName.toLowerCase()==="joseph omesa oirere");
 assert.deepEqual(joseph?.rooms,["23","24"]);
 assert.equal(joseph?.conflictingRooms,true);
 assert.equal(joseph?.submissions[0].request.id,"d");
