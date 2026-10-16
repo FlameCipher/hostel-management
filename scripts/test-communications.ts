@@ -4,9 +4,9 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { communicationManager, publishCommunication, scheduledDate, outstanding, nairobiDay, tenantWhere } from "../src/lib/communications";
 const session={userId:"owner",organizationId:"hostel",name:"Owner",role:"OWNER" as const};
 const input={title:"Exam wishes",body:"We wish you success in your exams.",audience:"SELECTED",studentIds:["one"],category:"EXAM",publishAt:new Date("2026-10-10T05:00:00Z"),whatsapp:false,requestId:"b6dba362-fb3a-465a-8f65-226827a1d511"};
-function fixture(eligible=["one"],authorized=true){
+function fixture(eligible=["one"],authorized=true,portalReadyIds:string[]=[]){
  const messages=new Map(),audits:unknown[]=[];let queries=0;
- const tx={organization:{findUnique:async()=>({whatsappEnabled:true})},student:{findMany:async()=>{queries++;return eligible.map(id=>({id}))}},tenantMessage:{createMany:async({data}:{data:{studentId:string;dedupKey:string}})=>{const key=data.studentId+data.dedupKey;if(messages.has(key))return{count:0};messages.set(key,data);return{count:1}}},auditLog:{create:async(v:unknown)=>{audits.push(v)}}};
+ const tx={organization:{findUnique:async()=>({whatsappEnabled:true})},student:{findMany:async()=>{queries++;return eligible.map(id=>({id,portalEnabled:portalReadyIds.includes(id),portalPasswordHash:portalReadyIds.includes(id)?"opaque-existing-hash":null}))}},tenantMessage:{createMany:async({data}:{data:{studentId:string;dedupKey:string}})=>{const key=data.studentId+data.dedupKey;if(messages.has(key))return{count:0};messages.set(key,data);return{count:1}}},auditLog:{create:async(v:unknown)=>{audits.push(v)}}};
  const db={user:{findFirst:async()=>authorized?{id:"owner"}:null},$transaction:async(fn:(v:unknown)=>unknown)=>fn(tx)} as unknown as PrismaClient;
  return {db,messages,audits,get queries(){return queries}};
 }
@@ -31,7 +31,10 @@ test("notice composer offers all or selected tenants, search and review confirma
  assert.match(source,/Select all shown/);
  assert.match(source,/Clear selection/);
  assert.match(source,/recipientCount === 0 \|\| !confirmed/);
- assert.match(source,/private hostel inbox/);
+ assert.match(source,/private inbox record/);
+ assert.match(source,/pendingPortalAccess/);
+ assert.match(source,/not proof of delivery or reading/);
+ assert.match(source,/Save notices for/);
  assert.match(source,/WhatsApp copies are queued as drafts/);
 });
 test("WhatsApp composer has all or selected recipients with explicit approval",async()=>{
@@ -43,4 +46,37 @@ test("WhatsApp composer has all or selected recipients with explicit approval",a
  assert.match(source,/Clear selection/);
  assert.match(source,/!reviewed/);
  assert.match(source,/Each message stays private/);
+});
+
+test("published notices distinguish portal access from unread inbox records and external delivery",async()=>{
+ const f=fixture(["one","two"],true,["one"]);
+ const response=await publishCommunication(f.db,session,{...input,audience:"ALL",studentIds:[],email:false,whatsapp:false});
+ assert.match(response.success??"",/Saved 2 private tenant notices/);
+ assert.match(response.success??"",/1 recipient currently have portal access, and 1 cannot read/);
+ assert.match(response.success??"",/No email copies requested/);
+ assert.match(response.success??"",/No WhatsApp copies requested/);
+ assert.match(response.success??"",/actual delivery and read statuses/);
+ assert.equal(f.messages.size,2);
+ assert.equal(f.audits.length,1);
+ const audit=f.audits[0] as {data:{metadata:Record<string,unknown>}};
+ assert.equal(audit.data.metadata.activePortals,1);
+ assert.equal(audit.data.metadata.withoutActivePortal,1);
+});
+
+test("requested email and WhatsApp remain explicitly queued or draft, not delivered",async()=>{
+ const f=fixture(["one"],true,[]);
+ const response=await publishCommunication(f.db,session,{...input,email:true,whatsapp:true});
+ assert.match(response.success??"",/Email copies requested for queue processing, not confirmed delivered/);
+ assert.match(response.success??"",/WhatsApp copies requested as drafts, not sent/);
+ assert.equal(f.messages.size,1);
+});
+
+test("only portal access flags are passed to the client, never password hashes",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const page=readFileSync(new URL("../src/app/(app)/communications/page.tsx",import.meta.url),"utf8");
+ assert.match(page,/portalReady:student.portalEnabled && student.portalPasswordHash!==null/);
+ assert.match(page,/<CommunicationForm students=\{students.map\(student=>\(\{/);
+ const form=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
+ assert.match(form,/portalReady: boolean/);
+ assert.doesNotMatch(form,/portalPasswordHash/);
 });
