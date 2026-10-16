@@ -31,7 +31,9 @@ test("manager retains independent identity verification, unique exact match shor
  const service=readFileSync("src/lib/tenant-registration.ts","utf8");
  assert.match(form,/defaultValue=\{single\?candidates\[0\]\.id:""\}/);
  assert.match(form,/I independently verified this tenant/);
- assert.match(form,/candidates\.length===0\}/);
+ assert.match(form,/const canApprove=single&&!blockedReason/);
+ assert.match(form,/disabled=\{pending\|\|!!state.success\|\|!canApprove\}/);
+ assert.match(form,/blockedReason/);
  assert.match(actions,/reviewTenantRegistration/);
  assert.match(service,/portalEnabled: false/);
  assert.match(service,/normalizedResidentName\(student.fullName\) !== normalizedResidentName\(row.fullName\)/);
