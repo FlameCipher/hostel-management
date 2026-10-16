@@ -33,6 +33,7 @@ export type RegistrationReviewGroup = {
   propertyId:string;
   submissions:RegistrationReviewResult[];
   conflictingRooms:boolean;
+  conflictingPhoneClaims:boolean;
   rooms:string[];
   latest:Date;
 };
@@ -100,9 +101,29 @@ export function triageTenantRegistrations(
       group.conflictingRooms=group.rooms.length>1;
     }else grouped.set(key,{
       key,fullName:request.fullName,phone:request.phone,propertyId:request.propertyId,
-      submissions:[result],conflictingRooms:false,
+      submissions:[result],conflictingRooms:false,conflictingPhoneClaims:false,
       rooms:[request.roomNumber],latest:request.createdAt,
     });
+  }
+  // Same property and phone with different submitted names must not
+  // silently be treated as separate accounts. Flag every affected identity.
+  const byPropertyPhone=new Map<string,Set<string>>();
+  for(const [key,group] of grouped){
+    const request=group.submissions[0].request;
+    const country=countryForProperty(group.propertyId);
+    const propertyPhone=JSON.stringify([
+      request.organizationId,group.propertyId,comparablePhone(group.phone,country),
+    ]);
+    const identities=byPropertyPhone.get(propertyPhone)??new Set<string>();
+    identities.add(key);byPropertyPhone.set(propertyPhone,identities);
+  }
+  for(const group of grouped.values()){
+    const request=group.submissions[0].request;
+    const phoneKey=JSON.stringify([
+      request.organizationId,group.propertyId,
+      comparablePhone(group.phone,countryForProperty(group.propertyId)),
+    ]);
+    group.conflictingPhoneClaims=(byPropertyPhone.get(phoneKey)?.size??0)>1;
   }
   const groups=[...grouped.values()].sort((a,b)=>b.latest.getTime()-a.latest.getTime());
   for(const g of groups)g.submissions.sort((a,b)=>
@@ -116,6 +137,7 @@ export function triageTenantRegistrations(
       repeatSubmissions:results.length-groups.length,
       duplicateApplicants:groups.filter(g=>g.submissions.length>1).length,
       conflictingRooms:groups.filter(g=>g.conflictingRooms).length,
+      conflictingPhoneGroups:groups.filter(g=>g.conflictingPhoneClaims).length,
       expired:results.filter(x=>x.kind==="EXPIRED").length,
     },
   };
