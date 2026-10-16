@@ -9,7 +9,7 @@ type Database = Pick<PrismaClient, "organization" | "property" | "user">;
 export type WhatsAppResult = { error?: string; success?: string; url?: string };
 const schema = z.object({ requestId: z.string().uuid(), audience: z.enum(["TENANTS", "STAFF"]),
   selection: z.enum(["ALL", "SELECTED"]), recipientIds: z.array(z.string().min(1).max(128)).max(500),
-  message: z.string().trim().min(3).max(3000) });
+  message: z.string().trim().min(3).max(3000), expectedRecipientCount: z.number().int().min(1).max(500).optional() });
 
 export async function messagingProperties(database: Pick<PrismaClient, "property">, organizationId: string) {
   return database.property.findMany({ where: { organizationId, active: true },
@@ -57,6 +57,7 @@ export async function prepareWhatsAppDrafts(database: PrismaClient, session: Ses
       ? (await tx.student.findMany({ where: { ...tenantWhere(session.organizationId), ...selected }, select: { id: true, fullName: true, phone: true, occupancies: { where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "RESERVED"] } }, select: { room: { select: { propertyId: true } } }, orderBy: { createdAt: "desc" }, take: 1 } }, take: 501 })).map(s => ({ id: s.id, name: s.fullName, phone: s.phone, country: properties.find(p => p.id === s.occupancies[0]?.room.propertyId)?.countryCode ?? country }))
       : (await tx.user.findMany({ where: { organizationId: session.organizationId, active: true, ...selected }, select: { id: true, name: true, phone: true }, take: 501 })).map(u => ({ ...u, country }));
     if (!recipients.length || recipients.length > 500 || (value.selection === "SELECTED" && recipients.length !== ids.length)) return { error: "Choose current tenants or active staff from this hostel, up to 500 recipients." };
+    if (value.expectedRecipientCount !== undefined && recipients.length !== value.expectedRecipientCount) return { error: "Recipient count changed since review. Refresh the list and confirm again. No drafts were created." };
     const kind = value.audience === "TENANTS" ? "STUDENT" : "STAFF";
     const valid = recipients.map(r => ({ ...r, number: whatsappNumber(r.phone, r.country) }));
     const missing = valid.filter(r => !r.number).length;
