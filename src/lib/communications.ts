@@ -43,12 +43,14 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const org=await tx.organization.findUnique({where:{id:session.organizationId},select:{whatsappEnabled:true}});
  if(value.whatsapp && !org?.whatsappEnabled) return {error:"Enable WhatsApp in Settings first."};
  const ids=[...new Set(value.studentIds)];
- const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : {})},select:{id:true},take:5001});
+ const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
  if(!students.length || students.length>5000 || (value.audience === "SELECTED" && students.length !== ids.length)) return {error:"Recipients must be current tenants of this hostel. Maximum 5,000 recipients."};
+ const accessiblePortals=students.filter(student=>student.portalEnabled && student.portalPasswordHash!==null).length;
+ const awaitingPortal=students.length-accessiblePortals;
  let added=0;
  for(const student of students) added+=await addMessage(tx,{organizationId:session.organizationId,studentId:student.id,batchId:value.requestId,dedupKey:value.requestId,title:value.title,body:value.body,category:value.category,publishAt:value.publishAt,whatsappCopy:value.whatsapp,emailCopy:value.email});
- if(added) await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"TENANT_COMMUNICATION_PUBLISHED",entityType:"TenantMessage",entityId:value.requestId,metadata:{recipients:added,audience:value.audience,publishAt:value.publishAt.toISOString()}}});
- return {success:`Saved for ${students.length} tenant${students.length===1?"":"s"}. ${value.publishAt > new Date() ? "Scheduled for publication." : "Available in their private inboxes."}`};
+ if(added) await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"TENANT_COMMUNICATION_PUBLISHED",entityType:"TenantMessage",entityId:value.requestId,metadata:{recipients:added,audience:value.audience,publishAt:value.publishAt.toISOString(),activePortals:accessiblePortals,withoutActivePortal:awaitingPortal,emailCopyRequested:value.email,whatsappDraftRequested:value.whatsapp}}});
+ return {success:`Saved ${students.length} private tenant notice${students.length===1?"":"s"}; ${accessiblePortals} recipient${accessiblePortals===1?"":"s"} currently have portal access, and ${awaitingPortal} cannot read their hostel inbox until activated. ${value.publishAt > new Date() ? "Inbox publication is scheduled." : "Inbox records are available to activated accounts."} ${value.email ? "Email copies requested for queue processing, not confirmed delivered." : "No email copies requested."} ${value.whatsapp ? "WhatsApp copies requested as drafts, not sent." : "No WhatsApp copies requested."} Check actual delivery and read statuses before treating anyone as notified.`};
  },{timeout:30000});
 }
 export async function runCommunications(database: PrismaClient, now=new Date()) {
