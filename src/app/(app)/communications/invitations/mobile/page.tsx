@@ -2,9 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { invitationManager, inviteCandidateWhere } from "@/lib/portal-invitations";
-import { buildPhoneOnboardingDraft, type PhoneOnboardingStay } from "@/lib/phone-onboarding";
-import { registrationCountryCode } from "@/lib/tenant-registration";
-import { whatsappNumber } from "@/lib/whatsapp-policy";
+import { buildPhoneOnboardingDraft, pendingPhoneClaim, type PhoneOnboardingStay } from "@/lib/phone-onboarding";
 import { ArrowLeft, MessageCircle, ShieldCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -77,14 +75,13 @@ export default async function MobileOnboardingPage({
     }));
     // A phone match is only a reason to HOLD outreach. It does not prove
     // that the pending application belongs to this registered student.
-    const pendingRegistration = item.student.occupancies.some(o => {
-      const property = o.room.property;
-      const number = whatsappNumber(
-        item.student.phone,
-        registrationCountryCode(property.countryCode, session.organizationId),
-      );
-      return Boolean(number && pending.some(r => r.propertyId === property.id && r.phone === number));
-    });
+    const pendingRegistration = pendingPhoneClaim(
+      item.student.phone,
+      item.student.occupancies.map(o => ({
+        propertyId: o.room.property.id, countryCode: o.room.property.countryCode,
+      })),
+      pending, session.organizationId,
+    );
     return {
       ...item, pendingRegistration,
       draft: buildPhoneOnboardingDraft({
