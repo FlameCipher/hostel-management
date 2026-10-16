@@ -53,7 +53,7 @@ assert.equal(triage.counts.expired,1);
 assert.deepEqual(triage.caseCounts,{
   verifyIdentity:1,conflicts:1,recordReview:2,existingAccount:1,expired:1,
 }, "Count distinct applicant groups, not repeated requests, for the management review.");
-assert.equal(registrationCaseKind(triage.groups.find(g=>g.fullName.trim().toLowerCase()==="sheila nyaboke motwana")!),"VERIFY_IDENTITY");
+assert.equal(registrationCaseKind(triage.groups.find(g=>g.submissions.some(x=>x.request.id==="a"))!),"VERIFY_IDENTITY");
 assert.equal(registrationCaseKind(triage.groups.find(g=>g.fullName.toLowerCase()==="joseph omesa oirere")!),"CONFLICT");
 assert.match(registrationCaseLabels.VERIFY_IDENTITY,/independent identity verification/);
 
