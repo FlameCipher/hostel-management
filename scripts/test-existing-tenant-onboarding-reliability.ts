@@ -5,6 +5,7 @@ import type {PrismaClient} from "../src/generated/prisma/client";
 import {createBookingTicket} from "../src/lib/booking-requests";
 import {registrationCountryCode,submitTenantRegistration} from "../src/lib/tenant-registration";
 import {whatsappNumber} from "../src/lib/whatsapp-policy";
+import {triageTenantRegistrations} from "../src/lib/tenant-registration-triage";
 
 const mmambugua="mama-mbugua-hostel";
 test("only verified MMAMBUGUA uses Kenyan local phone fallback when countryCode is missing",()=>{
@@ -85,7 +86,20 @@ test("registration and approval use the same verified country function",()=>{
  const management=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
  assert.match(service,/whatsappNumber\(parsed.data.phone, registrationCountryCode\(property.countryCode,property.organizationId\)\)/);
  assert.match(service,/whatsappNumber\(student.phone, registrationCountryCode\(row.property.countryCode,row.organizationId\)\)/);
- assert.match(management,/whatsappNumber\(t.phone, registrationCountryCode\(r.property.countryCode,s.organizationId\)\)/);
+ assert.match(management,/triageTenantRegistrations\(/);
+ assert.match(management,/registrationCountryCode\(p.countryCode,session.organizationId\)/);
+ const review=triageTenantRegistrations([
+   {id:"r1",organizationId:mmambugua,propertyId:"p1",fullName:"Example Student",
+    phone:"254712345678",roomNumber:"54",
+    status:"PENDING",createdAt:now,expiresAt:new Date(now.getTime()+86400000)},
+ ],[{
+   id:"existing1",organizationId:mmambugua,fullName:"  example  student ",
+   phone:"0712345678",status:"ACTIVE",portalEnabled:false,
+   portalPasswordHash:null,portalLastLoginAt:null,portalInviteBlocked:false,
+   occupancies:[{status:"ACTIVE",room:{number:"54",propertyId:"p1"}}],
+ }],()=>registrationCountryCode(null,mmambugua),now);
+ assert.equal(review.counts.exactEligible,1);
+ assert.deepEqual(review.results[0].matchingStudentIds,["existing1"]);
  assert.match(service,/input.verified/);
  assert.match(service,/portalEnabled: false/);
 });
