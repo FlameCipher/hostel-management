@@ -19,6 +19,11 @@ export type PhoneOnboardingInput = {
   status: string;
   phone: string | null;
   accountEligible: boolean;
+  // True when a current same-property request already claims this student's registered phone.
+  // This is not proof the applicant is that student: management must verify the identity.
+  pendingRegistration?: boolean;
+  // Suppress new drafts if the latest registration backlog could not be fully checked.
+  queueComplete?: boolean;
   stays: PhoneOnboardingStay[];
 };
 
@@ -28,6 +33,8 @@ export type PhoneOnboardingDraft =
 
 export function buildPhoneOnboardingDraft(input: PhoneOnboardingInput): PhoneOnboardingDraft {
   if (!input.accountEligible) return { ready: false, reason: "Account is no longer eligible. Review the existing resident record." };
+  if (input.queueComplete === false) return { ready: false, reason: "The registration queue could not be fully checked. Review existing applications before contacting this student." };
+  if (input.pendingRegistration) return { ready: false, reason: "A pending registration already claims this registered number at the same hostel property. Verify that request first; do not send another registration invitation." };
   if (!["MISSING_EMAIL", "EXPIRED"].includes(input.status)) {
     return { ready: false, reason: "This resident's invitation needs the normal email/provider workflow." };
   }
