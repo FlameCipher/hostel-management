@@ -177,6 +177,57 @@ export function triageTenantRegistrations(
     },
   };
 }
+/** Read-only rollout triage. These are contact-review candidates, not verified
+ * identities or permission to message. Same-property phone claims only HOLD
+ * outreach for independent review; they never link or activate an account.
+ */
+export function activationOutreachSummary(
+  organizationId:string,
+  groups:readonly RegistrationReviewGroup[],
+  students:readonly RegisteredTenant[],
+  countryForProperty:(propertyId:string)=>string|null,
+  now:Date,
+) {
+  const pendingPhones=new Set(groups.flatMap(group=>group.submissions
+    .filter(item=>item.request.organizationId===organizationId && item.request.status==="PENDING" && item.request.expiresAt>now)
+    .map(item=>{
+      const r=item.request;
+      const country=countryForProperty(r.propertyId);
+      const phone=whatsappNumber(r.phone,country);
+      return phone?JSON.stringify([r.organizationId,r.propertyId,phone]):"";
+    }).filter(Boolean)));
+  const actionable=students.filter(student=>
+    student.organizationId===organizationId && student.status==="ACTIVE" && !student.portalEnabled &&
+    student.portalPasswordHash===null && student.portalLastLoginAt===null &&
+    !student.portalInviteBlocked && student.occupancies.some(o=>o.status==="ACTIVE")
+  );
+  let pendingPhoneClaims=0, needsContactReview=0, invalidPhoneOrRoom=0;
+  for(const student of actionable){
+    const matches=student.occupancies.filter(o=>o.status==="ACTIVE").map(o=>{
+      const normalized=whatsappNumber(student.phone,countryForProperty(o.room.propertyId));
+      return normalized?JSON.stringify([student.organizationId,o.room.propertyId,normalized]):null;
+    }).filter((value):value is string=>!!value);
+    if(!matches.length){invalidPhoneOrRoom++;continue;}
+    if(matches.some(key=>pendingPhones.has(key)))pendingPhoneClaims++;
+    else needsContactReview++;
+  }
+  const expiryLimit=new Date(now.getTime()+96*60*60*1000);
+  const expiringCases=groups.filter(group=>{
+    if(group.submissions[0]?.request.organizationId!==organizationId)return false;
+    const latest=group.submissions[0]?.request;
+    return latest?.status==="PENDING" && latest.expiresAt>now &&
+      latest.expiresAt<=expiryLimit;
+  }).length;
+  const expiryDates=groups.filter(g=>g.submissions[0]?.request.organizationId===organizationId).map(g=>g.submissions[0]?.request.expiresAt)
+    .filter((date):date is Date=>!!date && date>now)
+    .sort((a,b)=>a.getTime()-b.getTime());
+  return {
+    actionableResidentRecords:actionable.length,
+    pendingPhoneClaims,needsContactReview,invalidPhoneOrRoom,
+    expiringCases,earliestExpiry:expiryDates[0]??null,
+  };
+}
+
 export const registrationReviewLabels:Record<ReviewResultKind,string>={
   EXACT_MATCH:"Existing record matches — verify identity",
   MULTIPLE_MATCHES:"Multiple possible student records",
