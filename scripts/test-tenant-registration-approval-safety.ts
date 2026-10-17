@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import type {PrismaClient} from "../src/generated/prisma/client";
 import type {SessionPayload} from "../src/lib/auth/session";
 import {reviewTenantRegistration} from "../src/lib/tenant-registration";
@@ -188,6 +189,14 @@ async function run(){
     id:"latest",studentId:"",approve:false,verified:false,
   },now);
   assert.ok(result.error);assert.equal(missingReason.audits.length,0);
-  console.log("Tenant registration approval queue: deduplication, newest password, conflicting phone, account isolation, audit and reject reasons passed.");
+  const managementForm=readFileSync("src/components/tenant-registration-forms.tsx","utf8");
+  const serverAction=readFileSync("src/app/tenant/register/actions.ts","utf8");
+  const registrationService=readFileSync("src/lib/tenant-registration.ts","utf8");
+  assert.match(managementForm,/name="verificationMethod"/);
+  assert.match(managementForm,/value="IN_PERSON"/);
+  assert.match(managementForm,/value="CALL_REGISTERED_PHONE"/);
+  assert.match(serverAction,/verificationMethod:f\.get\("verificationMethod"\)/);
+  assert.match(registrationService,/verificationMethod: input\.approve\?input\.verificationMethod:null/);
+  console.log("Tenant registration approval: independent verification method audit, duplicate/newest security and account protection passed.");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
