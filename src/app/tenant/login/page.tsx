@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import { requestPropertyContext } from "@/lib/property-host";
 import { redirect } from "next/navigation";
@@ -13,5 +14,6 @@ export default async function TenantLoginPage({searchParams}: {searchParams: Pro
   <p>Call Kenya emergency services <a href="tel:999">999</a> or
     <a href="tel:112">112</a>. You do not need a hostel account to make a phone call.
     The student SOS button becomes available after your own tenant portal is activated.</p>
+  <HostelEmergencyCallLinks organizationId={context.property?.organizationId} compact/>
 </section><TenantLoginForm/><p className="mt-6"><Link className="secondary-button" href="/tenant/register">Existing resident? Create my tenant account</Link></p><p className="mt-4"><Link href="/help">Help using the system</Link> · <Link href="/install">Install hostel app</Link></p><p className="mt-8 text-center text-xs"><Link href="/login">Landlord or staff? Open management</Link></p><p className="mt-4 text-center text-xs"><Link href="/">Back to hostel website</Link></p></div></section></main>;
 }
