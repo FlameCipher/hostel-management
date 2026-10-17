@@ -45,6 +45,7 @@ function fixture(options:{
     },
     findFirst:async({where}:any)=>{
       assert.equal(where.organizationId,"hostel-A");
+      if(where.id) return options.existing===false?null:recorded;
       return options.activeRecent?{id:"already-active"}:null;
     },
     count:async()=>options.overLimit?10:0,
