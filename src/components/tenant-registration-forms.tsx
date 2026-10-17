@@ -104,7 +104,7 @@ export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ti
     {state.error?<div className="form-error" role="alert">{state.error}<br/>If you entered a different name, number or room, select <strong>Edit my details</strong>.</div>:null}
   </form>;
 }
-export function RegistrationReviewForm({ id, candidates, blockApproval=false, blockReason }: { id: string; candidates: Array<{ id: string; label: string }>; blockApproval?: boolean; blockReason?:string }) {
+export function RegistrationReviewForm({ id, candidates, blockApproval=false, blockReason }: { id: string; candidates: Array<{ id: string; label: string; registeredContact: { display:string; href:string } | null }>; blockApproval?: boolean; blockReason?:string }) {
   const [state,action,pending]=useActionState(reviewRegistrationAction,{});
   const single=candidates.length===1;
   return <form action={action}>
@@ -120,6 +120,18 @@ export function RegistrationReviewForm({ id, candidates, blockApproval=false, bl
       </select>
     </label>
     {single?<p className={styles.meta}>One name, registered mobile and room match was found. Verify the student independently before approval.</p>:null}
+    {single && !blockApproval && <section aria-label="Registered resident contact">
+      <p><strong>Call the phone on the existing student register</strong> — not simply the number entered on this application.</p>
+      {candidates[0].registeredContact ?
+        <p><a className="secondary-button" href={candidates[0].registeredContact.href}>
+          Call registered mobile {candidates[0].registeredContact.display}
+        </a></p>
+        : <p className={styles.warning}>The resident's registered phone cannot be safely dialed.
+          Verify this record through an authorized in-person check or correct the original student record before approval.</p>}
+      <p className={styles.meta}>Opening your phone dialer does not place a verified call,
+        confirm the applicant's identity or activate an account. Speak with the real
+        resident and confirm their current room yourself before recording a verification method.</p>
+    </section>}
     {candidates.length===0?<p className={styles.warning}>This request cannot be activated until management has independently verified and corrected the existing student record.</p>:null}
     <label className="field-group"><span>Independent identity verification method (required to activate)</span>
       <select name="verificationMethod" defaultValue="">
