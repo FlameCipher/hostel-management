@@ -7,7 +7,7 @@ import {type CallTestResult} from "@/lib/emergency-call-acceptance-policy";
 
 export const EMERGENCY_CALL_TEST_AUDIT_ACTION="HOSTEL_EMERGENCY_CALL_TEST";
 const testSchema=z.object({
- line:z.coerce.number().int().min(0).max(1),
+ line:z.enum(["0","1"]).transform(Number),
  result:z.enum(["ANSWERED","NO_ANSWER","WRONG_RECIPIENT","FAILED_TO_CONNECT"]),
  note:z.string().trim().min(10).max(280),
  personallyTested:z.literal(true),
