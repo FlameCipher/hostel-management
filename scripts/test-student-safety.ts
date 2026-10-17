@@ -6,6 +6,7 @@ import type { TenantSession } from "../src/lib/auth/tenant-session";
 import type { SessionPayload } from "../src/lib/auth/session";
 import { submitSOS, updateSOS, availableSOSLocation } from "../src/lib/student-safety";
 
+process.env.HOSTEL_SOS_ENABLED="true";
 const now=new Date("2026-10-17T08:00:00Z");
 const tenant:TenantSession={organizationId:"hostel-A",studentId:"student-A",name:"Resident",sessionVersion:1};
 const staff:SessionPayload={organizationId:"hostel-A",userId:"staff-A",name:"Owner",role:"OWNER",sessionVersion:1};
@@ -60,6 +61,15 @@ function fixture(options:{
  return {db,alerts,audit,recorded};
 }
 
+test("pilot disabled blocks creating new incidents",async()=>{
+ const f=fixture();
+ process.env.HOSTEL_SOS_ENABLED="false";
+ try {
+   const result=await submitSOS(f.db,tenant,input,now);
+   assert.match(result.error??"",/pilot not enabled/i);
+   assert.equal(f.alerts.length,0);
+ } finally {process.env.HOSTEL_SOS_ENABLED="true";}
+});
 test("only active, signed-in residents may create SOS incidents",async()=>{
  const f=fixture();
  assert.match((await submitSOS(f.db,null,input,now)).error??"",/Sign in/);
@@ -170,6 +180,9 @@ test("student and staff screens disclose location choice and do not claim delive
  assert.match(staffPage,/residentStaff/);
  assert.match(staffPage,/SafetyResponseForm/);
  assert.match(tenantPage,/residentTenant/);
+ assert.match(tenantPage,/sosPilotEnabled\(\)/);
+ assert.match(staffPage,/SOS pilot not yet activated/);
+
  const login=readFileSync("src/app/tenant/login/page.tsx","utf8");
  assert.match(login,/You do not need a hostel account to make a phone call/);
 });
