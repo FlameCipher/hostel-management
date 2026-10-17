@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { residentStaff } from "@/lib/resident-access";
 import { db } from "@/lib/db";
-import { availableSOSLocation } from "@/lib/student-safety";
+import { availableSOSLocation, sosPilotEnabled } from "@/lib/student-safety";
 import { registeredResidentCallTarget } from "@/lib/tenant-verification-contact";
 import { SafetyResponseForm } from "@/components/safety-response";
 import { SafetyQueueRefresh } from "@/components/safety-queue-refresh";
@@ -43,6 +43,13 @@ export default async function StaffSafetyPage(){
      <p><strong>{count} open or acknowledged SOS request{count===1?"":"s"}.</strong>
        Recorded incidents require actual human response and urgent action when needed.</p>
    </div><Link href="/visitors" className="secondary-button">Visitor gate</Link></div>
+   {!sosPilotEnabled()?<section className="panel entity-form mt-5">
+     <h2>SOS pilot not yet activated</h2>
+     <p>Incident submission is disabled until an authorized responder is appointed,
+       the phone test is completed, and the hostel has a reliable response process.
+       Students can still use national emergency phone numbers.</p>
+     <Link href="/gate-readiness" className="secondary-button">Review staffed gate readiness</Link>
+   </section>:null}
    <section className="policy-banner mt-5"><div>
      <strong>SOS is not automated rescue or police dispatch.</strong>
      <p>Call the student on the phone already in the hostel register, organize real help and
