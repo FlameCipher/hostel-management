@@ -18,6 +18,8 @@ test("room, visitor, caretaker and pending queues classify safely",()=>{
   assert.deepEqual(operationalIntent("How many pending registrations?"),{kind:"registrations"});
   assert.deepEqual(operationalIntent("Show receipts pending delivery"),{kind:"receipt-queue"});
   assert.deepEqual(operationalIntent("How many active caretaker accounts?"),{kind:"gate-staff"});
+  assert.deepEqual(operationalIntent("How many WhatsApp messages are pending?"),{kind:"whatsapp-queue"});
+  assert.deepEqual(operationalIntent("Show Whatsapp delivery status"),{kind:"whatsapp-queue"});
   assert.equal(operationalIntent("Turn off visitor security"),null);
 });
 test("tenant scoping and no mutation in room lookup",async()=>{
@@ -55,4 +57,30 @@ test("finance receipt queue uses only valid unreversed tenant-scoped records",as
  }}} as unknown as PrismaClient;
  const r=await answerOperationalQuestion(db,"hostel","MANAGER",{kind:"receipt-queue"});
  assert.match(r.text,/3 unreversed payment receipts/);assert.match(r.text,/Nothing has been resent/);
+});
+
+test("WhatsApp queue answers use current hostel scope and no sending",async()=>{
+ const queries:unknown[]=[];
+ const db={
+  notification:{count:async({where}:any)=>{queries.push(where);
+   assert.equal(where.organizationId,"hostel");
+   assert.equal(where.channel,"WHATSAPP");
+   return ({QUEUED:48,OPENED_FOR_SENDING:3,SENT:1,FAILED:2} as Record<string,number>)[where.status]??0;}},
+  whatsAppDelivery:{count:async({where}:any)=>{queries.push(where);
+   assert.equal(where.organizationId,"hostel");
+   assert.deepEqual(where.status.in,["DELIVERED","READ"]);
+   return 0;}}
+ } as unknown as PrismaClient;
+ const r=await answerOperationalQuestion(db,"hostel","OWNER",{kind:"whatsapp-queue"});
+ assert.match(r.text,/48 WhatsApp drafts are queued/);
+ assert.match(r.text,/3 were opened but are not confirmed sent/);
+ assert.match(r.text,/0 provider delivery\/read receipts/);
+ assert.match(r.text,/No messages were sent or retried/);
+ assert.equal(queries.length,5);
+ assert.equal(r.links[0].href,"/communications/whatsapp");
+});
+test("caretaker cannot use the AI to inspect management WhatsApp queues",async()=>{
+ const db={notification:{count:async()=>assert.fail("Must not query WhatsApp messages")}} as unknown as PrismaClient;
+ const r=await answerOperationalQuestion(db,"hostel","CARETAKER",{kind:"whatsapp-queue"});
+ assert.match(r.text,/Only authorized management/);
 });
