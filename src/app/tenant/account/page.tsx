@@ -17,6 +17,17 @@ export default async function TenantAccountPage() {
  const paid=student.charges.reduce((s,x)=>s+x.payments.reduce((a,p)=>a+Number(p.amount),0),0);
  const balance=Math.max(0,total-paid), occupancy=student.occupancies[0];
  return <main className="marketing-section"><div className="page-heading-row"><div><p className="eyebrow">Student account</p><h1>{student.fullName}</h1><p>{organization.name} tenant portal</p></div><form action={tenantLogoutAction}><button className="secondary-button">Sign out</button></form></div>
+ <section className="panel entity-form" aria-label="Student safety SOS">
+   <h2>Danger / SOS — need urgent help?</h2>
+   <p>If you are unsafe, threatened, being followed or need immediate help, open your SOS screen.
+      You may choose to share your current location once; no background tracking is enabled.</p>
+   <Link className="primary-button" href="/tenant/safety"
+     style={{backgroundColor:"#b91c1c",color:"#ffffff",fontWeight:700}}>
+     SOS — I NEED HELP
+   </Link>
+   <p>For immediate emergencies, call <a href="tel:999">999</a> or <a href="tel:112">112</a>.
+     A saved hostel alert is not guaranteed to be seen immediately.</p>
+ </section>
  {session.organizationId === TERMS_ORGANIZATION_ID ? <section className="panel entity-form"><h2>Hostel rules and digital acceptance</h2><p>Every student must read and agree to the hostel terms. Accept accommodation and agree to the terms digitally, then download your PDF. Saved copies remain available here.</p><Link className="primary-button" href="/tenant/terms">Read, accept or download my terms</Link></section> : null}
  <section className="panel entity-form mt-5"><h2>Messages from management</h2><p>Read hostel announcements, holiday notices and your private reminders.</p><Link className="primary-button" href="/tenant/messages">Open my messages</Link><Link className="secondary-button" href="/tenant/contact">Contact management</Link></section>
  <section className="panel entity-form mt-5"><h2>Visitors & help</h2><p>Tell the gate team about an expected visitor and get help using your account.</p><Link className="primary-button" href="/tenant/visitors">My visitors</Link><Link className="secondary-button" href="/tenant/assistant">System assistant</Link></section><div className="mt-5"><ResidentAlertPanel tenant/></div>
