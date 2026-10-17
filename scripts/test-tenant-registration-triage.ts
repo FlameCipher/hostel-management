@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {
   comparablePhone,registrationIdentityKey,registrationReviewLabels,
-  registrationCaseKind,registrationCaseLabels,
+  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,
   triageTenantRegistrations,type RegisteredTenant,type ReviewRegistration,
 } from "../src/lib/tenant-registration-triage";
 
@@ -122,6 +122,50 @@ const renamed=triageTenantRegistrations([
 assert.equal(renamed.caseCounts.conflicts,2,"Both identities using the same phone remain separate blocked cases.");
 assert.equal(renamed.caseCounts.verifyIdentity,0,"A matching application with conflicting phone claimant is not ready for human identity checking.");
 
+const outreachNow=day("2026-10-17T09:00:00Z");
+const expiration=day("2026-10-20T18:18:09Z");
+const outreachRequests=[
+  {...req("repeat-old","Resident One","0712345678","54","2026-10-13T09:00:00Z"),
+    expiresAt:day("2026-10-18T00:00:00Z")},
+  {...req("repeat-new","Resident One","254712345678","54","2026-10-15T09:00:00Z"),
+    expiresAt:expiration},
+  {...req("foreign","Foreign Person","0712345678","54","2026-10-15T09:00:00Z",
+      "other-organization","other-property"),expiresAt:expiration},
+];
+const outreachResidents=[
+  student("s1","Resident One","0712345678","54"),
+  student("s2","Second Resident","0712111111","25"),
+  student("bad","No Number","invalid","26"),
+  student("disabled","Portal Blocked","0712333333","27",{portalInviteBlocked:true}),
+  student("enabled","Already Enabled","0712444444","28",{portalEnabled:true}),
+  student("former","Former Resident","0712555555","30",{status:"CHECKED_OUT"}),
+  student("foreign","Foreign Resident","0712111111","25",{organizationId:"other-organization"}),
+];
+const outreachCases=triageTenantRegistrations(outreachRequests,outreachResidents,()=>"KE",outreachNow);
+const oldRecords=JSON.stringify({outreachResidents,outreachRequests});
+const progress=activationOutreachSummary(outreachCases.groups,outreachResidents,()=>"KE",outreachNow);
+assert.equal(progress.actionableResidentRecords,3);
+assert.equal(progress.pendingPhoneClaims,1,
+  "One pending phone claim means hold for verification, not proof of applicant identity.");
+assert.equal(progress.needsContactReview,1,
+  "Only a valid, active, same-property resident with no active phone claim is a contact-review candidate.");
+assert.equal(progress.invalidPhoneOrRoom,1);
+assert.equal(progress.expiringCases,1,
+  "Use the latest request's expiration rather than stale duplicate expiration.");
+assert.equal(progress.earliestExpiry?.toISOString(),expiration.toISOString());
+assert.equal(JSON.stringify({outreachResidents,outreachRequests}),oldRecords,
+  "Review counters must never mutate tenant data.");
+const differentProperty=triageTenantRegistrations([
+  {...req("another","Different Name","254711111111","25","2026-10-15T09:00:00Z",
+    "hostel-A","property-B"),expiresAt:expiration},
+],outreachResidents,()=>"KE",outreachNow);
+const noCrossProperty=activationOutreachSummary(differentProperty.groups,[outreachResidents[1]],()=>"KE",outreachNow);
+assert.equal(noCrossProperty.needsContactReview,1,
+  "A pending phone claim on another property must not suppress this property's outreach.");
+const timeLimit=activationOutreachSummary(outreachCases.groups,outreachResidents,()=>"KE",
+  day("2026-10-18T18:18:10Z"));
+assert.equal(timeLimit.expiringCases,1);
+
 const managementPage=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
 assert.match(managementPage,/registrationCaseKind\(g\)===focus/);
 assert.match(managementPage,/triage\.caseCounts\.verifyIdentity/);
@@ -129,4 +173,9 @@ assert.match(managementPage,/No automated approval or rejection takes place/);
 assert.match(managementPage,/name="focus" defaultValue=\{focus\}/);
 assert.match(managementPage,/independent human identity checking/);
 assert.match(managementPage,/blockApproval=\{/);
+assert.match(managementPage,/activationOutreachSummary\(/);
+assert.match(managementPage,/outreach\.needsContactReview/);
+assert.match(managementPage,/outreach\.expiringCases/);
+assert.match(managementPage,/complete\?<section aria-label="Existing tenant activation work queue">/);
+assert.match(managementPage,/No automated approval or rejection takes place/);
 console.log("Tenant registration triage: exact matches, duplicates, conflicting rooms, cross-hostel protection, expired and inactive accounts passed.");
