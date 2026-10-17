@@ -8,6 +8,7 @@ import { registeredResidentCallTarget } from "@/lib/tenant-verification-contact"
 import { SafetyResponseForm } from "@/components/safety-response";
 import { SafetyQueueRefresh } from "@/components/safety-queue-refresh";
 import { DeviceReminderOptIn } from "@/components/device-reminder-optin";
+import { SafetyPushSelfTest } from "@/components/safety-push-self-test";
 
 export const dynamic="force-dynamic";
 export const metadata={title:"Student SOS response",robots:{index:false,follow:false}};
@@ -61,6 +62,7 @@ export default async function StaffSafetyPage(){
      <SafetyQueueRefresh/>
    </div></section>
    <DeviceReminderOptIn audience="staff"/>
+   <SafetyPushSelfTest/>
    {count>50?<p className="form-error">More than 50 SOS alerts are active. This page shows the oldest 50 first. Review the backlog immediately.</p>:null}
    {open.length?open.slice(0,50).map(alert=>{
      const property=props.get(alert.propertyId);

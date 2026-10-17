@@ -22,14 +22,18 @@ function allowedAlertRoute(data){
    return "/outings";
  if(data && data.kind==="SOS_ALERT" && data.url==="/safety")
    return "/safety";
+ if(data && data.kind==="SOS_DRILL" && data.url==="/safety")
+   return "/safety";
  return "/open-app";
 }
 self.addEventListener("push", event => {
  let data={};try{data=event.data?.json()||{};}catch{/* generic notice */}
  const url=allowedAlertRoute(data);
- const title=url==="/safety"?"Urgent hostel SOS":url==="/tenant/timetable"?"Class reminder":
+ const drill=url==="/safety"&&data.kind==="SOS_DRILL";
+ const title=drill?"Hostel notification TEST":url==="/safety"?"Urgent hostel SOS":url==="/tenant/timetable"?"Class reminder":
    url==="/outings"?"Hostel gate update":"Your hostel";
- const body=url==="/safety"?"An emergency request needs staff review. Open the secure SOS queue.":url==="/tenant/timetable"?
+ const body=drill?"This is only a notification test. No student has requested emergency help.":
+   url==="/safety"?"An emergency request needs staff review. Open the secure SOS queue.":url==="/tenant/timetable"?
    "A lesson reminder is ready. Open your private timetable.":
    url==="/outings"?
    "A student gate update needs review in your hostel app.":
