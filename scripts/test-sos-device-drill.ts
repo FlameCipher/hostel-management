@@ -34,10 +34,12 @@ function fixture({role="OWNER",allowed=true,recent=0,enabled=true}:{
    count:async({where}:any)=>{
     assert.equal(where.subscriptionId,"device-1");
     assert.equal(where.kind,"SOS_DRILL");
-    return recent;
+    return recent+records.length;
    },
    create:async({data}:any)=>{records.push(data);return data;}
-  }
+  },
+  $queryRaw:async()=>[],
+  $transaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn(db),
  };
  return {db:db as unknown as PrismaClient,records};
 }
@@ -76,6 +78,38 @@ test("rate limits a device; no forced test to another subscriber",async()=>{
  const f=fixture({recent:1});
  assert.match((await requestSafetyPushTest(f.db,session,"device-1","hostel-a.example",now)).error??"",/ten minutes/);
  assert.equal(f.records.length,0);
+});
+test("two simultaneous requests to the same staff phone cannot both queue a TEST",async()=>{
+ const f=fixture();
+ let queue=Promise.resolve();
+ const d=f.db as unknown as {$transaction:(fn:(tx:unknown)=>Promise<unknown>)=>Promise<unknown>};
+ d.$transaction=async fn=>{
+  // Serialize transactions like the row-level FOR UPDATE lock in Postgres.
+  const before=queue;
+  let release:()=>void=()=>{};
+  queue=new Promise<void>(resolve=>{release=resolve});
+  await before;
+  try{return await fn(f.db)}finally{release()}
+ };
+ const [a,b]=await Promise.all([
+  requestSafetyPushTest(f.db,session,"device-1","hostel-a.example",now),
+  requestSafetyPushTest(f.db,session,"device-1","hostel-a.example",now),
+ ]);
+ assert.equal([a,b].filter(x=>x.success).length,1);
+ assert.equal([a,b].filter(x=>x.error).length,1);
+ assert.equal(f.records.length,1);
+ assert.equal(f.records[0].kind,"SOS_DRILL");
+});
+test("queue is protected by a row lock and staff access is rechecked within the transaction",()=>{
+ const source=readFileSync("src/lib/sos-device-test.ts","utf8");
+ const worker=readFileSync("src/lib/push-service.ts","utf8");
+ assert.match(source,/db\.\$transaction\(async tx=>/);
+ assert.match(source,/FOR UPDATE/);
+ assert.match(source,/residentStaff\(tx,session\)/);
+ assert.match(source,/pushEligible\(tx as PrismaClient,active\)/);
+ assert.match(worker,/if\(job.kind==="SOS_DRILL"\)/);
+ assert.match(worker,/job.subscription.audience==="staff"/);
+ assert.match(worker,/job.targetUrl!=="\/safety"/);
 });
 test("service worker clearly marks the drill TEST without exposing supplied identity",async()=>{
  const events:Record<string,(event:any)=>void>={};
