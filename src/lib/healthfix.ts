@@ -101,6 +101,17 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
       return rows[0].count;
     }),
   ])));
+  modules.push(module("student-return-coordination", "Student outing and late-return records", await Promise.all([
+    warning("late-arrival-unacknowledged", "Student late-return notices awaiting staff review",
+      () => db.studentOuting.count({where:{...scope,status:"OUT",
+        lateNotifiedAt:{not:null},lateAcknowledgedAt:null}})),
+    warning("overdue-self-reported-return", "Expected return times passed without a confirmed student return; verify directly rather than assuming danger",
+      () => db.studentOuting.count({where:{...scope,status:"OUT",
+        expectedReturnAt:{lt:new Date(now.getTime()-30*60000)}}})),
+    warning("return-awaiting-gate-check", "Student self-reported returns still awaiting physical gate verification",
+      () => db.studentOuting.count({where:{...scope,status:"RETURN_REPORTED",
+        studentReturnedAt:{lte:new Date(now.getTime()-30*60000)}}})),
+  ])));
   modules.push(module("student-safety", "Student SOS response", await Promise.all([
     warning("unacknowledged-sos", "SOS requests without staff acknowledgement after five minutes need urgent human attention",
       () => db.safetyAlert.count({where:{...scope,status:"OPEN",

@@ -34,6 +34,15 @@ export default async function TenantAccountPage() {
      A saved hostel alert is not guaranteed to be seen immediately.</p>
  </section>
  {session.organizationId === TERMS_ORGANIZATION_ID ? <section className="panel entity-form"><h2>Hostel rules and digital acceptance</h2><p>Every student must read and agree to the hostel terms. Accept accommodation and agree to the terms digitally, then download your PDF. Saved copies remain available here.</p><Link className="primary-button" href="/tenant/terms">Read, accept or download my terms</Link></section> : null}
+ <section className="panel entity-form mt-5" aria-label="Student daily life">
+   <h2>My movements &amp; university timetable</h2>
+   <p>Let the hostel gate know when you go out, return, or expect to be late.
+      Your report is voluntary and must not be treated as live tracking or proof of gate entry.</p>
+   <Link className="primary-button" href="/tenant/movements">Going out / Returning / I'll be late</Link>
+   <p>Save your weekly class lessons, see what is next and request reminders on your phone.
+      Your private class schedule is not shared with hostel security.</p>
+   <Link className="secondary-button" href="/tenant/timetable">My class timetable &amp; reminders</Link>
+ </section>
  <section className="panel entity-form mt-5"><h2>Messages from management</h2><p>Read hostel announcements, holiday notices and your private reminders.</p><Link className="primary-button" href="/tenant/messages">Open my messages</Link><Link className="secondary-button" href="/tenant/contact">Contact management</Link></section>
  <section className="panel entity-form mt-5"><h2>Visitors & help</h2><p>Tell the gate team about an expected visitor and get help using your account.</p><Link className="primary-button" href="/tenant/visitors">My visitors</Link><Link className="secondary-button" href="/tenant/assistant">System assistant</Link></section><div className="mt-5"><ResidentAlertPanel tenant/></div>
  <HostelInstallCard/>

@@ -20,6 +20,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { label: "Bookings", href: "/bookings", icon: CalendarDays },
     { label: "Students", href: "/students", icon: Users },
     { label: "Visitors", href: "/visitors", icon: ClipboardCheck },
+    { label: "Outings / Late Returns", href: "/outings", icon: ClipboardCheck },
     { label: "Student SOS", href: "/safety", icon: ShieldCheck },
     { label: "Check-in / Check-out", href: "/occupancy", icon: ClipboardCheck },
     { label: "Tenant Registration", href: "/students/registrations", icon: Users },

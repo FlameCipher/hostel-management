@@ -17,7 +17,7 @@ for(const role of roles){
 }
 const caretaker=visibleStaffNavigation("CARETAKER");
 assert.deepEqual(caretaker.map(x=>x.href).sort(),[
-  "/visitors","/safety","/rooms","/occupancy","/assistant","/install","/account",
+  "/visitors","/outings","/safety","/rooms","/occupancy","/assistant","/install","/account",
 ].sort());
 for(const path of ["/payments","/expenses","/reports","/dashboard",
   "/search","/notifications","/users","/communications","/settings",
@@ -131,6 +131,12 @@ assert.doesNotMatch(gateModel,/guardian:|charges:|payments:|roomStays:|adjustmen
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
 assert.ok(read("src/components/app-shell.tsx").includes('href: "/safety"'));
 assert.ok(read("src/app/(app)/safety/page.tsx").includes("residentStaff"));
+assert.ok(read("src/app/(app)/outings/page.tsx").includes("residentStaff"));
+assert.ok(read("src/lib/staff-navigation-policy.ts").includes('href:"/outings"'));
+assert.ok(read("src/components/app-shell.tsx").includes('href: "/outings"'));
+assert.ok(read("src/app/tenant/account/page.tsx").includes('href="/tenant/movements"'));
+assert.ok(read("src/app/tenant/account/page.tsx").includes('href="/tenant/timetable"'));
+
 assert.ok(read("src/app/tenant/account/page.tsx").includes('href="/tenant/safety"'));
 
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));

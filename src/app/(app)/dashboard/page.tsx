@@ -15,12 +15,17 @@ export default async function DashboardPage() {
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireStaffFinanceAccess();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
-  const [rooms, students, charges, recentPayments, activeSOS] = await Promise.all([
+  const [rooms, students, charges, recentPayments, activeSOS, overdueOutings, lateUnacknowledged, returnReported] = await Promise.all([
     db.room.findMany({ where: { organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, include: { student: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, include: { student: true } } }, orderBy: { number: "asc" } }),
     db.student.count({ where: { organizationId: session.organizationId, status: "ACTIVE" } }),
     db.charge.findMany({ where: { organizationId: session.organizationId, ...(semester ? { semesterId: semester.id } : {}) }, include: { payments: { where: { reversedAt: null } } } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, reversedAt: null }, include: { student: true, charge: true }, orderBy: { paidAt: "desc" }, take: 6 }),
     db.safetyAlert.count({ where: { organizationId: session.organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+    db.studentOuting.count({where:{organizationId:session.organizationId,status:"OUT",
+      expectedReturnAt:{lt:new Date()}}}),
+    db.studentOuting.count({where:{organizationId:session.organizationId,status:"OUT",
+      lateNotifiedAt:{not:null},lateAcknowledgedAt:null}}),
+    db.studentOuting.count({where:{organizationId:session.organizationId,status:"RETURN_REPORTED"}}),
   ]);
   const context = await requestPropertyContext();
   const timeZone = hostelTimeZone(context.property?.timeZone, context.property?.countryCode ?? "");
@@ -56,6 +61,14 @@ export default async function DashboardPage() {
       <p>Review any emergency reports, contact the resident using the registered phone and record actual response.
         The hostel app does not guarantee police dispatch or continuous student location tracking.</p>
       <Link href="/safety" className="primary-button">Open SOS response centre</Link>
+    </section>
+    <section className="panel entity-form" aria-label="Student gate coordination">
+      <h2>Gate awareness · Student outings</h2>
+      <p><strong>{overdueOutings}</strong> self-reported expected returns overdue;
+         <strong> {lateUnacknowledged}</strong> late notices awaiting gate review;
+         <strong> {returnReported}</strong> students report returning but lack staff verification.
+         These are records, not proof of someone's location or an emergency.</p>
+      <Link href="/outings" className="secondary-button">Review going-out and late-return queue</Link>
     </section>
     <section className={styles.metrics} aria-label="Property overview">{stats.map(({ label, value, hint, href, icon: Icon, tone }) => <Link href={href} key={label} className={styles.metric} aria-label={`${label}: ${value}`}><span className={styles.metricLabel}>{label}</span><span className={`${styles.metricIcon} ${tone}`}><Icon aria-hidden="true" size={16}/></span><strong className={styles.metricValue}>{value}</strong><ArrowUpRight aria-hidden="true" size={16} className={styles.metricArrow}/><span className={styles.metricHint}>{hint}</span></Link>)}</section>
     <ResidentAlertPanel/>

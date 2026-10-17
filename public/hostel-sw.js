@@ -12,11 +12,46 @@ self.addEventListener("fetch", event => {
   })));
 });
 
+// Notification payloads are intentionally reduced to exact, known app routes.
+// Never display private student/class names on the device lock screen, and
+// never navigate to a URL supplied by an arbitrary push payload.
+function allowedAlertRoute(data){
+ if(data && data.kind==="CLASS_REMINDER" && data.url==="/tenant/timetable")
+   return "/tenant/timetable";
+ if(data && data.kind==="GATE_UPDATE" && data.url==="/outings")
+   return "/outings";
+ return "/open-app";
+}
 self.addEventListener("push", event => {
-  let data={}; try { data=event.data?.json()||{}; } catch { /* Use private generic copy. */ }
-  event.waitUntil(self.registration.showNotification("Your hostel", {body:"New activity is ready to review. Open your hostel app to see the details.",icon:"/app-icons/192",badge:"/app-icons/192",tag:typeof data.tag==="string"?data.tag:"hostel-update",data:{url:"/open-app"}}));
+ let data={};try{data=event.data?.json()||{};}catch{/* generic notice */}
+ const url=allowedAlertRoute(data);
+ const title=url==="/tenant/timetable"?"Class reminder":
+   url==="/outings"?"Hostel gate update":"Your hostel";
+ const body=url==="/tenant/timetable"?
+   "A lesson reminder is ready. Open your private timetable.":
+   url==="/outings"?
+   "A student gate update needs review in your hostel app.":
+   "New activity is ready to review. Open your hostel app to see the details.";
+ event.waitUntil(self.registration.showNotification(title,{
+  body,icon:"/app-icons/192",badge:"/app-icons/192",
+  tag:typeof data.tag==="string"&&data.tag.length<=128?data.tag:"hostel-update",
+  data:{url},
+ }));
 });
 self.addEventListener("notificationclick", event => {
  event.notification.close();
- event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(async windows=>{for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.navigate("/open-app");return client.focus();}}return self.clients.openWindow("/open-app");}));
+ // Only the URL saved by the worker itself and matching the fixed allowlist
+ // may be opened, never a provider-supplied external target.
+ const requested=event.notification?.data?.url;
+ const target=requested==="/tenant/timetable"||requested==="/outings"?
+   requested:"/open-app";
+ event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true})
+   .then(async windows=>{
+     for(const client of windows){
+       if(new URL(client.url).origin===self.location.origin){
+         await client.navigate(target);return client.focus();
+       }
+     }
+     return self.clients.openWindow(target);
+   }));
 });

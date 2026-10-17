@@ -295,6 +295,8 @@ model Organization {
   receiptSequences      ReceiptSequence[]
   portalInvitations TenantPortalInvitation[]
   visitorRequests VisitorRequest[]
+  studentOutings StudentOuting[]
+  studentLessons StudentLesson[]
   safetyAlerts SafetyAlert[]
   portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
@@ -351,6 +353,10 @@ model PushDelivery {
  subscriptionId String
  eventKey String
  status String @default("QUEUED")
+ kind String @default("ACTIVITY")
+ targetUrl String?
+ subjectId String?
+ expiresAt DateTime?
  attempts Int @default(0)
  attemptAt DateTime?
  nextAttemptAt DateTime @default(now())
@@ -359,6 +365,7 @@ model PushDelivery {
  createdAt DateTime @default(now())
  subscription PushSubscription @relation(fields:[subscriptionId], references:[id], onDelete:Cascade)
  @@index([status, nextAttemptAt])
+ @@index([kind, expiresAt])
 }
 
 model WhatsAppConnection {
@@ -661,6 +668,8 @@ model Student {
   @@index([organizationId, fullName])
   portalInvitations TenantPortalInvitation[]
   visitorRequests VisitorRequest[]
+  studentOutings StudentOuting[]
+  studentLessons StudentLesson[]
   safetyAlerts SafetyAlert[]
   portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
@@ -1281,6 +1290,59 @@ model BookingRequest {
 }
 
 // Student-initiated SOS only. Never uses background tracking.
+// Resident self-report; a posted return is not gate verification.
+model StudentOuting {
+ id String @id @default(cuid())
+ organizationId String
+ studentId String
+ propertyId String
+ occupancyId String
+ requestId String
+ roomLabel String
+ status String @default("OUT")
+ leftAt DateTime @default(now())
+ initialExpectedReturnAt DateTime
+ expectedReturnAt DateTime
+ lateNotifiedAt DateTime?
+ lateMessage String?
+ lateAcknowledgedAt DateTime?
+ lateAcknowledgedById String?
+ studentReturnedAt DateTime?
+ verifiedReturnAt DateTime?
+ verifiedById String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
+ @@unique([organizationId,studentId,requestId])
+ @@index([organizationId,status,expectedReturnAt])
+ @@index([organizationId,studentId,createdAt])
+}
+
+// Student-only academic schedule, not accessible to hostel security staff.
+model StudentLesson {
+ id String @id @default(cuid())
+ organizationId String
+ studentId String
+ propertyId String
+ title String
+ courseCode String?
+ venue String?
+ dayOfWeek Int
+ startMinutes Int
+ endMinutes Int
+ timeZone String
+ remindBeforeMinutes Int @default(15)
+ reminderEnabled Boolean @default(true)
+ active Boolean @default(true)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
+ @@index([organizationId,studentId,active])
+ @@index([organizationId,propertyId,active])
+}
+
 model SafetyAlert {
  id String @id @default(cuid())
  organizationId String

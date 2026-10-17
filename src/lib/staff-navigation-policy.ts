@@ -17,6 +17,7 @@ const links: StaffNavigationLink[] = [
   {href:"/bookings",label:"Bookings",section:"Property operations"},
   {href:"/students",label:"Students",section:"Property operations"},
   {href:"/visitors",label:"Visitor gate",section:"Property operations"},
+  {href:"/outings",label:"Student outings & late returns",section:"Property operations"},
   {href:"/safety",label:"Student SOS",section:"Property operations"},
   {href:"/occupancy",label:"Check-in / Check-out",section:"Property operations"},
   {href:"/students/registrations",label:"Tenant Registration",section:"Property operations"},
@@ -43,7 +44,7 @@ const links: StaffNavigationLink[] = [
 ];
 
 const caretakerVisible=new Set([
-  "/visitors","/safety","/rooms","/occupancy","/assistant","/install","/account",
+  "/visitors","/outings","/safety","/rooms","/occupancy","/assistant","/install","/account",
 ]);
 const managerHidden=new Set(["/users","/healthfix","/gate-readiness"]);
 const caretakerSensitive=new Set(["/dashboard","/payments","/expenses","/reports",
