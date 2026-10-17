@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {
   comparablePhone,registrationIdentityKey,registrationReviewLabels,
-  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,
+  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,registrationExpiryPriority,
   triageTenantRegistrations,type RegisteredTenant,type ReviewRegistration,
 } from "../src/lib/tenant-registration-triage";
 
@@ -166,11 +166,33 @@ const timeLimit=activationOutreachSummary("hostel-A",outreachCases.groups,outrea
   day("2026-10-18T18:18:10Z"));
 assert.equal(timeLimit.expiringCases,1);
 
+const deadlineNow=day("2026-10-17T10:00:00Z");
+const soon=triageTenantRegistrations([
+ {...req("old-with-soon-expiry","Resident One","0712345678","24","2026-10-13T09:00:00Z"),
+  expiresAt:day("2026-10-17T11:00:00Z")},
+ {...req("new-with-later-expiry","Resident One","0712345678","24","2026-10-15T09:00:00Z"),
+  expiresAt:day("2026-10-25T11:00:00Z")},
+], [student("one","Resident One","0712345678","24")],()=> "KE",deadlineNow);
+assert.equal(registrationExpiryPriority(soon.groups[0],deadlineNow),"LATER",
+ "An old duplicate expiring tomorrow must not override the newest request deadline.");
+assert.equal(registrationExpiryPriority(soon.groups[0],day("2026-10-22T12:00:00Z")),"URGENT");
+assert.equal(registrationExpiryPriority(soon.groups[0],day("2026-10-25T12:00:00Z")),"EXPIRED");
+assert.equal(registrationExpiryPriority({...soon.groups[0],submissions:[]},deadlineNow),"EXPIRED");
+const urgent=triageTenantRegistrations([
+ {...req("urgent","Resident Two","0712111111","31","2026-10-15T09:00:00Z"),
+  expiresAt:day("2026-10-20T18:18:09Z")},
+],[student("two","Resident Two","0712111111","31")],()=>"KE",deadlineNow);
+assert.equal(registrationExpiryPriority(urgent.groups[0],deadlineNow),"URGENT");
+
 const managementPage=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
 assert.match(managementPage,/registrationCaseKind\(g\)===focus/);
 assert.match(managementPage,/triage\.caseCounts\.verifyIdentity/);
 assert.match(managementPage,/No automated approval or rejection takes place/);
 assert.match(managementPage,/name="focus" defaultValue=\{focus\}/);
+assert.match(managementPage,/name="urgency" defaultValue=\{urgency\}/);
+assert.match(managementPage,/registrationExpiryPriority\(g,now\)===\"URGENT\"/);
+assert.match(managementPage,/Priority review:/);
+
 assert.match(managementPage,/independent human identity checking/);
 assert.match(managementPage,/blockApproval=\{/);
 assert.match(managementPage,/activationOutreachSummary\(/);
