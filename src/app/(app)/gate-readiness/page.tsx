@@ -4,6 +4,7 @@ import { ClipboardCheck, ShieldCheck, UserPlus, Users, ArrowLeft } from "lucide-
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { gateReadinessSummary } from "@/lib/gate-readiness";
+import { whatsappQueueSummary } from "@/lib/whatsapp-queue-summary";
 import { staffMayReviewGateReadiness } from "@/lib/staff-navigation-policy";
 
 export default async function GateReadinessPage() {
@@ -41,6 +42,21 @@ export default async function GateReadinessPage() {
     recordedEntries,recordedExits,overdueExits,activeProperties,
   });
   const counts=readiness.counts;
+  // This is a read-only operational summary, not permission to activate,
+  // notify, or record physical presence on behalf of a resident.
+  const [inviteStatuses,whatsAppStatuses,providerStatuses]=await Promise.all([
+    db.tenantPortalInvitation.groupBy({
+      by:["status"],where:{organizationId,usedAt:null},_count:{_all:true},
+    }),
+    db.notification.groupBy({
+      by:["status"],where:{organizationId,channel:"WHATSAPP"},_count:{_all:true},
+    }),
+    db.whatsAppDelivery.groupBy({
+      by:["status"],where:{organizationId},_count:{_all:true},
+    }),
+  ]);
+  const inviteCount=(status:string)=>inviteStatuses.find(r=>r.status===status)?._count._all??0;
+  const whatsapp=whatsappQueueSummary(whatsAppStatuses,providerStatuses);
   return <div>
     <div className="page-heading-row">
       <div>
@@ -57,6 +73,19 @@ export default async function GateReadinessPage() {
       <article className="compact-stat"><div><p>Enabled tenant accounts</p><strong>{counts.enabledTenantAccounts}/{counts.activeStudents}</strong></div></article>
       <article className="compact-stat"><div><p>Pending registrations</p><strong>{counts.pendingRegistrations}</strong></div></article>
       <article className="compact-stat"><div><p>Departure not verified</p><strong>{counts.overdueExits}</strong></div></article>
+    </section>
+    <section className="panel mt-5" aria-label="Hostel activation overview">
+      <h2>What remains to activate</h2>
+      <p><strong>{counts.missingPortal} active students still lack enabled portals.</strong> {counts.pendingRegistrations} pending registration submissions require individual identity checking; repeat submissions are not unique residents.</p>
+      <p><strong>{inviteCount("MISSING_EMAIL")} invitation records lack usable email</strong> and {inviteCount("EXPIRED")} have expired. Invitation records are not evidence of delivered notices. Check existing pending registrations before contacting students again.</p>
+      <p><strong>WhatsApp:</strong> {whatsapp.queued} queued drafts, {whatsapp.openedUnconfirmed} opened without confirmed sending, and {whatsapp.providerConfirmed} provider delivery/read records. A saved or manually opened draft is not confirmed delivery.</p>
+      <p><strong>Gate:</strong> {counts.activeCaretakers} active caretaker users, {counts.recordedEntries} recorded entries and {counts.recordedExits} recorded departures. Actual gate acceptance requires a named staff member and real visitor verification.</p>
+      <div className="heading-actions">
+        <Link href="/students/registrations" className="secondary-button">Review tenant registrations</Link>
+        <Link href="/communications/invitations/mobile" className="secondary-button">Review phone onboarding</Link>
+        <Link href="/communications/whatsapp" className="secondary-button">WhatsApp follow-up</Link>
+        <Link href="/assistant" className="secondary-button">Ask hostel assistant</Link>
+      </div>
     </section>
     <div className="policy-banner mt-5">
       <ShieldCheck size={21}/>
