@@ -5,6 +5,7 @@ import { serviceId } from "./service-security";
 import { residentAlerts } from "./resident-alerts";
 import { residentStaff, residentTenant } from "./resident-access";
 import { dueLessonReminders } from "./student-timetable";
+import { sosPushStages, SOS_PUSH_WINDOW_MS } from "./sos-push-policy";
 
 export function allowedPushEndpoint(endpoint:string) {
  try {const u=new URL(endpoint);return u.protocol==="https:"&&!u.username&&!u.password&&!u.port&&!u.hash&&["fcm.googleapis.com","updates.push.services.mozilla.com","web.push.apple.com","notify.windows.com"].some(host=>u.hostname===host||u.hostname.endsWith(`.${host}`));}catch{return false;}
@@ -19,15 +20,15 @@ export async function pushEligible(db:PrismaClient,sub:PushSubscription){
 }
 export async function sendWebPush(sub:PushSubscription,tag:string,kind="ACTIVITY"){
  // No class title, student's name or precise whereabouts are put on a lock screen.
- const lesson=kind==="CLASS_REMINDER",gate=kind==="GATE_UPDATE";
- const url=lesson?"/tenant/timetable":gate?"/outings":"/open-app";
- const title=lesson?"Class reminder":gate?"Hostel gate update":"Your hostel";
- const body=lesson?"A lesson reminder is ready. Open your private class timetable.":
+ const lesson=kind==="CLASS_REMINDER",gate=kind==="GATE_UPDATE",sos=kind==="SOS_ALERT";
+ const url=sos?"/safety":lesson?"/tenant/timetable":gate?"/outings":"/open-app";
+ const title=sos?"Urgent hostel SOS":lesson?"Class reminder":gate?"Hostel gate update":"Your hostel";
+ const body=sos?"An emergency request needs staff review. Open the secure SOS queue.":lesson?"A lesson reminder is ready. Open your private class timetable.":
    gate?"A student gate update needs review. Open the hostel security queue.":
    "New activity is ready to review. Open your hostel app to see the details.";
  await webpush.sendNotification({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
    JSON.stringify({title,body,url,kind,tag}),
-   {TTL:3600,timeout:8000,vapidDetails:{subject:process.env.VAPID_SUBJECT!,
+   {TTL:sos?300:3600,timeout:8000,vapidDetails:{subject:process.env.VAPID_SUBJECT!,
      publicKey:process.env.VAPID_PUBLIC_KEY!,privateKey:process.env.VAPID_PRIVATE_KEY!}});
 }
 export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new Date()) {
@@ -65,6 +66,22 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
       queued+=(await db.pushDelivery.createMany({data:jobs,skipDuplicates:true})).count;
     }
   }else{
+    // Advisory SOS pushes are only sent to opted-in, currently authorized
+    // staff subscriptions for their own organization. Worker runs periodically,
+    // so NEVER assume immediate delivery, a staffed response or police dispatch.
+    const pendingSOS=await db.safetyAlert.findMany({where:{
+      organizationId:sub.organizationId,status:"OPEN",
+      createdAt:{gte:new Date(now.getTime()-SOS_PUSH_WINDOW_MS),lte:now},
+    },select:{id:true,status:true,createdAt:true},orderBy:{createdAt:"desc"},take:30});
+    const emergencyJobs=pendingSOS.flatMap(alert=>sosPushStages(alert,staff?.role,now).map(stage=>{
+      const key=serviceId("sos",alert.id,stage);
+      return {id:serviceId(sub.id,key),subscriptionId:sub.id,eventKey:key,
+        kind:"SOS_ALERT",subjectId:alert.id,targetUrl:"/safety",
+        expiresAt:new Date(alert.createdAt.getTime()+SOS_PUSH_WINDOW_MS)};
+    }));
+    if(emergencyJobs.length)queued+=(await db.pushDelivery.createMany({
+      data:emergencyJobs,skipDuplicates:true,
+    })).count;
     // Gate alerts only to already opted-in, currently authorized staff
     // subscriptions. Never claim that a push was read or security is waiting.
     const movement=await db.studentOuting.findMany({where:{
@@ -96,7 +113,14 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
  // Push services can acknowledge a retry twice; the stable tag replaces the same visible alert.
  await db.pushDelivery.updateMany({where:{status:"SENDING",attemptAt:{lt:new Date(now.getTime()-15*60000)}},data:{status:"QUEUED",nextAttemptAt:now,error:"Interrupted attempt recovered."}});
  await db.pushDelivery.updateMany({where:{status:"QUEUED",attempts:{gte:3}},data:{status:"FAILED",error:"Delivery attempts exhausted. Re-enable notifications if this device no longer receives alerts."}});
- const jobs=await db.pushDelivery.findMany({where:{status:"QUEUED",attempts:{lt:3},nextAttemptAt:{lte:now}},include:{subscription:true},orderBy:{createdAt:"asc"},take:40});
+ // Process emergency delivery attempts before low-priority reminders.
+ const urgentJobs=await db.pushDelivery.findMany({where:{
+   status:"QUEUED",attempts:{lt:3},nextAttemptAt:{lte:now},kind:"SOS_ALERT",
+ },include:{subscription:true},orderBy:{createdAt:"asc"},take:40});
+ const otherJobs=urgentJobs.length<40?await db.pushDelivery.findMany({where:{
+   status:"QUEUED",attempts:{lt:3},nextAttemptAt:{lte:now},kind:{not:"SOS_ALERT"},
+ },include:{subscription:true},orderBy:{createdAt:"asc"},take:40-urgentJobs.length}):[];
+ const jobs=[...urgentJobs,...otherJobs];
  for(const job of jobs){
   if(!await pushEligible(db,job.subscription)){await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;}
   if(job.expiresAt && job.expiresAt<=now){
@@ -116,6 +140,19 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
           {status:"RETURN_REPORTED"}]},
       select:{id:true}}))){
     await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;
+  }
+  // Recheck before sending: an incident may already be acknowledged, expired,
+  // or a staff member's role may have changed since the job was queued.
+  if(job.kind==="SOS_ALERT"){
+    const responder=job.subscription.audience==="staff"
+      ?await residentStaff(db,pushSession(job.subscription) as Parameters<typeof residentStaff>[1]):null;
+    const incident=responder&&job.subjectId?await db.safetyAlert.findFirst({where:{
+      id:job.subjectId,organizationId:job.subscription.organizationId,status:"OPEN",
+    },select:{id:true,status:true,createdAt:true}}):null;
+    if(!incident||!sosPushStages(incident,responder?.role,now).some(stage=>
+      job.eventKey===serviceId("sos",incident.id,stage))){
+      await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;
+    }
   }
   if(!(await db.pushDelivery.updateMany({where:{id:job.id,status:"QUEUED",attempts:job.attempts},data:{status:"SENDING",attemptAt:now,attempts:{increment:1}}})).count)continue;
   try{await send(job.subscription,job.id,job.kind);await db.pushDelivery.update({where:{id:job.id},data:{status:"SENT",sentAt:new Date(),error:null}});sent++;}
