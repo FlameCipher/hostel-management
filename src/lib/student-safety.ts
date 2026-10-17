@@ -18,6 +18,7 @@ const responseSchema=z.object({
  verified:z.boolean(),
  note:z.string().trim().min(10).max(500),
 });
+export const sosPilotEnabled=()=>process.env.HOSTEL_SOS_ENABLED==="true";
 export const SOS_LOCATION_DISPLAY_MS=30*60*1000;
 export const SOS_LOCATION_RETENTION_MS=24*60*60*1000;
 
@@ -43,6 +44,7 @@ export async function submitSOS(
  database:PrismaClient,session:TenantSession|null,raw:unknown,now=new Date()
 ):Promise<{error?:string;success?:string}> {
  if(!session)return {error:"Sign in to your own student portal first."};
+ if(!sosPilotEnabled())return {error:"SOS pilot not enabled. Use the emergency phone links for urgent assistance."};
  const parsed=sosSchema.safeParse(raw);
  if(!parsed.success)return {error:"Could not verify your SOS request. Retry or call 999/112 immediately."};
  const value=parsed.data;
