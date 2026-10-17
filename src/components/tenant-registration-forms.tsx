@@ -121,8 +121,15 @@ export function RegistrationReviewForm({ id, candidates, blockApproval=false, bl
     </label>
     {single?<p className={styles.meta}>One name, registered mobile and room match was found. Verify the student independently before approval.</p>:null}
     {candidates.length===0?<p className={styles.warning}>This request cannot be activated until management has independently verified and corrected the existing student record.</p>:null}
+    <label className="field-group"><span>Independent identity verification method (required to activate)</span>
+      <select name="verificationMethod" defaultValue="">
+        <option value="">Choose how you verified this resident</option>
+        <option value="IN_PERSON">Resident verified in person at the hostel</option>
+        <option value="CALL_REGISTERED_PHONE">I called the number already on the hostel register</option>
+      </select>
+    </label>
     <label className="check-field"><input type="checkbox" name="verified"/>
-      <span>I independently verified this tenant in person or through their contact already on file. Submitted details alone are not proof of identity.</span>
+      <span>I personally verified the applicant through the method selected above, matching their existing registered identity and current room. Submitted details alone are not proof of identity.</span>
     </label>
     <label className="field-group"><span>Reason if rejecting *</span>
       <select name="rejectionReason" defaultValue="">
