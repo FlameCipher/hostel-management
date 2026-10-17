@@ -90,3 +90,56 @@ test("background alerts never expose payload text or navigate to a supplied URL"
   assert(!JSON.stringify(shown!).includes("Secret"));assert(!JSON.stringify(shown!).includes("Private tenant"));assert(JSON.stringify(shown!).includes("stable"));
   handlers.notificationclick({notification:{close(){},data:{url:"https://evil.example"}},waitUntil:(p:Promise<unknown>)=>{waiting=p;}});await waiting;assert.equal(opened,"/open-app");
 });
+
+test("school and gate push notices use only fixed internal destinations and generic copy",async()=>{
+ const handlers:Record<string,(e:any)=>void>={};
+ const notices:any[]=[],opened:string[]=[];
+ let waiting:Promise<unknown>|undefined;
+ runInNewContext(readFileSync(new URL("../public/hostel-sw.js",import.meta.url),"utf8"),{
+  URL,Response,fetch,
+  self:{location:{origin:"https://hostel.example"},
+   registration:{showNotification:async(...args:unknown[])=>{notices.push(args);}},
+   clients:{matchAll:async()=>[],openWindow:async(url:string)=>{opened.push(url);}},
+   addEventListener:(name:string,handler:(event:unknown)=>void)=>{handlers[name]=handler;}}
+ });
+ async function notice(input:Record<string,unknown>){
+  handlers.push({data:{json:()=>input},
+    waitUntil:(p:Promise<unknown>)=>{waiting=p;}});
+  await waiting;
+  return notices[notices.length-1];
+ }
+ let result=await notice({kind:"CLASS_REMINDER",url:"/tenant/timetable",
+   title:"Secret student's timetable",body:"Their exam location",tag:"lesson-1"});
+ assert.equal(result[0],"Class reminder");
+ assert.equal(result[1].data.url,"/tenant/timetable");
+ assert.doesNotMatch(JSON.stringify(result),/Secret student's timetable|Their exam location/);
+ handlers.notificationclick({notification:{close(){},data:result[1].data},
+   waitUntil:(p:Promise<unknown>)=>{waiting=p;}});
+ await waiting;assert.equal(opened.at(-1),"/tenant/timetable");
+ result=await notice({kind:"GATE_UPDATE",url:"/outings",
+   body:"Student private number",tag:"gate-1"});
+ assert.equal(result[0],"Hostel gate update");
+ assert.equal(result[1].data.url,"/outings");
+ assert.doesNotMatch(JSON.stringify(result),/private number/);
+ handlers.notificationclick({notification:{close(){},data:result[1].data},
+   waitUntil:(p:Promise<unknown>)=>{waiting=p;}});
+ await waiting;assert.equal(opened.at(-1),"/outings");
+ result=await notice({kind:"CLASS_REMINDER",url:"https://evil.example/steal",
+   body:"Secret!",tag:"malicious"});
+ assert.equal(result[1].data.url,"/open-app");
+ assert.equal(result[0],"Your hostel");
+ handlers.notificationclick({notification:{close(){},data:{url:"https://evil.example"}},
+   waitUntil:(p:Promise<unknown>)=>{waiting=p;}});
+ await waiting;assert.equal(opened.at(-1),"/open-app");
+});
+test("optional class push requires a real user action and existing secure server endpoint",()=>{
+ const component=readFileSync("src/components/device-reminder-optin.tsx","utf8");
+ const api=readFileSync("src/app/api/push/route.ts","utf8");
+ assert.match(component,/Notification\.requestPermission\(\)/);
+ assert.match(component,/onClick=\{\(\)=>void enable\(\)\}/);
+ assert.match(component,/\/api\/push\?audience=/);
+ assert.match(component,/applicationServerKey/);
+ assert.match(component,/method:"DELETE"/);
+ assert.match(api,/sameOrigin\(request\)/);
+ assert.match(api,/pushConfigured\(\)/);
+});
