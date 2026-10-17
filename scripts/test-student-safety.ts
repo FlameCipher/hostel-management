@@ -7,6 +7,7 @@ import type { SessionPayload } from "../src/lib/auth/session";
 import { submitSOS, updateSOS, availableSOSLocation } from "../src/lib/student-safety";
 
 process.env.HOSTEL_SOS_ENABLED="true";
+process.env.HOSTEL_SOS_PILOT_ORGANIZATION_ID="hostel-A";
 const now=new Date("2026-10-17T08:00:00Z");
 const tenant:TenantSession={organizationId:"hostel-A",studentId:"student-A",name:"Resident",sessionVersion:1};
 const staff:SessionPayload={organizationId:"hostel-A",userId:"staff-A",name:"Owner",role:"OWNER",sessionVersion:1};
@@ -69,6 +70,12 @@ test("pilot disabled blocks creating new incidents",async()=>{
    assert.match(result.error??"",/pilot not enabled/i);
    assert.equal(f.alerts.length,0);
  } finally {process.env.HOSTEL_SOS_ENABLED="true";}
+});
+test("one hostel enabled for the pilot cannot enable a foreign organization",async()=>{
+ const f=fixture();
+ const other=await submitSOS(f.db,{...tenant,organizationId:"other-hostel"},input,now);
+ assert.match(other.error??"",/pilot not enabled/i);
+ assert.equal(f.alerts.length,0);
 });
 test("only active, signed-in residents may create SOS incidents",async()=>{
  const f=fixture();
@@ -180,7 +187,7 @@ test("student and staff screens disclose location choice and do not claim delive
  assert.match(staffPage,/residentStaff/);
  assert.match(staffPage,/SafetyResponseForm/);
  assert.match(tenantPage,/residentTenant/);
- assert.match(tenantPage,/sosPilotEnabled\(\)/);
+ assert.match(tenantPage,/sosPilotEnabled\(session\.organizationId\)/);
  assert.match(staffPage,/SOS pilot not yet activated/);
 
  const login=readFileSync("src/app/tenant/login/page.tsx","utf8");
