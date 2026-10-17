@@ -58,6 +58,15 @@ const base={
 const before=JSON.stringify(base);
 const report=gateReadinessSummary(base);
 assert.equal(report.counts.missingPortal,31);
+assert.equal(report.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "One enabled portal is not full resident activation for 32 active students.");
+assert.match(report.steps.find(x=>x.code==="portal")?.explanation??"",/31 of 32 active residents/);
+const allActive=gateReadinessSummary({...base,enabledTenantAccounts:32});
+assert.equal(allActive.steps.find(x=>x.code==="portal")?.status,"READY");
+assert.equal(allActive.counts.missingPortal,0);
+const noStudents=gateReadinessSummary({...base,activeStudents:0,enabledTenantAccounts:0});
+assert.equal(noStudents.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "An empty roster must not be represented as completed onboarding.");
 assert.equal(report.needsGateOperator,true);
 assert.equal(report.verifiedOnSite,false);
 assert.equal(report.safeForAutomatedActivation,false);
@@ -71,6 +80,8 @@ const withGate=gateReadinessSummary({
 });
 assert.equal(withGate.needsGateOperator,false);
 assert.equal(withGate.steps.find(x=>x.code==="caretaker")?.status,"READY");
+assert.equal(withGate.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "A working gate alone does not activate missing tenant portals.");
 assert.equal(withGate.steps.find(x=>x.code==="gate-entry")?.status,"READY");
 assert.equal(withGate.verifiedOnSite,false,"Database events cannot prove on-site verification.");
 
