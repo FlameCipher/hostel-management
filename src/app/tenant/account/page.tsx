@@ -19,12 +19,16 @@ export default async function TenantAccountPage() {
  return <main className="marketing-section"><div className="page-heading-row"><div><p className="eyebrow">Student account</p><h1>{student.fullName}</h1><p>{organization.name} tenant portal</p></div><form action={tenantLogoutAction}><button className="secondary-button">Sign out</button></form></div>
  <section className="panel entity-form" aria-label="Student safety SOS">
    <h2>Danger / SOS — need urgent help?</h2>
-   <p>If you are unsafe, threatened, being followed or need immediate help, open your SOS screen.
+   <p>If you are unsafe, threatened, being followed or need immediate help, open the safety information screen.
       You may choose to share your current location once; no background tracking is enabled.</p>
-   <Link className="primary-button" href="/tenant/safety"
-     style={{backgroundColor:"#b91c1c",color:"#ffffff",fontWeight:700}}>
-     SOS — I NEED HELP
-   </Link>
+   {process.env.HOSTEL_SOS_ENABLED==="true"?
+     <Link className="primary-button" href="/tenant/safety"
+       style={{backgroundColor:"#b91c1c",color:"#ffffff",fontWeight:700}}>
+       SOS — I NEED HELP
+     </Link>:
+     <Link className="secondary-button" href="/tenant/safety">
+       Emergency contacts and SOS pilot information
+     </Link>}
    <p>For immediate emergencies, call <a href="tel:999">999</a> or <a href="tel:112">112</a>.
      A saved hostel alert is not guaranteed to be seen immediately.</p>
  </section>
