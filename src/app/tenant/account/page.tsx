@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/currency";
 import Link from "next/link";
 import { TERMS_ORGANIZATION_ID } from "@/lib/hostel-terms/policy";
 import { requireTenantSession } from "@/lib/auth/tenant-session";
+import { sosPilotEnabled } from "@/lib/student-safety";
 import { db } from "@/lib/db";
 import { tenantLogoutAction } from "../login/actions";
 
@@ -21,7 +22,7 @@ export default async function TenantAccountPage() {
    <h2>Danger / SOS — need urgent help?</h2>
    <p>If you are unsafe, threatened, being followed or need immediate help, open the safety information screen.
       You may choose to share your current location once; no background tracking is enabled.</p>
-   {process.env.HOSTEL_SOS_ENABLED==="true"?
+   {sosPilotEnabled(session.organizationId)?
      <Link className="primary-button" href="/tenant/safety"
        style={{backgroundColor:"#b91c1c",color:"#ffffff",fontWeight:700}}>
        SOS — I NEED HELP
