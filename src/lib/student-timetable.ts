@@ -14,6 +14,7 @@ const lessonSchema=z.object({
  remindBeforeMinutes:z.union([z.literal(0),z.literal(10),z.literal(15),z.literal(30),z.literal(60)]),
  reminderEnabled:z.boolean(),
 });
+const editSchema=lessonSchema.extend({id:z.string().min(1).max(128)});
 const changeSchema=z.object({
  id:z.string().min(1).max(128),
  action:z.enum(["REMOVE","REMIND_ON","REMIND_OFF"]),
@@ -169,5 +170,66 @@ export async function changeStudentLesson(db:PrismaClient,session:TenantSession|
     entityType:"StudentLesson",entityId:row.id,metadata:{action:input.action}}});
   return {success:input.action==="REMOVE"?"Class removed from your timetable.":
     input.action==="REMIND_ON"?"Reminders enabled for this class.":"Reminders disabled for this class."};
+ },{timeout:15000});
+}
+
+
+/**
+ * Correct a resident's own existing class IN PLACE, rather than forcing them
+ * to remove/recreate a lesson. No administrator or caretaker reads schedules.
+ * Locking the student serializes concurrent class edits/additions for this account.
+ */
+export async function editStudentLesson(
+ db:PrismaClient,session:TenantSession|null,raw:unknown
+):Promise<{error?:string;success?:string}> {
+ if(!session)return {error:"Student sign-in is required."};
+ const parsed=editSchema.safeParse(raw);
+ if(!parsed.success)return {error:"Enter a class name, valid day, start/end times and reminder choice."};
+ const input=parsed.data,start=lessonMinutes(input.startTime),end=lessonMinutes(input.endTime);
+ if(end<=start||end-start>8*60)return {error:"Class must finish after it starts and must not exceed eight hours."};
+ const org=session.organizationId,studentId=session.studentId;
+ return db.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${studentId} AND "organizationId"=${org} FOR UPDATE`;
+  if(!await residentTenant(tx,session))return {error:"Your student account is not eligible to change a private timetable."};
+  const stays=await tx.occupancy.findMany({
+   where:{organizationId:org,studentId,status:"ACTIVE",semester:{organizationId:org},
+    room:{organizationId:org,property:{organizationId:org,active:true}}},
+   select:{room:{select:{propertyId:true,property:{select:{timeZone:true,countryCode:true}}}}},take:2,
+  });
+  if(stays.length!==1)return {error:"Your current hostel room needs review before changing classes."};
+  const propertyId=stays[0].room.propertyId;
+  const timeZone=hostelTimeZone(stays[0].room.property.timeZone,stays[0].room.property.countryCode);
+  const existing=await tx.studentLesson.findFirst({
+   where:{id:input.id,organizationId:org,studentId,propertyId,active:true},
+   select:{id:true,title:true,courseCode:true,venue:true,dayOfWeek:true,
+    startMinutes:true,endMinutes:true,timeZone:true,remindBeforeMinutes:true,reminderEnabled:true}
+  });
+  if(!existing)return {error:"That class is not available in your current hostel account. Refresh your timetable."};
+  const others=await tx.studentLesson.findMany({
+   where:{organizationId:org,studentId,active:true,id:{not:existing.id}},
+   select:{id:true,title:true,dayOfWeek:true,startMinutes:true,endMinutes:true},take:61
+  });
+  if(others.length>59)return {error:"Too many active timetable entries. Review older classes first."};
+  if(others.some(o=>o.dayOfWeek===input.dayOfWeek&&o.startMinutes===start&&o.endMinutes===end&&
+     o.title.toLocaleLowerCase()===input.title.toLocaleLowerCase()))
+   return {error:"That class already exists at this time. No duplicate was created."};
+  if(others.some(o=>o.dayOfWeek===input.dayOfWeek&&start<o.endMinutes&&end>o.startMinutes))
+   return {error:"Another class overlaps this time. Choose a different lesson time."};
+  const next={title:input.title,courseCode:input.courseCode||null,venue:input.venue||null,
+   dayOfWeek:input.dayOfWeek,startMinutes:start,endMinutes:end,
+   remindBeforeMinutes:input.remindBeforeMinutes,reminderEnabled:input.reminderEnabled,timeZone};
+  const changed=(Object.keys(next) as Array<keyof typeof next>).filter(key=>next[key]!==existing[key]);
+  if(changed.length===0)return {success:"Class is already up to date. No changes were needed."};
+  await tx.studentLesson.update({where:{id:existing.id},data:next});
+  // Queued reminders based on the old weekly lesson schedule must not fire
+  // after an edit. They will be re-created on their new dates by the worker.
+  await tx.pushDelivery.updateMany({
+   where:{kind:"CLASS_REMINDER",subjectId:existing.id,status:{in:["QUEUED","FAILED"]},
+    subscription:{organizationId:org,accountId:studentId,audience:"tenant"}},
+   data:{status:"CANCELLED",error:"The student updated this class; old reminders were cancelled."}
+  });
+  await tx.auditLog.create({data:{organizationId:org,action:"STUDENT_LESSON_UPDATED",
+   entityType:"StudentLesson",entityId:existing.id,metadata:{fieldsChanged:changed}}});
+  return {success:"Class updated. Its future reminders now follow the revised timetable. Already sent alerts cannot be recalled."};
  },{timeout:15000});
 }
