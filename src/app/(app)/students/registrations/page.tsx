@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { registrationCountryCode } from "@/lib/tenant-registration";
 import {
   triageTenantRegistrations,registrationReviewLabels,
-  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,type RegistrationCaseKind,
+  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,registrationExpiryPriority,type RegistrationCaseKind,
   type ReviewRegistration,type RegisteredTenant,
 } from "@/lib/tenant-registration-triage";
 import { RegistrationReviewForm } from "@/components/tenant-registration-forms";
@@ -16,7 +16,7 @@ export const metadata={title:"Tenant registration verification",robots:{index:fa
 
 export default async function RegistrationsPage({
   searchParams,
-}:{searchParams:Promise<{page?:string;history?:string;q?:string;focus?:string}>}){
+}:{searchParams:Promise<{page?:string;history?:string;q?:string;focus?:string;urgency?:string}>}){
   const session=await requireSession();
   if(!(await residentStaff(db,session,true)))return <section className="panel">
     <h1>Tenant verification unavailable</h1>
@@ -30,6 +30,7 @@ export default async function RegistrationsPage({
   const focus:RegistrationCaseKind|"ALL"=focusOptions.includes(params.focus??"")
     ? params.focus as RegistrationCaseKind:"ALL";
   const now=new Date();
+  const urgency=params.urgency==="SOON"?"SOON":"ALL";
 
   const [pending,allPending,properties,students,activeStudents,portalEnabled,
     pendingInvitations,historyItems,eligibleStudents]=await Promise.all([
@@ -88,8 +89,15 @@ export default async function RegistrationsPage({
   );
   const groups=triage.groups.filter(g=>
     (focus==="ALL" || registrationCaseKind(g)===focus) &&
+    (urgency==="ALL" || registrationExpiryPriority(g,now)==="URGENT") &&
     (!search || [g.fullName,g.phone,...g.rooms,propertyById.get(g.propertyId)?.name??""]
-      .join(" ").toLowerCase().includes(search)));
+      .join(" ").toLowerCase().includes(search))).sort((a,b)=>{
+        const aPriority=registrationExpiryPriority(a,now)==="URGENT"?0:1;
+        const bPriority=registrationExpiryPriority(b,now)==="URGENT"?0:1;
+        return aPriority-bPriority ||
+          a.submissions[0].request.expiresAt.getTime()-b.submissions[0].request.expiresAt.getTime() ||
+          b.latest.getTime()-a.latest.getTime();
+      });
   const first=groups.slice(0,500);
   const missingEmail=pendingInvitations.find(r=>r.status==="MISSING_EMAIL")?._count._all??0;
   const expiredEmail=pendingInvitations.find(r=>r.status==="EXPIRED")?._count._all??0;
@@ -199,6 +207,12 @@ export default async function RegistrationsPage({
               <option value="EXPIRED">Expired ({triage.caseCounts.expired})</option>
             </select>
           </label>
+          <label className="field-group"><span>Expiry priority</span>
+            <select name="urgency" defaultValue={urgency} aria-label="Filter registration cases by expiry">
+              <option value="ALL">All case deadlines</option>
+              <option value="SOON">Latest application expires within 4 days</option>
+            </select>
+          </label>
           <button className="secondary-button" type="submit">Filter applications</button>
         </form>
         <p role="status">Showing {groups.length} of {triage.caseCounts.verifyIdentity+
@@ -231,6 +245,11 @@ export default async function RegistrationsPage({
               .map(s=>({id:s.id,label:s.fullName})):[];
           return <article key={r.id} className="mt-4">
             <h3>Application {index+1} · Room {r.roomNumber}</h3>
+            {index===0 && registrationExpiryPriority(g,now)==="URGENT"?
+              <p className={styles.warning} role="status">
+                <strong>Priority review:</strong> This latest request expires within four days.
+                Verify the applicant independently before approving. Expiry never authorizes automatic activation.
+              </p>:null}
             <p>{registrationReviewLabels[entry.kind]}</p>
             <small>Submitted {r.createdAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})};
               expires {r.expiresAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}</small>
