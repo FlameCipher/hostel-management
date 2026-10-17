@@ -45,6 +45,6 @@ test("worker filters hostel scope, cancels stale jobs and prioritizes SOS",()=>{
  assert.match(source,/kind:"SOS_ALERT"/);
  assert.match(source,/const urgentJobs=await db.pushDelivery.findMany/);
  assert.match(source,/targetUrl:"\/safety"/);
- assert.match(source,/sos\?300:3600/);
+ assert.match(source,/sos\|\|drill\?300:3600/);
  assert.doesNotMatch(source,/latitude:alert|longitude:alert|note:alert/);
 });

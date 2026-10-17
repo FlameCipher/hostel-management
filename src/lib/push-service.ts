@@ -20,15 +20,17 @@ export async function pushEligible(db:PrismaClient,sub:PushSubscription){
 }
 export async function sendWebPush(sub:PushSubscription,tag:string,kind="ACTIVITY"){
  // No class title, student's name or precise whereabouts are put on a lock screen.
- const lesson=kind==="CLASS_REMINDER",gate=kind==="GATE_UPDATE",sos=kind==="SOS_ALERT";
- const url=sos?"/safety":lesson?"/tenant/timetable":gate?"/outings":"/open-app";
- const title=sos?"Urgent hostel SOS":lesson?"Class reminder":gate?"Hostel gate update":"Your hostel";
- const body=sos?"An emergency request needs staff review. Open the secure SOS queue.":lesson?"A lesson reminder is ready. Open your private class timetable.":
+ const lesson=kind==="CLASS_REMINDER",gate=kind==="GATE_UPDATE",
+   sos=kind==="SOS_ALERT",drill=kind==="SOS_DRILL";
+ const url=sos||drill?"/safety":lesson?"/tenant/timetable":gate?"/outings":"/open-app";
+ const title=drill?"Hostel notification TEST":sos?"Urgent hostel SOS":lesson?"Class reminder":gate?"Hostel gate update":"Your hostel";
+ const body=drill?"This is only a notification test. No student has requested emergency help.":
+   sos?"An emergency request needs staff review. Open the secure SOS queue.":lesson?"A lesson reminder is ready. Open your private class timetable.":
    gate?"A student gate update needs review. Open the hostel security queue.":
    "New activity is ready to review. Open your hostel app to see the details.";
  await webpush.sendNotification({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
    JSON.stringify({title,body,url,kind,tag}),
-   {TTL:sos?300:3600,timeout:8000,vapidDetails:{subject:process.env.VAPID_SUBJECT!,
+   {TTL:sos||drill?300:3600,timeout:8000,vapidDetails:{subject:process.env.VAPID_SUBJECT!,
      publicKey:process.env.VAPID_PUBLIC_KEY!,privateKey:process.env.VAPID_PRIVATE_KEY!}});
 }
 export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new Date()) {
@@ -143,6 +145,16 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
   }
   // Recheck before sending: an incident may already be acknowledged, expired,
   // or a staff member's role may have changed since the job was queued.
+  // A practice drill is ONLY for the authenticated and still authorized
+  // staff subscriber. It must never be delivered to a tenant device or
+  // interpreted as a real student safety incident.
+  if(job.kind==="SOS_DRILL"){
+    const testStaff=job.subscription.audience==="staff"
+      ?await residentStaff(db,pushSession(job.subscription) as Parameters<typeof residentStaff>[1]):null;
+    if(!testStaff||job.subjectId||job.targetUrl!=="/safety"){
+      await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;
+    }
+  }
   if(job.kind==="SOS_ALERT"){
     const responder=job.subscription.audience==="staff"
       ?await residentStaff(db,pushSession(job.subscription) as Parameters<typeof residentStaff>[1]):null;
