@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { requireTenantSession } from "@/lib/auth/tenant-session";
@@ -14,6 +15,7 @@ export default async function TenantSafetyPage(){
    <h1>Emergency safety</h1>
    <p>Your hostel account does not currently qualify to submit an in-app incident.
       In danger? Call <a href="tel:999">999</a> or <a href="tel:112">112</a> now.</p>
+   <HostelEmergencyCallLinks organizationId={session.organizationId}/>
    <Link href="/tenant/login">Student login</Link>
  </main>;
  const history=await db.safetyAlert.findMany({
@@ -26,6 +28,7 @@ export default async function TenantSafetyPage(){
      <h1>Danger / SOS</h1><p>Your alert goes into the hostel staff response queue.</p></div>
      <Link href="/tenant/account" className="secondary-button">My portal</Link>
    </div>
+   <HostelEmergencyCallLinks organizationId={session.organizationId}/>
    {sosPilotEnabled(session.organizationId)?
      <StudentSOSButton requestId={randomUUID()}/>:
      <section className="panel entity-form">
