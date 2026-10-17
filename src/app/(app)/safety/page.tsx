@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { residentStaff } from "@/lib/resident-access";
@@ -43,6 +44,7 @@ export default async function StaffSafetyPage(){
      <p><strong>{count} open or acknowledged SOS request{count===1?"":"s"}.</strong>
        Recorded incidents require actual human response and urgent action when needed.</p>
    </div><Link href="/visitors" className="secondary-button">Visitor gate</Link></div>
+   <HostelEmergencyCallLinks organizationId={organizationId}/>
    {!sosPilotEnabled(session.organizationId)?<section className="panel entity-form mt-5">
      <h2>SOS pilot not yet activated</h2>
      <p>Incident submission is disabled until an authorized responder is appointed,
