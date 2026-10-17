@@ -99,7 +99,7 @@ export function dueLessonReminders(lessons:readonly TimetableLesson[],now:Date) 
  return due;
 }
 
-export async function addStudentLesson(db:PrismaClient,session:TenantSession|null,raw:unknown) {
+export async function addStudentLesson(db:PrismaClient,session:TenantSession|null,raw:unknown):Promise<{error?:string;success?:string}> {
  if(!session)return {error:"Student sign-in is required."};
  const parsed=lessonSchema.safeParse(raw);
  if(!parsed.success)return {error:"Enter a class name, valid day and times, and a supported reminder interval."};
@@ -149,7 +149,7 @@ export async function addStudentLesson(db:PrismaClient,session:TenantSession|nul
  },{timeout:15000});
 }
 
-export async function changeStudentLesson(db:PrismaClient,session:TenantSession|null,raw:unknown) {
+export async function changeStudentLesson(db:PrismaClient,session:TenantSession|null,raw:unknown):Promise<{error?:string;success?:string}> {
  if(!session)return {error:"Student sign-in required."};
  const parsed=changeSchema.safeParse(raw);
  if(!parsed.success)return {error:"Choose a valid timetable action."};
