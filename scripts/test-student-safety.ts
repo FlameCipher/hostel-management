@@ -57,7 +57,7 @@ function fixture(options:{
   },
   auditLog:{create:async({data}:any)=>{audit.push(data);return{};}},
  };
- const db={$transaction:async(fn:(tx:typeof tx)=>unknown)=>fn(tx)} as unknown as PrismaClient;
+ const db={$transaction:async(fn:(client:typeof tx)=>unknown)=>fn(tx)} as unknown as PrismaClient;
  return {db,alerts,audit,recorded};
 }
 
