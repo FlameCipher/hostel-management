@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { gateReadinessSummary } from "@/lib/gate-readiness";
 import { whatsappQueueSummary } from "@/lib/whatsapp-queue-summary";
 import { staffMayReviewGateReadiness } from "@/lib/staff-navigation-policy";
+import { sosPilotEnabled } from "@/lib/student-safety";
+import { sosReadinessSummary } from "@/lib/sos-readiness";
 
 export default async function GateReadinessPage() {
   const session=await requireSession();
@@ -44,7 +46,7 @@ export default async function GateReadinessPage() {
   const counts=readiness.counts;
   // This is a read-only operational summary, not permission to activate,
   // notify, or record physical presence on behalf of a resident.
-  const [inviteStatuses,whatsAppStatuses,providerStatuses]=await Promise.all([
+  const [inviteStatuses,whatsAppStatuses,providerStatuses,sosOpen,sosUnacknowledged,oldestSOS,lastSOSAcknowledgement]=await Promise.all([
     db.tenantPortalInvitation.groupBy({
       by:["status"],where:{organizationId,usedAt:null},_count:{_all:true},
     }),
@@ -54,9 +56,21 @@ export default async function GateReadinessPage() {
     db.whatsAppDelivery.groupBy({
       by:["status"],where:{organizationId},_count:{_all:true},
     }),
+    db.safetyAlert.count({where:{organizationId,status:{in:["OPEN","ACKNOWLEDGED"]}}}),
+    db.safetyAlert.count({where:{organizationId,status:"OPEN"}}),
+    db.safetyAlert.findFirst({where:{organizationId,status:"OPEN"},orderBy:{createdAt:"asc"},select:{createdAt:true}}),
+    db.safetyAlert.findFirst({where:{organizationId,acknowledgedAt:{not:null}},orderBy:{acknowledgedAt:"desc"},select:{acknowledgedAt:true}}),
   ]);
   const inviteCount=(status:string)=>inviteStatuses.find(r=>r.status===status)?._count._all??0;
   const whatsapp=whatsappQueueSummary(whatsAppStatuses,providerStatuses);
+  const safety=sosReadinessSummary({
+    pilotEnabled:sosPilotEnabled(organizationId),
+    activeStudents,enabledTenantPortals:enabledTenantAccounts,activeCaretakers,
+    activeOwnersAndAdmins:activeOwners+activeAdministrators,
+    activeProperties,openAlerts:sosOpen,unacknowledgedAlerts:sosUnacknowledged,
+    oldestUnacknowledgedMinutes:oldestSOS?Math.max(0,(Date.now()-oldestSOS.createdAt.getTime())/60000):null,
+    lastResponseEvidence:lastSOSAcknowledgement?.acknowledgedAt??null,
+  });
   return <div>
     <div className="page-heading-row">
       <div>
@@ -124,6 +138,31 @@ export default async function GateReadinessPage() {
         <UserPlus size={17}/> Prepare caretaker account
       </Link>
     </section>:null}
+    <section className="panel mt-5" aria-label="SOS emergency response operational readiness">
+      <div className="panel-heading"><div><p className="panel-kicker">Emergency safety · Owner readiness</p>
+        <h2>Student SOS response — operational acceptance</h2>
+        <p>{safety.summary}</p></div><ShieldCheck size={22}/></div>
+      <div className="room-summary-grid">
+        <article className="compact-stat"><div><p>SOS pilot flag</p><strong>{safety.status==="PILOT_OFF"?"OFF":"ON · Unverified"}</strong></div></article>
+        <article className="compact-stat"><div><p>Active staff caretaker accounts</p><strong>{safety.caretaker}</strong></div></article>
+        <article className="compact-stat"><div><p>Student portal access</p><strong>{safety.portals}/{safety.activeStudents}</strong></div></article>
+        <article className="compact-stat"><div><p>Unacknowledged SOS cases</p><strong>{safety.unacknowledged}</strong></div></article>
+      </div>
+      <p className="muted-note">SOS is a restricted software pilot, not a 24/7 security service. Student opt-in to location remains voluntary. No ongoing tracking or police dispatch is active through this panel. A staff account does not prove a staffed emergency shift.</p>
+      <div className="table-scroll"><table className="data-table"><thead><tr><th>Critical readiness check</th><th>Evidence status</th><th>Next step</th></tr></thead>
+        <tbody>{safety.checks.map(check=><tr key={check.code}>
+          <td><strong>{check.title}</strong><small className="table-subtext">{check.detail}</small></td>
+          <td>{check.status==="RECORDED"?"Recorded (not a drill)":check.status==="ACTION_REQUIRED"?"Action required":"Needs independent verification"}</td>
+          <td><Link href={check.href} className="table-action">Review</Link></td>
+        </tr>)}</tbody>
+      </table></div>
+      <div className="heading-actions">
+        <Link href="/safety" className="primary-button no-underline">Open protected SOS response queue</Link>
+        <Link href="/students/registrations" className="secondary-button">Verify existing tenants</Link>
+        <Link href="/users/new?role=CARETAKER" className="secondary-button">Provision real gate staff</Link>
+      </div>
+      <p className="muted-note">This page is read-only. It does not enable SOS, page a responder, send messages or record an incident. For immediate danger, use real emergency services, including <a href="tel:999">999</a> or <a href="tel:112">112</a> where available.</p>
+    </section>
     <section className="panel mt-5">
       <div className="panel-heading"><div><p className="panel-kicker">Resident access</p>
         <h2>Activate only verified existing tenants</h2></div><Users size={21}/></div>
