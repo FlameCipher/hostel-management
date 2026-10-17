@@ -355,6 +355,8 @@ model PushDelivery {
  status String @default("QUEUED")
  kind String @default("ACTIVITY")
  targetUrl String?
+ subjectId String?
+ expiresAt DateTime?
  attempts Int @default(0)
  attemptAt DateTime?
  nextAttemptAt DateTime @default(now())
