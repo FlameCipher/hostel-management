@@ -4,7 +4,7 @@ import type {PrismaClient} from '../src/generated/prisma/client';
 import {maintenanceRunStatus,maintenanceScheduleCheck,collectHealthfix,healthfixAuthorized,healthfixManager,repairHealthfix,runHealthfixMaintenance} from '../src/lib/healthfix';
 const now=new Date('2026-10-08T04:00:00Z');
 const env={NODE_ENV:'production',VERCEL_ENV:'production',SESSION_SECRET:'fake-long-session-secret',PLATFORM_PROVISIONING_SECRET:'fake',RESEND_API_KEY:'fake',RECEIPT_EMAIL_FROM:'hostel@example.invalid',CRON_SECRET:'fake',BLOB_READ_WRITE_TOKEN:'fake-storage'};
-function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR');return [{count:0}]},organization:{findMany:async()=>[{id:'one',createdAt:new Date('2026-10-01')}]},auditLog:{findMany:async()=>[{organizationId:'one',createdAt:now,metadata:{status:'COMPLETED'}}]}};for(const model of ['passwordRecovery','visitorRequest','tenantRegistration','bookingRequest','property','propertyPhoto','student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation','notification'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
+function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR');return [{count:0}]},organization:{findMany:async()=>[{id:'one',createdAt:new Date('2026-10-01')}]},auditLog:{findMany:async()=>[{organizationId:'one',createdAt:now,metadata:{status:'COMPLETED'}}]}};for(const model of ['passwordRecovery','visitorRequest','tenantRegistration','bookingRequest','property','propertyPhoto','student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation','notification','safetyAlert'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
 test('connector authentication rejects missing and wrong secrets',()=>{assert.equal(healthfixAuthorized(undefined,'x'),false);assert.equal(healthfixAuthorized('x',null),false);assert.equal(healthfixAuthorized('x','xx'),false);assert.equal(healthfixAuthorized('x','x'),true)});
 test('healthy configuration does not claim unverified workflows healthy',async()=>{const f=reads();const report=await collectHealthfix(f.db,'one',now,env);assert.equal(report.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='email')?.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='provisioning')?.status,'UNKNOWN');for(const call of f.calls)assert.equal(call.where.organizationId,'one');assert.ok(report.modules.every(m=>m.status!=='HEALTHY'||m.checks.every(c=>c.status==='PASSING')))});
 test('failed module read preserves other checks without leaking database details',async()=>{const report=await collectHealthfix(reads('occupancy').db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='bookings')?.status,'DEGRADED');assert.equal(report.modules.find(m=>m.code==='database')?.status,'HEALTHY');assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(report).includes('PRIVATE_DATABASE_ERROR'))});
@@ -28,19 +28,19 @@ test('repair refuses inactive or revoked management and foreign organization bef
 test('repair preserves delivery evidence, activated accounts and financial fields',async()=>{const f=repairs();assert.deepEqual(await repairHealthfix(f.db,'one',owner,now),{expiredRegistrations:0,interruptedInvitations:1,interruptedEmails:2,expiredInvitations:3});assert.equal(f.audits.length,1);for(const c of f.changes)assert.equal(c.where.organizationId,'one');assert.equal(f.changes[0].data.status,'REVIEW');assert.equal(f.changes[1].data.emailStatus,'REVIEW');assert.equal(f.changes[2].data.tokenHash,null);assert.deepEqual(f.changes[2].where.status,{not:'ACTIVATED'});assert.equal(f.changes[2].where.usedAt,null);assert.deepEqual(Object.keys(f.changes[0].data).sort(),['error','status']);assert.deepEqual(Object.keys(f.changes[1].data).sort(),['emailError','emailStatus'])});
 test('no change creates no misleading repair audit',async()=>{const f=repairs(true,[0,0,0]);await repairHealthfix(f.db,'one',owner,now);assert.equal(f.audits.length,0)});
 test('management authorization is checked against current database role and scope',async()=>{let where:unknown;const db={user:{findFirst:async(a:{where:unknown})=>{where=a.where;return null}}} as unknown as PrismaClient;assert.equal(await healthfixManager(db,null),null);await healthfixManager(db,owner);assert.deepEqual(where,{id:'owner',organizationId:'one',active:true,role:{in:['OWNER','ADMIN']}})});
-test('maintenance continues to later organizations when one repair fails',async()=>{let calls=0;const f=repairs(true,[0,0,0]);const db={...f.db,auditLog:{create:async()=>({id:"run"}),update:async()=>({})},organization:{findMany:async()=>[{id:'one'},{id:'two'}]},$transaction:async()=>{calls++;if(calls===1)throw Error('failure');return{interruptedInvitations:1,interruptedEmails:0,expiredInvitations:0}}} as unknown as PrismaClient;assert.deepEqual(await runHealthfixMaintenance(db,now),{checked:2,changed:1,failed:1})});
+test('maintenance continues to later organizations when one repair fails',async()=>{let calls=0;const f=repairs(true,[0,0,0]);const db={safetyAlert:{updateMany:async()=>({count:0})},...f.db,auditLog:{create:async()=>({id:"run"}),update:async()=>({})},organization:{findMany:async()=>[{id:'one'},{id:'two'}]},$transaction:async()=>{calls++;if(calls===1)throw Error('failure');return{interruptedInvitations:1,interruptedEmails:0,expiredInvitations:0}}} as unknown as PrismaClient;assert.deepEqual(await runHealthfixMaintenance(db,now),{checked:2,changed:1,failed:1})});
 
 type RunAudit = { data: { organizationId?: string; metadata: Record<string, unknown> }; where?: { id: string } };
 test('daily no-op run persists start and completion with zero counts',async()=>{
  const f=repairs(true,[0,0,0]); const records: RunAudit[]=[];
- const db={...f.db,organization:{findMany:async()=>[{id:'one'}]},auditLog:{create:async(a:RunAudit)=>{records.push(a);return{id:'run-one'}},update:async(a:RunAudit)=>{records.push(a);return{}}}} as unknown as PrismaClient;
+ const db={safetyAlert:{updateMany:async()=>({count:0})},...f.db,organization:{findMany:async()=>[{id:'one'}]},auditLog:{create:async(a:RunAudit)=>{records.push(a);return{id:'run-one'}},update:async(a:RunAudit)=>{records.push(a);return{}}}} as unknown as PrismaClient;
  assert.deepEqual(await runHealthfixMaintenance(db,now),{checked:1,changed:0,failed:0});
  assert.equal(records[0].data.organizationId,'one'); assert.equal(records[0].data.metadata.status,'RUNNING');
  assert.equal(records[1].where!.id,'run-one'); assert.equal(records[1].data.metadata.status,'COMPLETED'); assert.equal(records[1].data.metadata.expiredInvitations,0);
 });
 test('failed repairs persist sanitized failure and continue processing',async()=>{
  const records:RunAudit[]=[]; let calls=0;
- const db={organization:{findMany:async()=>[{id:'one'},{id:'two'}]},auditLog:{create:async(a:RunAudit)=>({id:a.data.organizationId}),update:async(a:RunAudit)=>{records.push(a);return{}}},$transaction:async()=>{if(++calls===1)throw Error('SECRET_CONNECTION');return{interruptedInvitations:0,interruptedEmails:0,expiredInvitations:0}}} as unknown as PrismaClient;
+ const db={safetyAlert:{updateMany:async()=>({count:0})},organization:{findMany:async()=>[{id:'one'},{id:'two'}]},auditLog:{create:async(a:RunAudit)=>({id:a.data.organizationId}),update:async(a:RunAudit)=>{records.push(a);return{}}},$transaction:async()=>{if(++calls===1)throw Error('SECRET_CONNECTION');return{interruptedInvitations:0,interruptedEmails:0,expiredInvitations:0}}} as unknown as PrismaClient;
  assert.deepEqual(await runHealthfixMaintenance(db,now),{checked:2,changed:0,failed:1});assert.equal(records[0].data.metadata.status,'FAILED');assert.equal(records[1].data.metadata.status,'COMPLETED');assert.ok(!JSON.stringify(records).includes('SECRET_CONNECTION'));
 });
 test('unavailable start receipt prevents unrecorded repairs',async()=>{
@@ -91,4 +91,31 @@ test('old manual WhatsApp drafts appear as warnings without claiming delivered m
  assert.equal(queues.checks.find(c=>c.code==='manual-whatsapp-backlog')?.status,'WARNING');
  const whatsapp=report.modules.find(m=>m.code==='whatsapp')!;
  assert.equal(whatsapp.checks.find(c=>c.code==='provider-receipt')?.status,'UNKNOWN');
+});
+
+test('SOS incidents appear as urgent warnings without implying rescue',async()=>{
+ const f=reads();
+ const db={...f.db,safetyAlert:{count:async({where}:any)=>{
+   assert.equal(where.organizationId,'one');
+   return where.status==='OPEN'?1:0;
+ }}} as unknown as PrismaClient;
+ const report=await collectHealthfix(db,'one',now,env);
+ const safety=report.modules.find(x=>x.code==='student-safety')!;
+ assert.equal(safety.status,'DEGRADED');
+ assert.equal(safety.checks.find(x=>x.code==='unacknowledged-sos')?.status,'WARNING');
+});
+test('daily maintenance clears only old opted-in SOS coordinates and records count',async()=>{
+ const changes:any[]=[],records:RunAudit[]=[];
+ const f=repairs(true,[0,0,0,0]);
+ const db={...f.db,organization:{findMany:async()=>[{id:'one'}]},
+   safetyAlert:{updateMany:async(args:any)=>{changes.push(args);return{count:2}}},
+   auditLog:{create:async(a:RunAudit)=>{records.push(a);return{id:'run'}},
+     update:async(a:RunAudit)=>{records.push(a);return{}}},
+ } as unknown as PrismaClient;
+ const result=await runHealthfixMaintenance(db,now);
+ assert.deepEqual(result,{checked:1,changed:1,failed:0});
+ assert.equal(changes[0].where.organizationId,'one');
+ assert.equal(changes[0].where.latitude.not,null);
+ assert.deepEqual(changes[0].data,{latitude:null,longitude:null,accuracyMeters:null,locationSharedAt:null});
+ assert.equal(records[1].data.metadata.sosLocationsRedacted,2);
 });
