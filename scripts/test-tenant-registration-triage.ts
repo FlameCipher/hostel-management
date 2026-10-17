@@ -143,7 +143,7 @@ const outreachResidents=[
 ];
 const outreachCases=triageTenantRegistrations(outreachRequests,outreachResidents,()=>"KE",outreachNow);
 const oldRecords=JSON.stringify({outreachResidents,outreachRequests});
-const progress=activationOutreachSummary(outreachCases.groups,outreachResidents,()=>"KE",outreachNow);
+const progress=activationOutreachSummary("hostel-A",outreachCases.groups,outreachResidents,()=>"KE",outreachNow);
 assert.equal(progress.actionableResidentRecords,3);
 assert.equal(progress.pendingPhoneClaims,1,
   "One pending phone claim means hold for verification, not proof of applicant identity.");
@@ -159,10 +159,10 @@ const differentProperty=triageTenantRegistrations([
   {...req("another","Different Name","254711111111","25","2026-10-15T09:00:00Z",
     "hostel-A","property-B"),expiresAt:expiration},
 ],outreachResidents,()=>"KE",outreachNow);
-const noCrossProperty=activationOutreachSummary(differentProperty.groups,[outreachResidents[1]],()=>"KE",outreachNow);
+const noCrossProperty=activationOutreachSummary("hostel-A",differentProperty.groups,[outreachResidents[1]],()=>"KE",outreachNow);
 assert.equal(noCrossProperty.needsContactReview,1,
   "A pending phone claim on another property must not suppress this property's outreach.");
-const timeLimit=activationOutreachSummary(outreachCases.groups,outreachResidents,()=>"KE",
+const timeLimit=activationOutreachSummary("hostel-A",outreachCases.groups,outreachResidents,()=>"KE",
   day("2026-10-18T18:18:10Z"));
 assert.equal(timeLimit.expiringCases,1);
 
