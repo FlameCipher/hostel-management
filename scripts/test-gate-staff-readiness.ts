@@ -131,6 +131,17 @@ assert.doesNotMatch(gateModel,/guardian:|charges:|payments:|roomStays:|adjustmen
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));
 assert.ok(read("src/app/(app)/gate-readiness/page.tsx").includes("staffMayReviewGateReadiness"));
+const gateReadinessPage=read("src/app/(app)/gate-readiness/page.tsx");
+assert.match(gateReadinessPage,/portalPasswordHash:\{not:null\}/,
+ "Only password-backed tenant portals should count as operationally enabled.");
+assert.match(gateReadinessPage,/db\.tenantPortalInvitation\.groupBy/);
+assert.match(gateReadinessPage,/db\.notification\.groupBy/);
+assert.match(gateReadinessPage,/db\.whatsAppDelivery\.groupBy/);
+assert.match(gateReadinessPage,/whatsapp\.openedUnconfirmed/);
+assert.match(gateReadinessPage,/whatsapp\.providerConfirmed/);
+assert.match(gateReadinessPage,/No test visitor, caretaker account/);
+assert.doesNotMatch(gateReadinessPage,/db\.student\.update|db\.notification\.create/,
+ "Operational handover must be read-only.");
 assert.ok(read("src/app/(app)/students/page.tsx").includes('session.role === "CARETAKER"'),"Caretaker should not access personal student register.");
 assert.ok(read("src/app/(app)/visitors/page.tsx").includes("hostRoomChanged=!room||"),"An absent host occupancy must block gate admission.");
 console.log("Gate Staff & Operational Readiness: role menu, caretaker privacy, route guards, operational metrics and on-site verification boundaries passed.");
