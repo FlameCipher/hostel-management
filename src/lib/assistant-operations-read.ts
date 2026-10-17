@@ -2,7 +2,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 
 export type OperationalIntent =
  | {kind:"room";number:string} | {kind:"overdue-visitors"} | {kind:"visitor-count"}
- | {kind:"registrations"} | {kind:"receipt-queue"} | {kind:"gate-staff"} | null;
+ | {kind:"registrations"} | {kind:"receipt-queue"} | {kind:"gate-staff"} | {kind:"whatsapp-queue"} | null;
 export function operationalIntent(question:string):OperationalIntent {
  const q=question.trim().toLowerCase();if(!q||q.length>1200)return null;
  if(/(?:who|which|show|list|find|check|how many|any|nani|onyesha)/.test(q)&&/(?:visitor|guest|wageni|check(?:ed)?[\s-]?out|departure|left|overdue)/.test(q)){
@@ -12,6 +12,8 @@ export function operationalIntent(question:string):OperationalIntent {
  const room=q.match(/\broom\s*(?:number\s*)?([0-9]{1,5}[a-z]?)\b/i);
  if(room&&/(?:who|occup(?:y|ies|ant)|student|tenant|resident|room status|in room|nani)/.test(q))return{kind:"room",number:room[1].toUpperCase()};
  if(/(?:pending|awaiting|waiting|how many|show|list)/.test(q)&&/(?:registrations?|portal approval|account requests?)/.test(q))return{kind:"registrations"};
+ if(/(?:whats?\s*app|wa\s+messages?)/.test(q)&&/(?:pending|queued|draft|unsent|not sent|opened|sending|failed|delivery|delivered|how many|count|status|backlog)/.test(q))
+   return {kind:"whatsapp-queue"};
  if(/(?:pending|waiting|unsent|failed|not sent|delivery)/.test(q)&&/receipts?/.test(q))return{kind:"receipt-queue"};
  if(/(?:how many|show|active|registered)/.test(q)&&/(?:caretaker|gate staff|security staff)/.test(q))return{kind:"gate-staff"};
  return null;
@@ -49,6 +51,18 @@ export async function answerOperationalQuestion(db:PrismaClient,organizationId:s
   return{mode:"records",text:String(count)+" active caretaker/security accounts are recorded. The register does not establish that an operator has signed in at the gate on their own device.",links:[link("Rooms and gate","/visitors","Review operations")]};
  }
  if(role==="CARETAKER")return{mode:"records",text:"Only authorized management may access registration and financial delivery records.",links:[link("Gate","/visitors","Open visitor gate")]};
+ if(intent.kind==="whatsapp-queue"){
+  const [queued,opened,marked,failed,delivered]=await Promise.all([
+   db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"QUEUED"}}),
+   db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"OPENED_FOR_SENDING"}}),
+   db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"SENT"}}),
+   db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"FAILED"}}),
+   db.whatsAppDelivery.count({where:{organizationId,status:{in:["DELIVERED","READ"]}}}),
+  ]);
+  return{mode:"records",text:
+   `${queued} WhatsApp drafts are queued; ${opened} were opened but are not confirmed sent; ${failed} need failed-draft review. ${marked} were marked sent manually (not provider-confirmed). ${delivered} provider delivery/read receipts are recorded. These are distinct workflow counters and must not be added as a unique-recipient total. No messages were sent or retried by this answer.`,
+   links:[link("WhatsApp operations","/communications/whatsapp","Review drafts and provider results")]};
+ }
  if(intent.kind==="registrations"){
   const count=await db.tenantRegistration.count({where:{organizationId,status:"PENDING",expiresAt:{gt:now}}});
   return{mode:"records",text:String(count)+" eligible tenant registration requests await management identity verification. No accounts have been activated.",links:[link("Registrations","/students/registrations","Review requests")]};
