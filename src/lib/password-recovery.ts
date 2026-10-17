@@ -61,15 +61,16 @@ export async function requestPasswordRecovery(database: PrismaClient, input: unk
       if (students.length !== 1 || !students[0].email) return null;
       return { userId: null, studentId: students[0].id, sessionVersion: students[0].portalSessionVersion, email: students[0].email };
     });
-    if (!account || !z.string().email().safeParse(account.email).success) return notice;
+    if (!account || !account.email || !z.string().email().safeParse(account.email).success) return notice;
+    const recipientEmail = normalizeEmail(account.email);
     // Account-level limit also covers tenant requests that alternate phone and email.
     if (!await withinLimit(database, `account:${kind}:${account.userId ?? account.studentId}`, 3, config.secret, now)) return notice;
     const token = randomBytes(32).toString("base64url"), id = randomUUID();
-    await database.passwordRecovery.create({ data: { id, organizationId: property.organizationId, propertyId: property.id, kind, userId: account.userId, studentId: account.studentId, sessionVersion: account.sessionVersion, recipient: normalizeEmail(account.email), host: linkHost, tokenHash: recoveryTokenHash(token), expiresAt: new Date(now.getTime() + recoveryLifetime) } });
+    await database.passwordRecovery.create({ data: { id, organizationId: property.organizationId, propertyId: property.id, kind, userId: account.userId, studentId: account.studentId, sessionVersion: account.sessionVersion, recipient: recipientEmail, host: linkHost, tokenHash: recoveryTokenHash(token), expiresAt: new Date(now.getTime() + recoveryLifetime) } });
     const deliver = async () => {
     let deliveryStatus = "REVIEW";
     try {
-      const response = await fetcher("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `hostel-recovery/${id}` }, body: JSON.stringify({ from: config.from, to: [normalizeEmail(account.email)], subject: `Reset your ${property.name} password`, text: `${property.name}\n\nReset your ${kind === "TENANT" ? "tenant" : "hostel management"} password using this private, single-use link:\nhttps://${linkHost}/reset-password/${token}\n\nThis link expires in 30 minutes. Your previous hostel sessions will be signed out after the password is changed. This does not change your SYSTEM IN ONE password.\n\nIf you did not request this, ignore this email. Your password has not changed. Do not forward this link.` }), signal: AbortSignal.timeout(10000) });
+      const response = await fetcher("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `hostel-recovery/${id}` }, body: JSON.stringify({ from: config.from, to: [recipientEmail], subject: `Reset your ${property.name} password`, text: `${property.name}\n\nReset your ${kind === "TENANT" ? "tenant" : "hostel management"} password using this private, single-use link:\nhttps://${linkHost}/reset-password/${token}\n\nThis link expires in 30 minutes. Your previous hostel sessions will be signed out after the password is changed. This does not change your SYSTEM IN ONE password.\n\nIf you did not request this, ignore this email. Your password has not changed. Do not forward this link.` }), signal: AbortSignal.timeout(10000) });
       if (response.ok) { const payload = await response.json(); deliveryStatus = typeof payload.id === "string" && payload.id ? "PROVIDER_ACCEPTED" : "REVIEW"; }
       else if (response.status >= 400 && response.status < 500 && response.status !== 408) deliveryStatus = "FAILED";
     } catch { /* Uncertain provider results are recorded without automatic resend. */ }

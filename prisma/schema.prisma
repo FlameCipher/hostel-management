@@ -530,8 +530,12 @@ model User {
   id             String   @id @default(cuid())
   organizationId String
   name           String
-  email          String
+  email          String?
   phone          String?
+  loginPhone     String?
+  dutyStart      String?
+  dutyEnd        String?
+  dutyTimeZone   String?
   passwordHash   String
   sessionVersion Int @default(0)
   role           UserRole @default(ADMIN)
@@ -551,6 +555,7 @@ model User {
   expensesRecorded               Expense[]                     @relation("ExpenseRecordedBy")
 
   @@unique([organizationId, email])
+  @@unique([organizationId, loginPhone])
   @@index([organizationId, role])
   @@unique([organizationId, platformUserId])
 }

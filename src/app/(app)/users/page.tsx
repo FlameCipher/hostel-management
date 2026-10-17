@@ -3,6 +3,7 @@ import {Pencil,Plus,ShieldCheck,Users} from "lucide-react";
 import {redirect} from "next/navigation";
 import {requireSession} from "@/lib/auth/session";
 import {db} from "@/lib/db";
+import {staffDutyLabel} from "@/lib/staff-phone-policy";
 
 export default async function UsersPage(){
   const session=await requireSession();
@@ -48,18 +49,20 @@ export default async function UsersPage(){
     </div>:null}
     <section className="panel mt-5 overflow-hidden">
       <div className="table-scroll"><table className="data-table">
-        <thead><tr><th>User</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th/></tr></thead>
+        <thead><tr><th>User</th><th>Sign-in</th><th>Phone</th><th>Role</th><th>Duty hours</th><th>Status</th><th/></tr></thead>
         <tbody>{users.map(user=><tr key={user.id}>
           <td><strong>{user.name}</strong></td>
-          <td>{user.email}</td><td>{user.phone??"—"}</td>
+          <td>{user.email??user.loginPhone??"Not set"}</td><td>{user.phone??"—"}</td>
           <td><span className="status-pill status-vacant-pill">
             {user.role==="CARETAKER"?"CARETAKER / SECURITY":user.role}
           </span></td>
+          <td>{staffDutyLabel(user)}</td>
           <td>{user.active?"Active":"Inactive"}</td>
           <td><Link className="table-action" href={"/users/"+encodeURIComponent(user.id)+"/edit"}>
             <Pencil size={14}/> Edit</Link></td>
         </tr>)}</tbody>
       </table></div>
     </section>
+    <p className="muted-note">Duty hours are management's planned shift times. They do not confirm attendance, allocate days of the week, restrict sign-in or guarantee an emergency response.</p>
   </div>;
 }

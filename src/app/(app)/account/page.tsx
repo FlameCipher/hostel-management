@@ -9,17 +9,18 @@ import styles from "@/components/account-security.module.css";
 export const dynamic = "force-dynamic";
 export default async function AccountPage() {
   const session = await requireSession();
-  const user = await db.user.findFirstOrThrow({ where: { id: session.userId, organizationId: session.organizationId, active: true }, select: { email: true, name: true, platformUserId: true } });
+  const user = await db.user.findFirstOrThrow({ where: { id: session.userId, organizationId: session.organizationId, active: true }, select: { email: true, loginPhone: true, name: true, platformUserId: true } });
   return <div className={styles.page}>
     <header className={styles.heading}>
       <p className={styles.eyebrow}>My account</p>
-      <h1>Email and password</h1>
+      <h1>Sign-in and password</h1>
       <p>Manage your private hostel login and keep your account secure.</p>
     </header>
     <section className={styles.identity} aria-label="Current account">
       <ShieldCheck size={24} aria-hidden="true"/>
-      <div><p>Signed in as</p><strong>{user.name}</strong><span>{user.email}</span></div>
+      <div><p>Signed in as</p><strong>{user.name}</strong><span>{user.email ?? user.loginPhone}</span></div>
     </section>
+    {!user.email && <p>Your phone number is your sign-in name. You may add an email below. Without email, contact the hostel owner for a password reset after identity verification.</p>}
     {user.platformUserId && <section className={styles.connection} aria-labelledby="connected-account-title">
       <h2 id="connected-account-title">SYSTEM IN ONE connection</h2>
       <p>Your accounts stay connected when you change your hostel login email. Your SYSTEM IN ONE email and password are managed separately.</p>
