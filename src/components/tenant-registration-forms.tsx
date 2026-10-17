@@ -129,7 +129,7 @@ export function RegistrationReviewForm({ id, candidates, blockApproval=false, bl
       </select>
     </label>
     <label className="check-field"><input type="checkbox" name="verified"/>
-      <span>I personally verified the applicant through the method selected above, matching their existing registered identity and current room. Submitted details alone are not proof of identity.</span>
+      <span>I independently verified this tenant using the method selected above, matching the existing registered name, phone and current room. Submitted details alone are not proof of identity.</span>
     </label>
     <label className="field-group"><span>Reason if rejecting *</span>
       <select name="rejectionReason" defaultValue="">
