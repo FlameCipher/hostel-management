@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import type {PrismaClient} from "../src/generated/prisma/client";
 import type {SessionPayload} from "../src/lib/auth/session";
 import {reviewTenantRegistration} from "../src/lib/tenant-registration";
+import {registeredResidentCallTarget} from "../src/lib/tenant-verification-contact";
 
 const now=new Date("2026-10-16T10:00:00.000Z");
 const date=(v:string)=>new Date(v);
@@ -189,9 +190,29 @@ async function run(){
     id:"latest",studentId:"",approve:false,verified:false,
   },now);
   assert.ok(result.error);assert.equal(missingReason.audits.length,0);
+  const registered=registeredResidentCallTarget("0712 345 678","KE","hostel-A");
+  assert.deepEqual(registered,{display:"+254712345678",href:"tel:+254712345678"});
+  assert.deepEqual(
+    registeredResidentCallTarget("0712 345 678",null,"mama-mbugua-hostel"),
+    registered,
+  );
+  assert.equal(registeredResidentCallTarget("0712 345 678",null,"foreign-hostel"),null);
+  assert.equal(registeredResidentCallTarget("tel:+254712345678","KE","hostel-A"),null);
+  assert.equal(registeredResidentCallTarget("0712345678?text=unsafe","KE","hostel-A"),null);
+  assert.equal(registeredResidentCallTarget(null,"KE","hostel-A"),null);
+  assert.equal(registeredResidentCallTarget("0712345678","UG","foreign-hostel"),null);
+  const verificationPage=readFileSync("src/app/(app)/students/registrations/page.tsx","utf8");
+  assert.match(verificationPage,/registeredResidentCallTarget\(/);
+  assert.match(verificationPage,/s\.phone,propertyById\.get\(g\.propertyId\)\?\.countryCode,session\.organizationId/);
+  assert.doesNotMatch(verificationPage,/registeredResidentCallTarget\(\s*r\.phone/);
   const managementForm=readFileSync("src/components/tenant-registration-forms.tsx","utf8");
   const serverAction=readFileSync("src/app/tenant/register/actions.ts","utf8");
   const registrationService=readFileSync("src/lib/tenant-registration.ts","utf8");
+  assert.match(managementForm,/aria-label="Registered resident contact"/);
+  assert.match(managementForm,/Call registered mobile/);
+  assert.match(managementForm,/href=\{candidates\[0\]\.registeredContact\.href\}/);
+  assert.match(managementForm,/single && !blockApproval/);
+  assert.match(managementForm,/does not place a verified call/);
   assert.match(managementForm,/name="verificationMethod"/);
   assert.match(managementForm,/value="IN_PERSON"/);
   assert.match(managementForm,/value="CALL_REGISTERED_PHONE"/);
