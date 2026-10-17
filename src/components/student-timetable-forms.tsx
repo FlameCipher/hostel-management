@@ -1,7 +1,8 @@
 "use client";
 import {useActionState,useEffect} from "react";
 import {useRouter} from "next/navigation";
-import {addLessonAction,changeLessonAction} from "@/app/tenant/timetable/actions";
+import {addLessonAction,changeLessonAction,editLessonAction} from "@/app/tenant/timetable/actions";
+import {clockMinutes,lessonDayNames,type TimetableLesson} from "@/lib/student-timetable";
 
 export function TimetableAddForm({timeZone}:{timeZone:string}){
  const [state,action,pending]=useActionState(addLessonAction,{});
@@ -70,4 +71,58 @@ export function TimetableLessonControls({id,enabled}:{id:string;enabled:boolean}
    {state.error?<p className="form-error" role="alert">{state.error}</p>:null}
    {state.success?<p className="form-success" role="status">{state.success}</p>:null}
  </form>;
+}
+
+
+/** Open only when the resident chooses Edit. No new class or identity is created. */
+export function TimetableEditForm({lesson}:{lesson:TimetableLesson}){
+ const [state,action,pending]=useActionState(editLessonAction,{});
+ const router=useRouter();
+ useEffect(()=>{if(state.success)router.refresh();},[state.success,router]);
+ return <details className="mt-3">
+   <summary className="secondary-button" style={{cursor:"pointer",display:"inline-flex"}}>Edit class details</summary>
+   <form action={action} className="panel entity-form mt-3" aria-label={"Edit "+lesson.title}>
+     <input type="hidden" name="id" value={lesson.id}/>
+     <h4>Edit your weekly lesson</h4>
+     <p>Correct the same class without deleting it. Your timetable is private to you.</p>
+     <label className="field-group"><span>Class / subject *</span>
+       <input name="title" required minLength={3} maxLength={100} defaultValue={lesson.title}/>
+     </label>
+     <label className="field-group"><span>Course code (optional)</span>
+       <input name="courseCode" maxLength={30} defaultValue={lesson.courseCode??""}/>
+     </label>
+     <label className="field-group"><span>Class venue (optional)</span>
+       <input name="venue" maxLength={100} defaultValue={lesson.venue??""}/>
+     </label>
+     <label className="field-group"><span>Day *</span>
+       <select name="dayOfWeek" defaultValue={String(lesson.dayOfWeek)} required>
+         {lessonDayNames.map((name,day)=><option key={name} value={String(day)}>{name}</option>)}
+       </select>
+     </label>
+     <div className="room-summary-grid">
+       <label className="field-group"><span>Starts *</span>
+         <input type="time" name="startTime" defaultValue={clockMinutes(lesson.startMinutes)} required/>
+       </label>
+       <label className="field-group"><span>Ends *</span>
+         <input type="time" name="endTime" defaultValue={clockMinutes(lesson.endMinutes)} required/>
+       </label>
+     </div>
+     <label className="field-group"><span>Reminder lead time *</span>
+       <select name="remindBeforeMinutes" defaultValue={String(lesson.remindBeforeMinutes)}>
+         <option value="0">At class start</option>
+         <option value="10">10 minutes before</option>
+         <option value="15">15 minutes before</option>
+         <option value="30">30 minutes before</option>
+         <option value="60">1 hour before</option>
+       </select>
+     </label>
+     <label className="check-field"><input type="checkbox" name="reminderEnabled" defaultChecked={lesson.reminderEnabled}/>
+       Remind me before this class.
+     </label>
+     <p className="muted-note">Time zone: {lesson.timeZone}. Overlapping classes are rejected. Already delivered notifications cannot be recalled; queued reminders for this class are cleared when it changes.</p>
+     <button className="primary-button" disabled={pending}>{pending?"Saving changes…":"Save class changes"}</button>
+     {state.error?<p className="form-error" role="alert">{state.error}</p>:null}
+     {state.success?<p className="form-success" role="status">{state.success}</p>:null}
+   </form>
+ </details>;
 }
