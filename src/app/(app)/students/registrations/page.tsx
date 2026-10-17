@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { residentStaff } from "@/lib/resident-access";
 import { db } from "@/lib/db";
 import { registrationCountryCode } from "@/lib/tenant-registration";
+import { registeredResidentCallTarget } from "@/lib/tenant-verification-contact";
 import {
   triageTenantRegistrations,registrationReviewLabels,
   registrationCaseKind,registrationCaseLabels,activationOutreachSummary,registrationExpiryPriority,type RegistrationCaseKind,
@@ -242,7 +243,14 @@ export default async function RegistrationsPage({
           const r=entry.request;
           const candidates=complete&&entry.kind==="EXACT_MATCH"?
             students.filter(s=>entry.matchingStudentIds.includes(s.id))
-              .map(s=>({id:s.id,label:s.fullName})):[];
+              .map(s=>({
+                id:s.id,label:s.fullName,
+                // This contact comes from the pre-existing Student record,
+                // never the number typed into an unverified application.
+                registeredContact:registeredResidentCallTarget(
+                  s.phone,propertyById.get(g.propertyId)?.countryCode,session.organizationId,
+                ),
+              })):[];
           return <article key={r.id} className="mt-4">
             <h3>Application {index+1} · Room {r.roomNumber}</h3>
             {index===0 && registrationExpiryPriority(g,now)==="URGENT"?
