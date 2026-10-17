@@ -12,8 +12,8 @@ export function operationalIntent(question:string):OperationalIntent {
  // "Where are we?" is a hostel operations question, not an invitation for the
  // external language model to invent a project status.
  if(/(?:where are we|what remains|what(?:'s| is) left|what next|hostel (?:status|progress|readiness|rollout|activation)|operational (?:status|readiness)|system progress)/.test(q)&&
-    !/(?:whats?\\s*app|receipts?|payments?|balance|room\\s*\\d+|visitors?)/.test(q))return{kind:"rollout"};
- const room=q.match(/\\broom\\s*(?:number\\s*)?([0-9]{1,5}[a-z]?)\\b/i);
+    !/(?:whats?\s*app|receipts?|payments?|balance|room\s*\d+|visitors?)/.test(q))return{kind:"rollout"};
+ const room=q.match(/\broom\s*(?:number\s*)?([0-9]{1,5}[a-z]?)\b/i);
  if(room&&/(?:who|occup(?:y|ies|ant)|student|tenant|resident|room status|in room|nani)/.test(q))return{kind:"room",number:room[1].toUpperCase()};
  if(/(?:pending|awaiting|waiting|how many|show|list)/.test(q)&&/(?:registrations?|portal approval|account requests?)/.test(q))return{kind:"registrations"};
  if(/(?:whats?\s*app|wa\s+messages?)/.test(q)&&/(?:pending|queued|draft|unsent|not sent|opened|sending|failed|delivery|delivered|how many|count|status|backlog)/.test(q))
