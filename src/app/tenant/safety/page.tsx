@@ -26,7 +26,7 @@ export default async function TenantSafetyPage(){
      <h1>Danger / SOS</h1><p>Your alert goes into the hostel staff response queue.</p></div>
      <Link href="/tenant/account" className="secondary-button">My portal</Link>
    </div>
-   {sosPilotEnabled()?
+   {sosPilotEnabled(session.organizationId)?
      <StudentSOSButton requestId={randomUUID()}/>:
      <section className="panel entity-form">
        <h2>Emergency calling available — hostel SOS pilot not activated</h2>
