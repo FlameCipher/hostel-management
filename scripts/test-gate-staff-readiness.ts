@@ -58,6 +58,15 @@ const base={
 const before=JSON.stringify(base);
 const report=gateReadinessSummary(base);
 assert.equal(report.counts.missingPortal,31);
+assert.equal(report.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "One enabled portal is not full resident activation for 32 active students.");
+assert.match(report.steps.find(x=>x.code==="portal")?.explanation??"",/31 of 32 active residents/);
+const allActive=gateReadinessSummary({...base,enabledTenantAccounts:32});
+assert.equal(allActive.steps.find(x=>x.code==="portal")?.status,"READY");
+assert.equal(allActive.counts.missingPortal,0);
+const noStudents=gateReadinessSummary({...base,activeStudents:0,enabledTenantAccounts:0});
+assert.equal(noStudents.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "An empty roster must not be represented as completed onboarding.");
 assert.equal(report.needsGateOperator,true);
 assert.equal(report.verifiedOnSite,false);
 assert.equal(report.safeForAutomatedActivation,false);
@@ -71,6 +80,8 @@ const withGate=gateReadinessSummary({
 });
 assert.equal(withGate.needsGateOperator,false);
 assert.equal(withGate.steps.find(x=>x.code==="caretaker")?.status,"READY");
+assert.equal(withGate.steps.find(x=>x.code==="portal")?.status,"ACTION_REQUIRED",
+  "A working gate alone does not activate missing tenant portals.");
 assert.equal(withGate.steps.find(x=>x.code==="gate-entry")?.status,"READY");
 assert.equal(withGate.verifiedOnSite,false,"Database events cannot prove on-site verification.");
 
@@ -120,6 +131,17 @@ assert.doesNotMatch(gateModel,/guardian:|charges:|payments:|roomStays:|adjustmen
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));
 assert.ok(read("src/app/(app)/gate-readiness/page.tsx").includes("staffMayReviewGateReadiness"));
+const gateReadinessPage=read("src/app/(app)/gate-readiness/page.tsx");
+assert.match(gateReadinessPage,/portalPasswordHash:\{not:null\}/,
+ "Only password-backed tenant portals should count as operationally enabled.");
+assert.match(gateReadinessPage,/db\.tenantPortalInvitation\.groupBy/);
+assert.match(gateReadinessPage,/db\.notification\.groupBy/);
+assert.match(gateReadinessPage,/db\.whatsAppDelivery\.groupBy/);
+assert.match(gateReadinessPage,/whatsapp\.openedUnconfirmed/);
+assert.match(gateReadinessPage,/whatsapp\.providerConfirmed/);
+assert.match(gateReadinessPage,/No test visitor, caretaker account/);
+assert.doesNotMatch(gateReadinessPage,/db\.student\.update|db\.notification\.create/,
+ "Operational handover must be read-only.");
 assert.ok(read("src/app/(app)/students/page.tsx").includes('session.role === "CARETAKER"'),"Caretaker should not access personal student register.");
 assert.ok(read("src/app/(app)/visitors/page.tsx").includes("hostRoomChanged=!room||"),"An absent host occupancy must block gate admission.");
 console.log("Gate Staff & Operational Readiness: role menu, caretaker privacy, route guards, operational metrics and on-site verification boundaries passed.");

@@ -20,6 +20,11 @@ test("room, visitor, caretaker and pending queues classify safely",()=>{
   assert.deepEqual(operationalIntent("How many active caretaker accounts?"),{kind:"gate-staff"});
   assert.deepEqual(operationalIntent("How many WhatsApp messages are pending?"),{kind:"whatsapp-queue"});
   assert.deepEqual(operationalIntent("Show Whatsapp delivery status"),{kind:"whatsapp-queue"});
+  assert.deepEqual(operationalIntent("Where are we with our hostel system?"),{kind:"rollout"});
+  assert.deepEqual(operationalIntent("What remains in hostel activation?"),{kind:"rollout"});
+  assert.deepEqual(operationalIntent("Show hostel readiness"),{kind:"rollout"});
+  assert.equal(operationalIntent("What is the balance of room 24?")?.kind=== "rollout",false);
+  assert.deepEqual(operationalIntent("How many WhatsApp messages are pending?"),{kind:"whatsapp-queue"});
   assert.equal(operationalIntent("Turn off visitor security"),null);
 });
 test("tenant scoping and no mutation in room lookup",async()=>{
@@ -83,4 +88,41 @@ test("caretaker cannot use the AI to inspect management WhatsApp queues",async()
  const db={notification:{count:async()=>assert.fail("Must not query WhatsApp messages")}} as unknown as PrismaClient;
  const r=await answerOperationalQuestion(db,"hostel","CARETAKER",{kind:"whatsapp-queue"});
  assert.match(r.text,/Only authorized management/);
+});
+
+test("management hostel rollout answers live operational counts and gives verified next actions",async()=>{
+ const scope="hostel-A",seen:unknown[]=[];
+ const counts:Record<string,number>={active:32,portal:1,pending:23,caretaker:0,visitors:0,queued:48,opened:3,confirmed:0};
+ const db={
+  student:{count:async({where}:any)=>{seen.push(where);assert.equal(where.organizationId,scope);
+    if(where.portalEnabled){assert.deepEqual(where.portalPasswordHash,{not:null});return counts.portal;}
+    assert.equal(where.status,"ACTIVE");return counts.active;}},
+  tenantRegistration:{count:async({where}:any)=>{seen.push(where);
+    assert.equal(where.organizationId,scope);assert.equal(where.status,"PENDING");
+    assert.ok(where.expiresAt.gt instanceof Date);return counts.pending;}},
+  user:{count:async({where}:any)=>{seen.push(where);
+    assert.equal(where.organizationId,scope);assert.equal(where.role,"CARETAKER");return counts.caretaker;}},
+  visitorRequest:{count:async({where}:any)=>{seen.push(where);
+    assert.equal(where.organizationId,scope);return counts.visitors;}},
+  notification:{count:async({where}:any)=>{seen.push(where);
+    assert.equal(where.organizationId,scope);assert.equal(where.channel,"WHATSAPP");
+    return where.status==="QUEUED"?counts.queued:counts.opened;}},
+  whatsAppDelivery:{count:async({where}:any)=>{seen.push(where);
+    assert.equal(where.organizationId,scope);assert.deepEqual(where.status.in,["DELIVERED","READ"]);
+    return counts.confirmed;}}
+ } as unknown as PrismaClient;
+ const answer=await answerOperationalQuestion(db,scope,"OWNER",{kind:"rollout"},new Date("2026-10-17T04:00:00Z"));
+ assert.equal(answer.mode,"records");
+ for(const token of ["32 active students","1 with an enabled password-backed portal",
+  "31 still to activate","23 pending registration requests","0 active caretaker accounts",
+  "48 queued drafts","3 opened without confirmed sending","0 recorded provider-delivered/read messages"])
+  assert.ok(answer.text.includes(token),token);
+ assert.match(answer.text,/No records were changed/);
+ assert.equal(answer.links.length,4);
+ assert.equal(seen.length,8);
+});
+test("caretaker cannot inspect management-wide rollout metrics",async()=>{
+ const db={student:{count:async()=>assert.fail("No student roster read is authorized")}} as unknown as PrismaClient;
+ const response=await answerOperationalQuestion(db,"hostel-A","CARETAKER",{kind:"rollout"});
+ assert.match(response.text,/Only authorized management/);
 });

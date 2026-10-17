@@ -39,9 +39,11 @@ export function gateReadinessSummary(input:GateReadinessInput) {
       status:data.activeCaretakers>0?"READY":"ACTION_REQUIRED",
       explanation:"Create a named CARETAKER / SECURITY login for an actual verified employee. Never share the Owner password.",
       href:"/users/new"},
-    {code:"portal",title:"Tenant portal accounts enabled",
-      status:data.enabledTenantAccounts>0?"READY":"ACTION_REQUIRED",
-      explanation:"Residents self-register; management approves only after matching identity, existing phone and current room.",
+    {code:"portal",title:"All active residents have verified portal access",
+      status:data.activeStudents>0 && missingPortal===0?"READY":"ACTION_REQUIRED",
+      explanation:missingPortal===0 && data.activeStudents>0
+        ? "All recorded active residents have enabled portals. Confirm first sign-in independently."
+        : `${missingPortal} of ${data.activeStudents} active residents still need portal activation. Review individual pending requests, independently verify identity and current rooms, then test sign-in. One active account does not complete hostel onboarding.`,
       href:"/students/registrations"},
     {code:"first-request",title:"First real tenant visitor request",
       status:data.expectedVisits+data.recordedEntries+data.recordedExits>0?"READY":"NOT_VERIFIED",

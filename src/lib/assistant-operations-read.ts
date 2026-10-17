@@ -2,13 +2,17 @@ import type { PrismaClient } from "@/generated/prisma/client";
 
 export type OperationalIntent =
  | {kind:"room";number:string} | {kind:"overdue-visitors"} | {kind:"visitor-count"}
- | {kind:"registrations"} | {kind:"receipt-queue"} | {kind:"gate-staff"} | {kind:"whatsapp-queue"} | null;
+ | {kind:"registrations"} | {kind:"receipt-queue"} | {kind:"gate-staff"} | {kind:"whatsapp-queue"} | {kind:"rollout"} | null;
 export function operationalIntent(question:string):OperationalIntent {
  const q=question.trim().toLowerCase();if(!q||q.length>1200)return null;
  if(/(?:who|which|show|list|find|check|how many|any|nani|onyesha)/.test(q)&&/(?:visitor|guest|wageni|check(?:ed)?[\s-]?out|departure|left|overdue)/.test(q)){
   if(/(?:not[\s-]?checked[\s-]?out|hasn.t[\s-]?checked[\s-]?out|haven.t[\s-]?checked[\s-]?out|overdue|departure.*not|not.*departed|still inside|not left|haven.t left)/.test(q))return{kind:"overdue-visitors"};
   if(/(?:how many|number|total|count|pending visitors|expected visitors)/.test(q))return{kind:"visitor-count"};
  }
+ // "Where are we?" is a hostel operations question, not an invitation for the
+ // external language model to invent a project status.
+ if(/(?:where are we|what remains|what(?:'s| is) left|what next|hostel (?:status|progress|readiness|rollout|activation)|operational (?:status|readiness)|system progress)/.test(q)&&
+    !/(?:whats?\s*app|receipts?|payments?|balance|room\s*\d+|visitors?)/.test(q))return{kind:"rollout"};
  const room=q.match(/\broom\s*(?:number\s*)?([0-9]{1,5}[a-z]?)\b/i);
  if(room&&/(?:who|occup(?:y|ies|ant)|student|tenant|resident|room status|in room|nani)/.test(q))return{kind:"room",number:room[1].toUpperCase()};
  if(/(?:pending|awaiting|waiting|how many|show|list)/.test(q)&&/(?:registrations?|portal approval|account requests?)/.test(q))return{kind:"registrations"};
@@ -51,6 +55,26 @@ export async function answerOperationalQuestion(db:PrismaClient,organizationId:s
   return{mode:"records",text:String(count)+" active caretaker/security accounts are recorded. The register does not establish that an operator has signed in at the gate on their own device.",links:[link("Rooms and gate","/visitors","Review operations")]};
  }
  if(role==="CARETAKER")return{mode:"records",text:"Only authorized management may access registration and financial delivery records.",links:[link("Gate","/visitors","Open visitor gate")]};
+ if(intent.kind==="rollout"){
+  const [active,enabled,pending,caretakers,visits,queued,opened,providerConfirmed]=await Promise.all([
+    db.student.count({where:{organizationId,status:"ACTIVE"}}),
+    db.student.count({where:{organizationId,status:"ACTIVE",portalEnabled:true,portalPasswordHash:{not:null}}}),
+    db.tenantRegistration.count({where:{organizationId,status:"PENDING",expiresAt:{gt:now}}}),
+    db.user.count({where:{organizationId,role:"CARETAKER",active:true}}),
+    db.visitorRequest.count({where:{organizationId}}),
+    db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"QUEUED"}}),
+    db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"OPENED_FOR_SENDING"}}),
+    db.whatsAppDelivery.count({where:{organizationId,status:{in:["DELIVERED","READ"]}}}),
+  ]);
+  return {mode:"records",text:
+    `Hostel operational rollout as of ${now.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}: ${active} active students, ${enabled} with an enabled password-backed portal (${Math.max(0,active-enabled)} still to activate); ${pending} pending registration requests, which may contain repeated applicants; ${caretakers} active caretaker accounts; ${visits} recorded visitor requests. WhatsApp: ${queued} queued drafts, ${opened} opened without confirmed sending, and ${providerConfirmed} recorded provider-delivered/read messages.\nNext actions: independently verify the pending students, appoint a real restricted caretaker, test an actual visitor entry and exit, and establish consented WhatsApp Business delivery. These are recorded system counts, not proof of physical presence or external delivery. No records were changed.`,
+    links:[
+      link("Tenant verification","/students/registrations","Review grouped cases"),
+      link("Gate readiness","/gate-readiness","Review operator and visitor checks"),
+      link("WhatsApp centre","/communications/whatsapp","Review sending evidence"),
+      link("HealthFix","/healthfix","Review operational warnings"),
+    ]};
+ }
  if(intent.kind==="whatsapp-queue"){
   const [queued,opened,marked,failed,delivered]=await Promise.all([
    db.notification.count({where:{organizationId,channel:"WHATSAPP",status:"QUEUED"}}),
