@@ -24,6 +24,7 @@ export async function reviewRegistrationAction(_s: ResidentState, f: FormData): 
       id:f.get("id"),studentId:f.get("studentId")??"",
       approve:decision==="APPROVE",
       verified:f.get("verified")==="on",
+      verificationMethod:f.get("verificationMethod")||undefined,
       rejectionReason:f.get("rejectionReason")||undefined,
       reviewNote:f.get("reviewNote")??"",
     });
