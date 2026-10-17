@@ -20,7 +20,7 @@ export default async function GateReadinessPage() {
     db.user.count({where:{organizationId,active:true,role:"OWNER"}}),
     db.user.count({where:{organizationId,active:true,role:"ADMIN"}}),
     db.student.count({where:{organizationId,status:"ACTIVE"}}),
-    db.student.count({where:{organizationId,status:"ACTIVE",portalEnabled:true}}),
+    db.student.count({where:{organizationId,status:"ACTIVE",portalEnabled:true,portalPasswordHash:{not:null}}}),
     db.tenantRegistration.count({where:{
       organizationId,status:"PENDING",expiresAt:{gt:new Date()},
     }}),
