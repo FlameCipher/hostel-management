@@ -17,7 +17,7 @@ for(const role of roles){
 }
 const caretaker=visibleStaffNavigation("CARETAKER");
 assert.deepEqual(caretaker.map(x=>x.href).sort(),[
-  "/visitors","/rooms","/occupancy","/assistant","/install","/account",
+  "/visitors","/safety","/rooms","/occupancy","/assistant","/install","/account",
 ].sort());
 for(const path of ["/payments","/expenses","/reports","/dashboard",
   "/search","/notifications","/users","/communications","/settings",
@@ -129,6 +129,10 @@ assert.doesNotMatch(gateModel,/guardian:|charges:|payments:|roomStays:|adjustmen
   "Caretaker-only read model must not query management finance or guardian records.");
 
 assert.ok(read("src/components/app-shell.tsx").includes("visibleStaffNavigation"));
+assert.ok(read("src/components/app-shell.tsx").includes('href: "/safety"'));
+assert.ok(read("src/app/(app)/safety/page.tsx").includes("residentStaff"));
+assert.ok(read("src/app/tenant/account/page.tsx").includes('href="/tenant/safety"'));
+
 assert.ok(read("src/components/app-shell.tsx").includes('staffRole!=="CARETAKER"'));
 assert.ok(read("src/app/(app)/gate-readiness/page.tsx").includes("staffMayReviewGateReadiness"));
 const gateReadinessPage=read("src/app/(app)/gate-readiness/page.tsx");

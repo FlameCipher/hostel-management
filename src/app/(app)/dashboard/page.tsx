@@ -15,11 +15,12 @@ export default async function DashboardPage() {
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireStaffFinanceAccess();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
-  const [rooms, students, charges, recentPayments] = await Promise.all([
+  const [rooms, students, charges, recentPayments, activeSOS] = await Promise.all([
     db.room.findMany({ where: { organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, include: { student: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, include: { student: true } } }, orderBy: { number: "asc" } }),
     db.student.count({ where: { organizationId: session.organizationId, status: "ACTIVE" } }),
     db.charge.findMany({ where: { organizationId: session.organizationId, ...(semester ? { semesterId: semester.id } : {}) }, include: { payments: { where: { reversedAt: null } } } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, reversedAt: null }, include: { student: true, charge: true }, orderBy: { paidAt: "desc" }, take: 6 }),
+    db.safetyAlert.count({ where: { organizationId: session.organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
   ]);
   const context = await requestPropertyContext();
   const timeZone = hostelTimeZone(context.property?.timeZone, context.property?.countryCode ?? "");
@@ -50,6 +51,12 @@ export default async function DashboardPage() {
   ];
   return <div className={styles.dashboard}>
     <header className={styles.heading}><div><p className={styles.eyebrow}>PROPERTY OVERVIEW</p><h1>Dashboard</h1><div className={styles.context}><span className={styles.term}><CalendarDays size={13} aria-hidden="true"/>{semester?.name ?? "No active semester"}</span><span className={styles.divider} aria-hidden="true">/</span><time dateTime={new Date().toISOString()} title={timeZone}>{date(new Date())}</time></div></div><div className={styles.actions}><Link className={`${styles.button} ${styles.primary}`} href="/payments/new"><Banknote size={16} aria-hidden="true"/>Record payment</Link><Link className={styles.button} href="/rooms">View rooms<ArrowUpRight size={15} aria-hidden="true"/></Link></div></header>
+    <section className="panel entity-form" aria-label="Student emergency requests">
+      <h2>Student safety · {activeSOS} active SOS request{activeSOS===1?"":"s"}</h2>
+      <p>Review any emergency reports, contact the resident using the registered phone and record actual response.
+        The hostel app does not guarantee police dispatch or continuous student location tracking.</p>
+      <Link href="/safety" className="primary-button">Open SOS response centre</Link>
+    </section>
     <section className={styles.metrics} aria-label="Property overview">{stats.map(({ label, value, hint, href, icon: Icon, tone }) => <Link href={href} key={label} className={styles.metric} aria-label={`${label}: ${value}`}><span className={styles.metricLabel}>{label}</span><span className={`${styles.metricIcon} ${tone}`}><Icon aria-hidden="true" size={16}/></span><strong className={styles.metricValue}>{value}</strong><ArrowUpRight aria-hidden="true" size={16} className={styles.metricArrow}/><span className={styles.metricHint}>{hint}</span></Link>)}</section>
     <ResidentAlertPanel/>
     <div className={styles.overview}>
