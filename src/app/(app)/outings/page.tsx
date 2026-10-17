@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import {requireSession} from "@/lib/auth/session";
 import {residentStaff} from "@/lib/resident-access";
@@ -45,6 +46,7 @@ export default async function StaffOutingsPage({searchParams}:{
     <Link href="/visitors" className="secondary-button">Visitors</Link>
     <Link href="/safety" className="secondary-button">Emergency SOS</Link>
   </div></div>
+  <HostelEmergencyCallLinks organizationId={organizationId}/>
   <section className="room-summary-grid mt-5">
     <article className="compact-stat"><div><p>Return time overdue — no confirmed return</p><strong>{unconfirmed}</strong></div></article>
     <article className="compact-stat"><div><p>Late notices unacknowledged</p><strong>{late}</strong></div></article>

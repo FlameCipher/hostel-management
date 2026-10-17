@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import { HostelInstallCard } from "@/components/hostel-app";
 import { ResidentAlertPanel } from "@/components/resident-alert-panel";
 import { formatMoney } from "@/lib/currency";
@@ -33,6 +34,7 @@ export default async function TenantAccountPage() {
    <p>For immediate emergencies, call <a href="tel:999">999</a> or <a href="tel:112">112</a>.
      A saved hostel alert is not guaranteed to be seen immediately.</p>
  </section>
+ <HostelEmergencyCallLinks organizationId={session.organizationId}/>
  {session.organizationId === TERMS_ORGANIZATION_ID ? <section className="panel entity-form"><h2>Hostel rules and digital acceptance</h2><p>Every student must read and agree to the hostel terms. Accept accommodation and agree to the terms digitally, then download your PDF. Saved copies remain available here.</p><Link className="primary-button" href="/tenant/terms">Read, accept or download my terms</Link></section> : null}
  <section className="panel entity-form mt-5" aria-label="Student daily life">
    <h2>My movements &amp; university timetable</h2>

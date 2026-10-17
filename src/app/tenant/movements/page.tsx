@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import {randomUUID} from "node:crypto";
 import {requireTenantSession} from "@/lib/auth/tenant-session";
@@ -49,6 +50,7 @@ export default async function TenantMovementsPage(){
        For urgent danger, use emergency calling or the separate hostel SOS system.</p>
      <Link href="/tenant/safety" className="secondary-button">Emergency and SOS information</Link>
    </div></section>
+   <HostelEmergencyCallLinks organizationId={organizationId}/>
    {current?<section className="panel entity-form mt-5">
      <h2>{current.status==="OUT"?"Outside — according to your report":"Return reported — not gate verified"}</h2>
      <p>Room {current.roomLabel} · Leaving reported {localeDate(current.leftAt)}.
