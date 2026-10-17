@@ -6,6 +6,7 @@ import {hostelTimeZone} from "@/lib/resident-policy";
 import {lessonDayNames,clockMinutes,lessonOccurrences} from "@/lib/student-timetable";
 import {TimetableAddForm,TimetableLessonControls} from "@/components/student-timetable-forms";
 import {LiveTimetableReminders} from "@/components/live-timetable-reminders";
+import {DeviceReminderOptIn} from "@/components/device-reminder-optin";
 
 export const dynamic="force-dynamic";
 export const metadata={title:"My class timetable",robots:{index:false,follow:false}};
@@ -72,6 +73,7 @@ export default async function TenantTimetablePage(){
        <TimetableLessonControls id={item.id} enabled={item.reminderEnabled}/>
      </article>):<p>No classes added yet.</p>}
    </section>
+   <DeviceReminderOptIn audience="tenant"/>
    <section className="panel entity-form mt-5">
      <h2>How class reminders work</h2>
      <p>The page shows near-term lessons as it remains open. Compatible devices may
