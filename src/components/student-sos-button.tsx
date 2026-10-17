@@ -22,8 +22,13 @@ export function StudentSOSButton({requestId}:{requestId:string}){
      if(typeof navigator!=="undefined" && "geolocation" in navigator){
        coordinates=await new Promise<Coordinates|null>(resolve=>{
          navigator.geolocation.getCurrentPosition(
-           p=>resolve({latitude:p.coords.latitude,longitude:p.coords.longitude,
-             accuracyMeters:p.coords.accuracy}),
+           p=>{
+             const {latitude,longitude,accuracy}=p.coords;
+             resolve(Number.isFinite(latitude)&&Number.isFinite(longitude)&&
+               latitude>=-90&&latitude<=90&&longitude>=-180&&longitude<=180&&
+               Number.isFinite(accuracy)&&accuracy>=0&&accuracy<=50000
+               ?{latitude,longitude,accuracyMeters:accuracy}:null);
+           },
            ()=>resolve(null),
            {enableHighAccuracy:true,maximumAge:0,timeout:4500},
          );
