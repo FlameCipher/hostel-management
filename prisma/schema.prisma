@@ -365,6 +365,7 @@ model PushDelivery {
  createdAt DateTime @default(now())
  subscription PushSubscription @relation(fields:[subscriptionId], references:[id], onDelete:Cascade)
  @@index([status, nextAttemptAt])
+ @@index([kind, expiresAt])
 }
 
 model WhatsAppConnection {
