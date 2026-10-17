@@ -20,14 +20,16 @@ function allowedAlertRoute(data){
    return "/tenant/timetable";
  if(data && data.kind==="GATE_UPDATE" && data.url==="/outings")
    return "/outings";
+ if(data && data.kind==="SOS_ALERT" && data.url==="/safety")
+   return "/safety";
  return "/open-app";
 }
 self.addEventListener("push", event => {
  let data={};try{data=event.data?.json()||{};}catch{/* generic notice */}
  const url=allowedAlertRoute(data);
- const title=url==="/tenant/timetable"?"Class reminder":
+ const title=url==="/safety"?"Urgent hostel SOS":url==="/tenant/timetable"?"Class reminder":
    url==="/outings"?"Hostel gate update":"Your hostel";
- const body=url==="/tenant/timetable"?
+ const body=url==="/safety"?"An emergency request needs staff review. Open the secure SOS queue.":url==="/tenant/timetable"?
    "A lesson reminder is ready. Open your private timetable.":
    url==="/outings"?
    "A student gate update needs review in your hostel app.":
@@ -43,7 +45,7 @@ self.addEventListener("notificationclick", event => {
  // Only the URL saved by the worker itself and matching the fixed allowlist
  // may be opened, never a provider-supplied external target.
  const requested=event.notification?.data?.url;
- const target=requested==="/tenant/timetable"||requested==="/outings"?
+ const target=requested==="/tenant/timetable"||requested==="/outings"||requested==="/safety"?
    requested:"/open-app";
  event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true})
    .then(async windows=>{
