@@ -4,7 +4,7 @@ import type {PrismaClient} from '../src/generated/prisma/client';
 import {maintenanceRunStatus,maintenanceScheduleCheck,collectHealthfix,healthfixAuthorized,healthfixManager,repairHealthfix,runHealthfixMaintenance} from '../src/lib/healthfix';
 const now=new Date('2026-10-08T04:00:00Z');
 const env={NODE_ENV:'production',VERCEL_ENV:'production',SESSION_SECRET:'fake-long-session-secret',PLATFORM_PROVISIONING_SECRET:'fake',RESEND_API_KEY:'fake',RECEIPT_EMAIL_FROM:'hostel@example.invalid',CRON_SECRET:'fake',BLOB_READ_WRITE_TOKEN:'fake-storage'};
-function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR');return [{count:0}]},organization:{findMany:async()=>[{id:'one',createdAt:new Date('2026-10-01')}]},auditLog:{findMany:async()=>[{organizationId:'one',createdAt:now,metadata:{status:'COMPLETED'}}]}};for(const model of ['passwordRecovery','visitorRequest','tenantRegistration','bookingRequest','property','propertyPhoto','student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation','notification','safetyAlert'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
+function reads(failure?:string, warning=false){const calls:{model:string;where:Record<string,unknown>}[]=[];const d:Record<string,unknown>={$queryRaw:async()=>{if(failure==='database')throw Error('PRIVATE_DATABASE_ERROR');return [{count:0}]},organization:{findMany:async()=>[{id:'one',createdAt:new Date('2026-10-01')}]},auditLog:{findMany:async()=>[{organizationId:'one',createdAt:now,metadata:{status:'COMPLETED'}}]}};for(const model of ['passwordRecovery','visitorRequest','tenantRegistration','bookingRequest','property','propertyPhoto','student','occupancy','charge','payment','studentTermsAcceptance','tenantMessage','tenantConversation','tenantPortalInvitation','notification','safetyAlert','studentOuting'])d[model]={count:async({where}:{where:Record<string,unknown>})=>{calls.push({model,where});if(model===failure)throw Error('PRIVATE_DATABASE_ERROR');return warning&&where.status==='SENDING'?1:0}};return{db:d as unknown as PrismaClient,calls};}
 test('connector authentication rejects missing and wrong secrets',()=>{assert.equal(healthfixAuthorized(undefined,'x'),false);assert.equal(healthfixAuthorized('x',null),false);assert.equal(healthfixAuthorized('x','xx'),false);assert.equal(healthfixAuthorized('x','x'),true)});
 test('healthy configuration does not claim unverified workflows healthy',async()=>{const f=reads();const report=await collectHealthfix(f.db,'one',now,env);assert.equal(report.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='email')?.status,'UNKNOWN');assert.equal(report.modules.find(m=>m.code==='provisioning')?.status,'UNKNOWN');for(const call of f.calls)assert.equal(call.where.organizationId,'one');assert.ok(report.modules.every(m=>m.status!=='HEALTHY'||m.checks.every(c=>c.status==='PASSING')))});
 test('failed module read preserves other checks without leaking database details',async()=>{const report=await collectHealthfix(reads('occupancy').db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='bookings')?.status,'DEGRADED');assert.equal(report.modules.find(m=>m.code==='database')?.status,'HEALTHY');assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(report).includes('PRIVATE_DATABASE_ERROR'))});
@@ -118,4 +118,20 @@ test('daily maintenance clears only old opted-in SOS coordinates and records cou
  assert.equal(changes[0].where.latitude.not,null);
  assert.deepEqual(changes[0].data,{latitude:null,longitude:null,accuracyMeters:null,locationSharedAt:null});
  assert.equal(records[1].data.metadata.sosLocationsRedacted,2);
+});
+
+test("overdue and late student self-reports appear as warnings, never GPS claims",async()=>{
+ const f=reads();
+ const checked:any[]=[];
+ const db={...f.db,studentOuting:{count:async({where}:any)=>{
+   checked.push(where);assert.equal(where.organizationId,"one");
+   return where.status==="OUT" && where.lateNotifiedAt?.not===null ? 1 : 0;
+ }}} as unknown as PrismaClient;
+ const report=await collectHealthfix(db,"one",now,env);
+ const module=report.modules.find(item=>item.code==="student-return-coordination")!;
+ assert.equal(module.status,"DEGRADED");
+ assert.equal(module.checks.find(c=>c.code==="late-arrival-unacknowledged")?.status,"WARNING");
+ assert.equal(module.checks.find(c=>c.code==="return-awaiting-gate-check")?.status,"PASSING");
+ assert.equal(checked.length,3);
+ assert.doesNotMatch(JSON.stringify(module),/fullName|latitude|longitude|phone/);
 });
