@@ -9,9 +9,9 @@ export async function addLessonAction(_state:TimetableState,form:FormData):Promi
  try{
   const result=await addStudentLesson(db,session,{
    title:form.get("title"),courseCode:form.get("courseCode")??"",
-   venue:form.get("venue")??"",dayOfWeek:Number(form.get("dayOfWeek")),
+   venue:form.get("venue")??"",dayOfWeek:form.has("dayOfWeek")?Number(form.get("dayOfWeek")):-1,
    startTime:form.get("startTime"),endTime:form.get("endTime"),
-   remindBeforeMinutes:Number(form.get("remindBeforeMinutes")),
+   remindBeforeMinutes:form.has("remindBeforeMinutes")?Number(form.get("remindBeforeMinutes")):-1,
    reminderEnabled:form.get("reminderEnabled")==="on",
   });
   revalidatePath("/tenant/timetable");return result;
