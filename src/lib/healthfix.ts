@@ -72,7 +72,7 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   const [aiProbe,backup,restore,deliveryRun]=await Promise.all([operational("AI_PROBE"),operational("BACKUP"),operational("RESTORE_DRILL"),operational("DELIVERY")]);
   const receipt=(code:string,name:string,run:typeof backup,maxAge?:number):Check=>({code,name,status:!run?"UNKNOWN":run.status==="FAILED"?"FAILING":run.status!=="COMPLETED"?"WARNING":maxAge&&now.getTime()-run.createdAt.getTime()>maxAge?"WARNING":"PASSING",checkType:"FUNCTIONAL"});
   let sender=false;try{sender=!!await db.whatsAppConnection.findFirst({where:{...(organizationId?{organizationId}:{}),enabled:true,verifiedAt:{not:null}},select:{organizationId:true}});}catch{/* Configuration remains unverified. */}
-  modules.push(module("whatsapp", "WhatsApp delivery", [sender?configuration("automatic","Verified business sender enabled",true):unknown("automatic","Automatic sender awaits the hostel's approved Meta connection"),env.WHATSAPP_APP_SECRET?configuration("webhook","Meta webhook signature key configured",true):unknown("webhook","Meta webhook signature key awaits configuration")]));
+  modules.push(module("whatsapp", "WhatsApp delivery", [sender?configuration("automatic","Verified business sender enabled",true):unknown("automatic","Automatic sender awaits the hostel's approved Meta connection"),env.WHATSAPP_APP_SECRET?configuration("webhook","Meta webhook signature key configured",true):unknown("webhook","Meta webhook signature key awaits configuration"),unknown("provider-receipt","A delivered/read provider callback is not independently verified by this configuration check")]));
   const assistant = assistantConfiguration(env);
   const aiMetadata = aiProbe?.metadata as {provider?:string;model?:string}|null;
   const currentAIProbe = aiMetadata?.provider === assistant.provider && aiMetadata.model === assistant.model ? aiProbe : null;
@@ -128,6 +128,8 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
     warning("invitation-backlog", "Invitations queued over 26 hours", () => db.tenantPortalInvitation.count({ where: { ...scope, usedAt: null, status: { in: ["QUEUED", "RETRY"] }, createdAt: { lte: overdue } } })),
     warning("photo-uploads", "Website photo uploads without completion after expiry", () => db.propertyPhoto.count({ where: { ...scope, url: null, deletedAt: null, expiresAt: { lte: now } } })),
     warning("receipt-failures", "Recorded receipt delivery failures", () => db.payment.count({ where: { ...scope, reversedAt: null, receiptDeliveryStatus: "FAILED" } })),
+    warning("manual-whatsapp-opened", "WhatsApp drafts opened for 24 hours without confirmed manual sending need review", () => db.notification.count({ where: { ...scope, channel: "WHATSAPP", status: "OPENED_FOR_SENDING", openedAt: { lte: new Date(now.getTime() - 24 * 3600000) } } })),
+    warning("manual-whatsapp-backlog", "WhatsApp drafts queued more than 26 hours require manual follow-up (not delivered)", () => db.notification.count({ where: { ...scope, channel: "WHATSAPP", status: "QUEUED", createdAt: { lte: overdue } } })),
   ])));
   return { productCode: "STUDENTSHOSTELS", service: "studentshostels", environment: env.VERCEL_ENV ?? env.NODE_ENV ?? "unknown", observedAt: now.toISOString(), status: modules.some(m => m.status === "DEGRADED") ? "DEGRADED" : modules.some(m => m.status === "UNKNOWN") ? "UNKNOWN" : "HEALTHY", modules };
 }
