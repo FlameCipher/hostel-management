@@ -39,7 +39,7 @@ export async function submitTenantRegistration(db: PrismaClient, propertyId: str
   });
 }
 export async function reviewTenantRegistration(db: PrismaClient, session: SessionPayload | null, raw: unknown, now = new Date()): Promise<{ error?: string; success?: string }> {
-  const parsed = z.object({ id: z.string().min(1).max(128), studentId: z.string().max(128), approve: z.boolean(), verified: z.boolean(), rejectionReason: z.enum(["NO_MATCH","WRONG_PHONE","WRONG_ROOM","CONFLICTING_REQUEST","DUPLICATE","OTHER"]).optional(), reviewNote: z.string().trim().max(300).optional() }).safeParse(raw);
+  const parsed = z.object({ id: z.string().min(1).max(128), studentId: z.string().max(128), approve: z.boolean(), verified: z.boolean(), verificationMethod: z.enum(["IN_PERSON","CALL_REGISTERED_PHONE"]).optional(), rejectionReason: z.enum(["NO_MATCH","WRONG_PHONE","WRONG_ROOM","CONFLICTING_REQUEST","DUPLICATE","OTHER"]).optional(), reviewNote: z.string().trim().max(300).optional() }).safeParse(raw);
   if (!session || !parsed.success) return { error: "Registration unavailable." };
   const input = parsed.data;
   if (!input.approve && !input.rejectionReason)
@@ -87,7 +87,7 @@ export async function reviewTenantRegistration(db: PrismaClient, session: Sessio
     }
     let supersededCount=0;
     if (input.approve) {
-      if (!input.verified || !input.studentId || !row.passwordHash) return { error: "Select the existing tenant and confirm that you independently verified their identity in person or through the contact already on file." };
+      if (!input.verified || !input.verificationMethod || !input.studentId || !row.passwordHash) return { error: "Select the existing tenant, choose how identity was independently verified, and confirm verification in person or through the number already on the hostel record." };
       const student = await tx.student.findFirst({ where: { id: input.studentId, organizationId: session.organizationId, status: "ACTIVE", portalEnabled: false, portalPasswordHash: null, portalLastLoginAt: null, portalInviteBlocked: false, occupancies: { some: { organizationId: session.organizationId, status: "ACTIVE", room: { organizationId: session.organizationId, propertyId: row.propertyId, number: { equals: row.roomNumber, mode: "insensitive" } }, semester: { organizationId: session.organizationId } } } } });
       if (!student || !row.property.active || whatsappNumber(student.phone, registrationCountryCode(row.property.countryCode,row.organizationId)) !== row.phone || normalizedResidentName(student.fullName) !== normalizedResidentName(row.fullName)) return { error: "The name, registered phone and current room must match this hostel's existing tenant record. Existing, disabled or previously used portal accounts require the account recovery process." };
       await tx.student.update({ where: { id: student.id }, data: { portalEnabled: true, portalPasswordHash: row.passwordHash } });
@@ -134,6 +134,7 @@ export async function reviewTenantRegistration(db: PrismaClient, session: Sessio
           supersededAttempts:supersededCount,
         }),
         identityVerified: input.approve?input.verified:false,
+        verificationMethod: input.approve?input.verificationMethod:null,
         notifiedByPlatform:false,
       },
     } });

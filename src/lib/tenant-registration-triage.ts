@@ -53,6 +53,18 @@ export function registrationCaseKind(group:RegistrationReviewGroup):Registration
     return "VERIFY_IDENTITY";
   return "RECORD_REVIEW";
 }
+/** Only the newest pending submission in a distinct case can be activated.
+ * Older repeat attempts should not distort the case's review deadline.
+ * An overdue timestamp is EXPIRED even if housekeeping has not updated status.
+ */
+export function registrationExpiryPriority(
+  group: RegistrationReviewGroup, now: Date, horizonHours = 96,
+): "EXPIRED"|"URGENT"|"LATER" {
+  const latest = group.submissions[0]?.request;
+  if (!latest || latest.status !== "PENDING" || latest.expiresAt <= now) return "EXPIRED";
+  return latest.expiresAt.getTime() <= now.getTime() + horizonHours * 3600000 ? "URGENT" : "LATER";
+}
+
 export const registrationCaseLabels:Record<RegistrationCaseKind,string>={
   VERIFY_IDENTITY:"Candidate for independent identity verification",
   CONFLICT:"Conflicting room or phone claims — resolve first",
