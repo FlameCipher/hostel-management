@@ -2,7 +2,8 @@
 import { useActionState } from "react";
 import { recordEmergencyCallTestAction } from "@/app/(app)/gate-readiness/emergency-actions";
 import {MMAMBUGUA_EMERGENCY_PHONES} from "@/lib/hostel-emergency-contacts";
-import {callTestLabels,type CallTestResult,type EmergencyCallTestRecord} from "@/lib/emergency-call-acceptance";
+import {callTestLabels,type CallTestResult} from "@/lib/emergency-call-acceptance-policy";
+import type {EmergencyCallTestRecord} from "@/lib/emergency-call-acceptance";
 
 export function EmergencyCallAcceptance({records}:{records:EmergencyCallTestRecord[]}){
  return <section className="panel entity-form mt-5" aria-label="Emergency number real-device acceptance">
