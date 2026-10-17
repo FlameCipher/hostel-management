@@ -83,7 +83,7 @@ export default async function RegistrationsPage({
   );
   const propertyById=new Map(properties.map(p=>[p.id,p]));
   const outreach=activationOutreachSummary(
-    triage.groups,students as RegisteredTenant[],
+    session.organizationId,triage.groups,students as RegisteredTenant[],
     propertyId=>countryByProperty.get(propertyId)??null,now,
   );
   const groups=triage.groups.filter(g=>
