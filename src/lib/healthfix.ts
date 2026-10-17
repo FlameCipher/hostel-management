@@ -101,6 +101,14 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
       return rows[0].count;
     }),
   ])));
+  modules.push(module("student-safety", "Student SOS response", await Promise.all([
+    warning("unacknowledged-sos", "SOS requests without staff acknowledgement after five minutes need urgent human attention",
+      () => db.safetyAlert.count({where:{...scope,status:"OPEN",
+        createdAt:{lte:new Date(now.getTime()-5*60000)}}})),
+    warning("stale-sos-location", "SOS locations older than 24 hours must be cleared during daily maintenance",
+      () => db.safetyAlert.count({where:{...scope,locationSharedAt:{
+        lte:new Date(now.getTime()-24*3600000)},latitude:{not:null}}})),
+  ])));
   modules.push(module("visitor-operations", "Visitor gate integrity", await Promise.all([
     warning("visitor-unrecorded-exits", "Checked-in visitors past their planned departure without a recorded exit require gate review",
       () => db.visitorRequest.count({where:{...scope,status:"CHECKED_IN",checkedOutAt:null,expectedDeparture:{lt:now}}})),
@@ -163,8 +171,15 @@ export async function runHealthfixMaintenance(db: PrismaClient, now = new Date()
       const run = await db.auditLog.create({ data: { organizationId: organization.id, action: "HEALTHFIX_MAINTENANCE_RUN", entityType: "Organization", entityId: organization.id, metadata: { ...metadata, status: "RUNNING" } }, select: { id: true } });
       runId = run.id;
       const result = await repairHealthfix(db, organization.id, null, now);
-      if (Object.values(result).some(Boolean)) changed++;
-      await db.auditLog.update({ where: { id: runId }, data: { metadata: { ...metadata, status: "COMPLETED", completedAt: new Date().toISOString(), ...result } } });
+      // Minimize precise student geolocation retention. This routine runs in
+      // the existing daily maintenance cron, not on a staff location read.
+      const redacted = await db.safetyAlert.updateMany({
+        where:{organizationId:organization.id,locationSharedAt:{
+          lte:new Date(now.getTime()-24*3600000)},latitude:{not:null}},
+        data:{latitude:null,longitude:null,accuracyMeters:null,locationSharedAt:null},
+      });
+      if (Object.values(result).some(Boolean) || redacted.count) changed++;
+      await db.auditLog.update({ where: { id: runId }, data: { metadata: { ...metadata, status: "COMPLETED", completedAt: new Date().toISOString(), ...result, sosLocationsRedacted:redacted.count } } });
     } catch {
       failed++;
       // Completion persistence can fail after committed repairs. Never claim rollback.
