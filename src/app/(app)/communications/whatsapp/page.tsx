@@ -8,6 +8,7 @@ import { communicationManager, tenantWhere } from "@/lib/communications";
 import { managementWhatsAppContacts } from "@/lib/whatsapp-communications";
 import { manualDeliveryLabels } from "@/lib/whatsapp-policy";
 import { whatsappReadiness } from "@/lib/whatsapp-diagnostics";
+import { whatsappQueueSummary } from "@/lib/whatsapp-queue-summary";
 import { WhatsAppDraftForm } from "@/components/whatsapp-draft-form";
 import { updateWhatsAppDraftAction } from "./actions";
 import styles from "./whatsapp.module.css";
@@ -26,6 +27,13 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
   const permissions=manager?await db.whatsAppConsent.findMany({where:{organizationId:session.organizationId},select:{accountId:true,audience:true,enabled:true}}):[];
   const deliveries=manager?await db.whatsAppDelivery.findMany({where:{organizationId:session.organizationId},orderBy:{createdAt:"desc"},take:30}):[];
   const itemDeliveries=manager?await db.whatsAppDelivery.findMany({where:{organizationId:session.organizationId,notificationId:{in:items.map(item=>item.id)}},select:{notificationId:true,status:true}}):[];
+  // Read-only summary of the WHOLE hostel queue. The paginated items below
+  // must never be used to infer the entire delivery state.
+  const [draftStatusRows,providerStatusRows]=manager?await Promise.all([
+    db.notification.groupBy({by:["status"],where:{organizationId:session.organizationId,channel:"WHATSAPP"},_count:{_all:true}}),
+    db.whatsAppDelivery.groupBy({by:["status"],where:{organizationId:session.organizationId},_count:{_all:true}}),
+  ]):[[],[]];
+  const queue=whatsappQueueSummary(draftStatusRows,providerStatusRows);
   const diagnostics=whatsappReadiness({
     enabledForProperty:organization.whatsappEnabled,
     senderExists:!!connection,
@@ -45,6 +53,22 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     </section>
     {manager && <>
       {["OWNER","ADMIN"].includes(session.role)&&<WhatsAppConnectionForm connection={connection}/>}
+      <section className={`panel ${styles.draft}`} aria-label="Whole-hostel WhatsApp delivery queue">
+        <h2>Current WhatsApp sending position</h2>
+        <p>This is the entire hostel queue, not just the latest 30 drafts. Opening a message or marking it sent manually does not verify delivery.</p>
+        <div className="room-summary-grid payments-summary">
+          <article className="compact-stat"><div><p>Queued for action</p><strong>{queue.queued}</strong></div></article>
+          <article className="compact-stat"><div><p>Opened, send unconfirmed</p><strong>{queue.openedUnconfirmed}</strong></div></article>
+          <article className="compact-stat"><div><p>Marked sent manually</p><strong>{queue.manualSentUnverified}</strong></div></article>
+          <article className="compact-stat"><div><p>Provider-confirmed delivered/read</p><strong>{queue.providerConfirmed}</strong></div></article>
+        </div>
+        <p role="status"><strong>{queue.needsManualAttention} message drafts need sending or follow-up.</strong> {queue.failed} have been marked failed. Meta accepted/sent records: {queue.providerAccepted}; provider reviews or failures: {queue.providerReview}. Manual statuses are not provider receipts.</p>
+        <div className={styles.actions}>
+          <Link href="/communications/invitations/mobile" className="secondary-button">Review tenant onboarding</Link>
+          <Link href="/students/registrations" className="secondary-button">Verify student accounts</Link>
+          <Link href="/healthfix" className="secondary-button">HealthFix</Link>
+        </div>
+      </section>
       <section className={`panel ${styles.draft}`} aria-label="WhatsApp automatic delivery readiness">
         <h2>WhatsApp Business delivery readiness</h2>
         <p role="status"><strong>{diagnostics.ready ? "Ready for consented automatic delivery" : "Automatic delivery not ready"}</strong></p>
@@ -64,7 +88,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
       </section>
       <details className={`panel ${styles.draft}`}><summary>Record recipient WhatsApp permission</summary><p>Use this only when the person has explicitly agreed. Record how and when permission was obtained. Recipients can also manage their preference in their own account.</p>{[...tenants.map(t=>({id:t.id,name:t.fullName,audience:"tenant"})),...staff.map(s=>({id:s.id,name:s.name,audience:"staff"}))].map(person=><form action={recordWhatsAppPermission} key={`${person.audience}:${person.id}`} className={styles.compose}><h3>{person.name}</h3><p>{permissions.find(p=>p.accountId===person.id&&p.audience===person.audience)?.enabled?"Permission recorded":"Permission not recorded"}</p><input type="hidden" name="accountId" value={person.id}/><input type="hidden" name="audience" value={person.audience}/><label className="field-group"><span>Permission evidence (date and method)</span><input name="evidence" minLength={5} maxLength={300}/></label><label><input type="checkbox" name="confirmed"/> I obtained this person’s permission for hostel WhatsApp updates.</label><label><input type="checkbox" name="enabled"/> Allow automatic updates; leave unchecked to record withdrawal.</label><button className="secondary-button">Save permission</button></form>)}</details>
       {params.error && <p className={styles.error} role="alert">{params.error.slice(0, 300)}</p>}
-      {organization.whatsappEnabled ? <WhatsAppDraftForm automatic={!!connection?.enabled} requestId={randomUUID()} tenants={tenants.map(t => ({ id: t.id, name: t.fullName, phone: t.phone }))} staff={staff}/> : <section className="panel"><p>Enable WhatsApp in <Link href="/settings">Settings</Link> to prepare messages.</p></section>}
+      {organization.whatsappEnabled ? <WhatsAppDraftForm automatic={diagnostics.ready} requestId={randomUUID()} tenants={tenants.map(t => ({ id: t.id, name: t.fullName, phone: t.phone }))} staff={staff}/> : <section className="panel"><p>Enable WhatsApp in <Link href="/settings">Settings</Link> to prepare messages.</p></section>}
       <section className={styles.history} aria-label="WhatsApp drafts"><h2>WhatsApp drafts and history</h2><p>Opening a draft does not send it. Mark it sent only after sending it in WhatsApp; this is a manual record, not a delivery receipt.</p>
         {items.length ? items.slice(0, 30).map(item => <article className={`panel ${styles.draft}`} key={item.id}>
           <header><div><h3>{item.recipientName}</h3><p>{item.recipientType === "STAFF" ? "Staff" : item.recipientType === "GUARDIAN" ? "Guardian" : "Tenant"} · {item.recipientPhone}</p></div><strong className={styles.status}>{cloudStatus.has(item.id)?`Automatic: ${cloudStatus.get(item.id)}`:manualDeliveryLabels[item.status]}</strong></header>
