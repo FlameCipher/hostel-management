@@ -95,7 +95,7 @@ function RequestArray(opts?:{includeConflict?:boolean}):Request[]{
 async function run(){
   const baseline=fixture();
   let result=await reviewTenantRegistration(baseline.db,owner,{
-    id:"old",studentId:"resident-1",approve:true,verified:true,
+    id:"old",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.match(result.error??"",/newer registration/i);
   assert.equal(baseline.approved,0);
@@ -109,6 +109,14 @@ async function run(){
   result=await reviewTenantRegistration(baseline.db,owner,{
     id:"latest",studentId:"resident-1",approve:true,verified:true,
   },now);
+  assert.match(result.error??"",/choose how identity was independently verified/i);
+  assert.equal(baseline.approved,0);
+  assert.equal(baseline.audits.length,0);
+
+
+  result=await reviewTenantRegistration(baseline.db,owner,{
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
+  },now);
   assert.ok(result.success,result.error);
   assert.equal(baseline.approved,1);
   assert.equal(baseline.hash,"hash-for-latest");
@@ -118,15 +126,17 @@ async function run(){
   assert.equal(baseline.rows.find(r=>r.id==="latest")?.passwordHash,null);
   assert.equal(baseline.audits.length,1);
   assert.equal((baseline.audits[0].metadata as {supersededAttempts:number}).supersededAttempts,1);
+  assert.equal((baseline.audits[0].metadata as {verificationMethod:string}).verificationMethod,"IN_PERSON");
+
   assert.equal(baseline.deletedTokens,1);
   result=await reviewTenantRegistration(baseline.db,owner,{
-    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.ok(result.error);assert.equal(baseline.approved,1);
 
   const conflict=fixture({includeConflict:true});
   result=await reviewTenantRegistration(conflict.db,owner,{
-    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.match(result.error??"",/different names or rooms/i);
   assert.equal(conflict.approved,0);
@@ -138,20 +148,20 @@ async function run(){
   assert.equal(conflict.rows.find(r=>r.id==="conflict")?.status,"REJECTED");
   assert.equal(conflict.rows.find(r=>r.id==="conflict")?.passwordHash,null);
   result=await reviewTenantRegistration(conflict.db,owner,{
-    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.ok(result.success,result.error);
   assert.equal(conflict.approved,1);
 
   const unknown=fixture({noStudent:true});
   result=await reviewTenantRegistration(unknown.db,owner,{
-    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.ok(result.error);assert.equal(unknown.approved,0);
 
   const cross=fixture({wrongOrganization:true});
   result=await reviewTenantRegistration(cross.db,owner,{
-    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
   },now);
   assert.ok(result.error);assert.equal(cross.approved,0);
 
@@ -166,6 +176,13 @@ async function run(){
   assert.equal(rejectedLatest.rows.find(r=>r.id==="old")?.passwordHash,null);
   assert.equal(rejectedLatest.approved,0);
   assert.equal((rejectedLatest.audits[0].metadata as {supersededAttempts:number}).supersededAttempts,1);
+  const viaPhone=fixture();
+  result=await reviewTenantRegistration(viaPhone.db,owner,{
+    id:"latest",studentId:"resident-1",approve:true,verified:true,
+    verificationMethod:"CALL_REGISTERED_PHONE",
+  },now);
+  assert.ok(result.success,result.error);
+  assert.equal((viaPhone.audits[0].metadata as {verificationMethod:string}).verificationMethod,"CALL_REGISTERED_PHONE");
   const missingReason=fixture();
   result=await reviewTenantRegistration(missingReason.db,owner,{
     id:"latest",studentId:"",approve:false,verified:false,
