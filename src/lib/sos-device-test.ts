@@ -26,8 +26,8 @@ export async function requestSafetyPushTest(
  // cannot bypass the ten-minute cooldown by racing between count and create.
  return db.$transaction(async tx=>{
    await tx.$queryRaw`SELECT id FROM "PushSubscription"
-     WHERE id=$sub.id} AND "organizationId"=$session.organizationId}
-     AND "accountId"=$session.userId} AND audience='staff'
+     WHERE id=${sub.id} AND "organizationId"=${session.organizationId}
+     AND "accountId"=${session.userId} AND audience='staff'
      FOR UPDATE`;
    const active=await tx.pushSubscription.findFirst({where:{
      id:sub.id,organizationId:session.organizationId,accountId:session.userId,
