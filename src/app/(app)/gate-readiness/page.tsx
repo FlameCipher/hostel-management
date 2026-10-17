@@ -147,7 +147,7 @@ export default async function GateReadinessPage() {
     {readiness.needsGateOperator?<section className="panel mt-5">
       <div className="panel-heading"><div><p className="panel-kicker">Missing staff role</p>
         <h2>Create a named caretaker/security account</h2></div><UserPlus size={21}/></div>
-      <p>An Owner/Admin must enter the real employee's name and email, choose the
+      <p>An Owner/Admin must enter the real employee's name and email or international phone number, choose the
         CARETAKER / SECURITY role and issue a private temporary password. The
         gate operator must personally sign in and change their password.
         Never use the landlord login at the gate.</p>

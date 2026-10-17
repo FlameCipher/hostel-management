@@ -7,11 +7,12 @@ import { z } from "zod";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
+import { authenticateCaretakerPhone } from "@/lib/staff-phone-login";
 
 export type LoginState = { error: string };
 
 const loginSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().trim().min(5).max(254),
   password: z.string().min(8).max(128),
 });
 
@@ -25,11 +26,21 @@ export async function loginAction(
   });
 
   if (!parsed.success) {
-    return { error: "Enter a valid email address and password." };
+    return { error: "Enter your email or registered caretaker phone number and password." };
   }
 
   const context=await requestPropertyContext();
   if(!context.shared && !context.property) return {error:"Hostel address unavailable."};
+  const isEmail = z.string().email().safeParse(parsed.data.email).success;
+  if (!isEmail) {
+    if (!context.property) return { error: "Open your own hostel website to sign in with a caretaker phone number." };
+    try {
+      const user = await authenticateCaretakerPhone(db, { identifier: parsed.data.email, password: parsed.data.password }, context.property);
+      if (!user) return { error: "The phone number or password is incorrect, or sign-in is temporarily limited. Contact your hostel owner if you need help." };
+      await createSession({ sessionVersion: user.sessionVersion, userId: user.id, organizationId: user.organizationId, name: user.name, role: user.role });
+    } catch { return { error: "Unable to sign in. Try again or contact your hostel owner." }; }
+    redirect("/visitors");
+  }
   const users = await db.user.findMany({
     where: { email: parsed.data.email.toLowerCase(), active: true, organization:{status:"ACTIVE"}, ...(context.property?{organizationId:context.property.organizationId}:{}) },
     take:2,

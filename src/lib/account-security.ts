@@ -31,7 +31,7 @@ export async function updateOwnAccount(database: PrismaClient, session: SessionP
         if (!identity || !platformRoleAllows(user.role, identity.role)) return denied;
       } else if (!await compare(data.currentPassword, user.passwordHash)) return denied;
       if (data.operation === "email") {
-        if (user.email.toLowerCase() === data.email) return { error: "This is already your login email." };
+        if (user.email?.toLowerCase() === data.email) return { error: "This is already your login email." };
         const duplicate = await tx.user.findFirst({ where: { organizationId: session.organizationId, email: { equals: data.email, mode: "insensitive" }, id: { not: user.id } }, select: { id: true } });
         if (duplicate) return { error: "That email cannot be used for this hostel account." };
       } else if (await compare(data.password, user.passwordHash)) return { error: "Choose a password different from your current hostel password." };

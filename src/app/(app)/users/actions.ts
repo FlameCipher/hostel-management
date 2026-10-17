@@ -8,7 +8,7 @@ export type UserFormState = { error: string };
 async function save(id: string | null, form: FormData): Promise<UserFormState> {
   const session = await requireSession();
   let result;
-  try { result = await saveHostelStaff(db, session, id, { name: form.get("name"), email: form.get("email"), phone: form.get("phone") || "", role: form.get("role"), password: form.get("password") || "", active: form.get("active") === "on" }); }
+  try { result = await saveHostelStaff(db, session, id, { name: form.get("name"), email: form.get("email") || "", phone: form.get("phone") || "", role: form.get("role"), password: form.get("password") || "", active: form.get("active") === "on", dutyStart: form.get("dutyStart") || "", dutyEnd: form.get("dutyEnd") || "", dutyTimeZone: form.get("dutyTimeZone") || "" }); }
   catch { return { error: "Changes could not be saved. Refresh and try again." }; }
   if (!result.success) return { error: result.error };
   revalidatePath("/users");

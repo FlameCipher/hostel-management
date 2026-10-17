@@ -2,6 +2,7 @@ import {redirect} from "next/navigation";
 import Link from "next/link";
 import {UserForm} from "@/components/user-form";
 import {requireSession} from "@/lib/auth/session";
+import {requestPropertyContext} from "@/lib/property-host";
 
 export default async function NewUser({
   searchParams,
@@ -9,6 +10,7 @@ export default async function NewUser({
   const session=await requireSession();
   if(!["OWNER","ADMIN"].includes(session.role))redirect("/visitors");
   const query=await searchParams;
+  const context=await requestPropertyContext();
   const defaultRole=query.role==="CARETAKER"?"CARETAKER":"MANAGER";
   return <div className="form-page">
     <div className="page-heading-row">
@@ -27,6 +29,7 @@ export default async function NewUser({
           The account is created only after you submit this form.</p>
       </div>
     </div>:null}
-    <UserForm canAssignOwner={session.role==="OWNER"} defaultRole={defaultRole}/>
+    <UserForm canAssignOwner={session.role==="OWNER"} defaultRole={defaultRole}
+      defaultTimeZone={context.property?.timeZone ?? (session.organizationId === "mama-mbugua-hostel" ? "Africa/Nairobi" : "UTC")}/>
   </div>;
 }

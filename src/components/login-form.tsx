@@ -15,10 +15,10 @@ export function LoginForm() {
   return (
     <form action={formAction} className="mt-8 space-y-5">
       <div>
-        <label htmlFor="email" className="form-label">Email address</label>
+        <label htmlFor="email" className="form-label">Email or caretaker phone number</label>
         <div className="input-shell">
           <Mail aria-hidden="true" size={18} />
-          <input id="email" name="email" type="email" autoComplete="email" placeholder="owner@example.com" required />
+          <input id="email" name="email" type="text" autoComplete="username" placeholder="Email or +254 phone number" maxLength={254} required />
         </div>
       </div>
       <div>
@@ -29,6 +29,7 @@ export function LoginForm() {
         </div>
       </div>
       <p><Link href="/forgot-password">Forgot password?</Link></p>
+      <p className="muted-note">Caretakers without email can use the phone number registered by the owner. If you forget your password, ask the owner to reset it after verifying your identity.</p>
       {state.error ? (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{state.error}</p>
       ) : null}
