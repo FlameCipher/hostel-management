@@ -4,6 +4,7 @@ import { requireTenantSession } from "@/lib/auth/tenant-session";
 import { db } from "@/lib/db";
 import { residentTenant } from "@/lib/resident-access";
 import { StudentSOSButton } from "@/components/student-sos-button";
+import { sosPilotEnabled } from "@/lib/student-safety";
 export const dynamic="force-dynamic";
 export const metadata={title:"My safety SOS",robots:{index:false,follow:false}};
 
@@ -25,7 +26,16 @@ export default async function TenantSafetyPage(){
      <h1>Danger / SOS</h1><p>Your alert goes into the hostel staff response queue.</p></div>
      <Link href="/tenant/account" className="secondary-button">My portal</Link>
    </div>
-   <StudentSOSButton requestId={randomUUID()}/>
+   {sosPilotEnabled()?
+     <StudentSOSButton requestId={randomUUID()}/>:
+     <section className="panel entity-form">
+       <h2>Emergency calling available — hostel SOS pilot not activated</h2>
+       <p>The hostel has not yet completed its staffed emergency response test.
+         You cannot currently submit an in-app alert. For urgent emergencies call
+         <a href="tel:999">999</a> or <a href="tel:112">112</a>, or contact a trusted person directly.</p>
+       <p>After the hostel verifies named responders and safe incident handling,
+         the SOS button can be enabled. This page does not monitor your location.</p>
+     </section>}
    <section className="panel entity-form mt-5">
      <h2>My recent SOS requests</h2>
      <p>OPEN means only that the system saved your alert, not that anyone is on the way.
