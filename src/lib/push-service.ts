@@ -145,6 +145,16 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
   }
   // Recheck before sending: an incident may already be acknowledged, expired,
   // or a staff member's role may have changed since the job was queued.
+  // A practice drill is ONLY for the authenticated and still authorized
+  // staff subscriber. It must never be delivered to a tenant device or
+  // interpreted as a real student safety incident.
+  if(job.kind==="SOS_DRILL"){
+    const testStaff=job.subscription.audience==="staff"
+      ?await residentStaff(db,pushSession(job.subscription) as Parameters<typeof residentStaff>[1]):null;
+    if(!testStaff||job.subjectId||job.targetUrl!=="/safety"){
+      await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;
+    }
+  }
   if(job.kind==="SOS_ALERT"){
     const responder=job.subscription.audience==="staff"
       ?await residentStaff(db,pushSession(job.subscription) as Parameters<typeof residentStaff>[1]):null;
