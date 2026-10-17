@@ -47,7 +47,7 @@ export default async function GateReadinessPage() {
   const counts=readiness.counts;
   // This is a read-only operational summary, not permission to activate,
   // notify, or record physical presence on behalf of a resident.
-  const [inviteStatuses,whatsAppStatuses,providerStatuses,sosOpen,sosUnacknowledged,oldestSOS,lastSOSAcknowledgement]=await Promise.all([
+  const [inviteStatuses,whatsAppStatuses,providerStatuses,sosOpen,sosUnacknowledged,oldestSOS,lastSOSAcknowledgement,staffPushDevices,sosPushAccepted,sosPushFailed]=await Promise.all([
     db.tenantPortalInvitation.groupBy({
       by:["status"],where:{organizationId,usedAt:null},_count:{_all:true},
     }),
@@ -61,6 +61,9 @@ export default async function GateReadinessPage() {
     db.safetyAlert.count({where:{organizationId,status:"OPEN"}}),
     db.safetyAlert.findFirst({where:{organizationId,status:"OPEN"},orderBy:{createdAt:"asc"},select:{createdAt:true}}),
     db.safetyAlert.findFirst({where:{organizationId,acknowledgedAt:{not:null}},orderBy:{acknowledgedAt:"desc"},select:{acknowledgedAt:true}}),
+    db.pushSubscription.count({where:{organizationId,audience:"staff",enabled:true}}),
+    db.pushDelivery.count({where:{kind:"SOS_ALERT",status:"SENT",subscription:{organizationId}}}),
+    db.pushDelivery.count({where:{kind:"SOS_ALERT",status:"FAILED",subscription:{organizationId}}}),
   ]);
   const inviteCount=(status:string)=>inviteStatuses.find(r=>r.status===status)?._count._all??0;
   const whatsapp=whatsappQueueSummary(whatsAppStatuses,providerStatuses);
@@ -150,6 +153,7 @@ export default async function GateReadinessPage() {
         <article className="compact-stat"><div><p>Student portal access</p><strong>{safety.portals}/{safety.activeStudents}</strong></div></article>
         <article className="compact-stat"><div><p>Unacknowledged SOS cases</p><strong>{safety.unacknowledged}</strong></div></article>
       </div>
+      <p className="muted-note"><strong>Best-effort SOS push evidence:</strong> {staffPushDevices} opted-in staff subscriptions; {sosPushAccepted} provider-accepted SOS jobs; {sosPushFailed} failed SOS jobs. Counts are not distinct incidents, phone-delivery receipts or proof someone answered. Scheduled processing runs approximately every five minutes. For urgent cases call the student and designated staff directly.</p>
       <p className="muted-note">SOS is a restricted software pilot, not a 24/7 security service. Student opt-in to location remains voluntary. No ongoing tracking or police dispatch is active through this panel. A staff account does not prove a staffed emergency shift.</p>
       <div className="table-scroll"><table className="data-table"><thead><tr><th>Critical readiness check</th><th>Evidence status</th><th>Next step</th></tr></thead>
         <tbody>{safety.checks.map(check=><tr key={check.code}>

@@ -7,6 +7,7 @@ import { availableSOSLocation, sosPilotEnabled } from "@/lib/student-safety";
 import { registeredResidentCallTarget } from "@/lib/tenant-verification-contact";
 import { SafetyResponseForm } from "@/components/safety-response";
 import { SafetyQueueRefresh } from "@/components/safety-queue-refresh";
+import { DeviceReminderOptIn } from "@/components/device-reminder-optin";
 
 export const dynamic="force-dynamic";
 export const metadata={title:"Student SOS response",robots:{index:false,follow:false}};
@@ -59,6 +60,7 @@ export default async function StaffSafetyPage(){
        A response is only acknowledged after staff document a real action.</p>
      <SafetyQueueRefresh/>
    </div></section>
+   <DeviceReminderOptIn audience="staff"/>
    {count>50?<p className="form-error">More than 50 SOS alerts are active. This page shows the oldest 50 first. Review the backlog immediately.</p>:null}
    {open.length?open.slice(0,50).map(alert=>{
      const property=props.get(alert.propertyId);
@@ -68,6 +70,8 @@ export default async function StaffSafetyPage(){
        <h2>{alert.status==="OPEN"?"SOS — awaiting staff response":"SOS — staff acknowledged"} · {alert.student.fullName}</h2>
        <p><strong>{property?.name??"Hostel"}</strong> · Room {alert.roomLabel}
          · Submitted {alert.createdAt.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}</p>
+       {alert.status==="OPEN"&&now.getTime()-alert.createdAt.getTime()>=5*60000?
+         <p className="form-error" role="alert">Unacknowledged for at least five minutes. Call the student and the designated on-call responder directly; do not wait for app notifications. A push-provider receipt does not establish delivery, reading or physical response.</p>:null}
        {alert.note?<p>Student's optional message: {alert.note}</p>:null}
        {phone?<p><a className="primary-button" href={phone.href}>Call registered student {phone.display}</a></p>:
          <p className="form-error">No validated registered student contact. Independently verify before using another number.</p>}

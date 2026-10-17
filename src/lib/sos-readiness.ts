@@ -39,7 +39,7 @@ export function sosReadinessSummary(x:SOSReadinessInput,now=new Date()){
       detail:(evidenceIsRecent?"A recent SOS response audit record exists, but it does not establish that a physical phone-to-staff drill, reliable push/call escalation, and trained shift coverage passed.":"No recent response acknowledgement record proves full phone-to-staff acceptance.")+
       " Test an explicitly marked exercise on two real devices, log the follow-up and verify the escalation route. Never mark a simulated case as a real emergency response.",href:"/safety"},
     {code:"delivery",title:"Reliable emergency alert notification",status:"NOT_VERIFIED",
-      detail:"The staff page refreshes only while visible. No verified push, phone or SMS escalation receipt is established by the SOS pilot. Do not promise monitored alerts.",href:"/safety"},
+      detail:"An opted-in staff phone may get best-effort SOS pushes and Owner/Admin escalation after five and fifteen minutes through the scheduled worker. A push-provider acceptance does not prove device display, reading or a human response. No verified phone/SMS fallback, staffed shift or emergency drill is established; never promise continuous monitoring.",href:"/safety"},
     {code:"backlog",title:"Unacknowledged SOS queue",status:unacknowledged>0?"ACTION_REQUIRED":"RECORDED",
       detail:unacknowledged>0?unacknowledged+" unacknowledged of "+open+" open/acknowledged cases."+(delayed?" Oldest is over 5 minutes old. Escalate immediately using direct contact.":" Follow up immediately."):
       open+" open or acknowledged cases; no presently unacknowledged case was found. This is not proof that all students are safe.",href:"/safety"},
