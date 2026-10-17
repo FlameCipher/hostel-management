@@ -182,13 +182,14 @@ export function triageTenantRegistrations(
  * outreach for independent review; they never link or activate an account.
  */
 export function activationOutreachSummary(
+  organizationId:string,
   groups:readonly RegistrationReviewGroup[],
   students:readonly RegisteredTenant[],
   countryForProperty:(propertyId:string)=>string|null,
   now:Date,
 ) {
   const pendingPhones=new Set(groups.flatMap(group=>group.submissions
-    .filter(item=>item.request.status==="PENDING" && item.request.expiresAt>now)
+    .filter(item=>item.request.organizationId===organizationId && item.request.status==="PENDING" && item.request.expiresAt>now)
     .map(item=>{
       const r=item.request;
       const country=countryForProperty(r.propertyId);
@@ -196,7 +197,7 @@ export function activationOutreachSummary(
       return phone?JSON.stringify([r.organizationId,r.propertyId,phone]):"";
     }).filter(Boolean)));
   const actionable=students.filter(student=>
-    student.status==="ACTIVE" && !student.portalEnabled &&
+    student.organizationId===organizationId && student.status==="ACTIVE" && !student.portalEnabled &&
     student.portalPasswordHash===null && student.portalLastLoginAt===null &&
     !student.portalInviteBlocked && student.occupancies.some(o=>o.status==="ACTIVE")
   );
@@ -212,11 +213,12 @@ export function activationOutreachSummary(
   }
   const expiryLimit=new Date(now.getTime()+96*60*60*1000);
   const expiringCases=groups.filter(group=>{
+    if(group.submissions[0]?.request.organizationId!==organizationId)return false;
     const latest=group.submissions[0]?.request;
     return latest?.status==="PENDING" && latest.expiresAt>now &&
       latest.expiresAt<=expiryLimit;
   }).length;
-  const expiryDates=groups.map(g=>g.submissions[0]?.request.expiresAt)
+  const expiryDates=groups.filter(g=>g.submissions[0]?.request.organizationId===organizationId).map(g=>g.submissions[0]?.request.expiresAt)
     .filter((date):date is Date=>!!date && date>now)
     .sort((a,b)=>a.getTime()-b.getTime());
   return {
