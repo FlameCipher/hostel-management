@@ -112,7 +112,8 @@ export async function runPushDelivery(db:PrismaClient,send=sendWebPush,now=new D
   if(job.kind==="GATE_UPDATE" && (!job.subjectId || job.subscription.audience!=="staff" ||
     !await db.studentOuting.findFirst({where:{id:job.subjectId,
       organizationId:job.subscription.organizationId,
-      status:{in:["OUT","RETURN_REPORTED"]}},
+      OR:[{status:"OUT",lateNotifiedAt:{not:null},lateAcknowledgedAt:null},
+          {status:"RETURN_REPORTED"}]},
       select:{id:true}}))){
     await db.pushDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});continue;
   }
