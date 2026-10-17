@@ -4,7 +4,7 @@ import {residentTenant} from "@/lib/resident-access";
 import {db} from "@/lib/db";
 import {hostelTimeZone} from "@/lib/resident-policy";
 import {lessonDayNames,clockMinutes,lessonOccurrences} from "@/lib/student-timetable";
-import {TimetableAddForm,TimetableLessonControls} from "@/components/student-timetable-forms";
+import {TimetableAddForm,TimetableLessonControls,TimetableEditForm} from "@/components/student-timetable-forms";
 import {LiveTimetableReminders} from "@/components/live-timetable-reminders";
 import {DeviceReminderOptIn} from "@/components/device-reminder-optin";
 
@@ -60,8 +60,8 @@ export default async function TenantTimetablePage(){
      </section>}
    <section className="panel entity-form mt-5">
      <h2>My weekly classes ({lessons.length})</h2>
-     <p>Remove past classes or pause individual reminders. This timetable is for
-       your personal planning—not a university attendance or hostel location record.</p>
+     <p>Edit class times, venues and reminder settings, or remove past classes.
+       This timetable is private personal planning—not university attendance or a hostel location record.</p>
      {lessons.length?lessons.map(item=><article className="panel entity-form mt-4" key={item.id}>
        <h3>{item.title}{item.courseCode?" · "+item.courseCode:""}</h3>
        <p>{lessonDayNames[item.dayOfWeek]} · {clockMinutes(item.startMinutes)}
@@ -70,6 +70,7 @@ export default async function TenantTimetablePage(){
        <p>{item.reminderEnabled?
          `Reminder ${item.remindBeforeMinutes} minutes before class, plus when it starts.`:
          "Reminders paused for this class."}</p>
+       <TimetableEditForm lesson={item}/>
        <TimetableLessonControls id={item.id} enabled={item.reminderEnabled}/>
      </article>):<p>No classes added yet.</p>}
    </section>
