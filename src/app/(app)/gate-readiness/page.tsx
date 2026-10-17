@@ -1,3 +1,4 @@
+import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardCheck, ShieldCheck, UserPlus, Users, ArrowLeft } from "lucide-react";
@@ -138,6 +139,7 @@ export default async function GateReadinessPage() {
         <UserPlus size={17}/> Prepare caretaker account
       </Link>
     </section>:null}
+    <HostelEmergencyCallLinks organizationId={organizationId}/>
     <section className="panel mt-5" aria-label="SOS emergency response operational readiness">
       <div className="panel-heading"><div><p className="panel-kicker">Emergency safety · Owner readiness</p>
         <h2>Student SOS response — operational acceptance</h2>
