@@ -4,6 +4,7 @@ import {residentStaff} from "@/lib/resident-access";
 import {db} from "@/lib/db";
 import {registeredResidentCallTarget} from "@/lib/tenant-verification-contact";
 import {outingAttention} from "@/lib/student-outings";
+import {hostelTimeZone} from "@/lib/resident-policy";
 import {StaffOutingControls} from "@/components/staff-outing-controls";
 import {SafetyQueueRefresh} from "@/components/safety-queue-refresh";
 import {DeviceReminderOptIn} from "@/components/device-reminder-optin";
@@ -19,7 +20,7 @@ export default async function StaffOutingsPage({searchParams}:{
  const params=await searchParams,organizationId=session.organizationId,now=new Date();
  const page=Math.max(1,Math.min(1000,Number(params.page)||1));
  const properties=await db.property.findMany({where:{organizationId,active:true},
-   select:{id:true,name:true,countryCode:true},orderBy:{name:"asc"}});
+   select:{id:true,name:true,countryCode:true,timeZone:true},orderBy:{name:"asc"}});
  const propertyId=properties.some(p=>p.id===params.property)?params.property:undefined;
  const scope={organizationId,...(propertyId?{propertyId}:{})};
  const [current,unconfirmed,late,returns]=await Promise.all([
@@ -72,7 +73,7 @@ export default async function StaffOutingsPage({searchParams}:{
     const currentStatus=outingAttention(item,now);
     const contact=registeredResidentCallTarget(item.student.phone,property?.countryCode,organizationId);
     const format=(v:Date)=>v.toLocaleString("en-KE",{
-      timeZone:property?.countryCode==="KE"?"Africa/Nairobi":"UTC",
+      timeZone:hostelTimeZone(property?.timeZone,property?.countryCode),
       dateStyle:"medium",timeStyle:"short",
     });
     return <section className="panel entity-form mt-5" key={item.id}>
