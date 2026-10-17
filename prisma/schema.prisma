@@ -295,6 +295,7 @@ model Organization {
   receiptSequences      ReceiptSequence[]
   portalInvitations TenantPortalInvitation[]
   visitorRequests VisitorRequest[]
+  safetyAlerts SafetyAlert[]
   portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
   tenantMessages        TenantMessage[]
@@ -660,6 +661,7 @@ model Student {
   @@index([organizationId, fullName])
   portalInvitations TenantPortalInvitation[]
   visitorRequests VisitorRequest[]
+  safetyAlerts SafetyAlert[]
   portalRegistrations TenantRegistration[]
   tenantConversations TenantConversation[]
   tenantMessages TenantMessage[]
@@ -1276,6 +1278,35 @@ model BookingRequest {
   @@unique([propertyId, requestId])
   @@index([organizationId, status, createdAt])
   @@index([propertyId, contactKey, createdAt])
+}
+
+// Student-initiated SOS only. Never uses background tracking.
+model SafetyAlert {
+ id String @id @default(cuid())
+ organizationId String
+ studentId String
+ propertyId String
+ requestId String
+ roomLabel String
+ status String @default("OPEN")
+ note String?
+ latitude Float?
+ longitude Float?
+ accuracyMeters Float?
+ locationSharedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ acknowledgedAt DateTime?
+ acknowledgedById String?
+ closedAt DateTime?
+ closedById String?
+ closureNote String?
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+ student Student @relation(fields:[studentId],references:[id],onDelete:Cascade)
+ @@unique([organizationId,studentId,requestId])
+ @@index([organizationId,status,createdAt])
+ @@index([organizationId,studentId,createdAt])
+ @@index([locationSharedAt])
 }
 
 model VisitorRequest {
