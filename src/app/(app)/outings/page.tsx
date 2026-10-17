@@ -6,6 +6,7 @@ import {registeredResidentCallTarget} from "@/lib/tenant-verification-contact";
 import {outingAttention} from "@/lib/student-outings";
 import {StaffOutingControls} from "@/components/staff-outing-controls";
 import {SafetyQueueRefresh} from "@/components/safety-queue-refresh";
+import {DeviceReminderOptIn} from "@/components/device-reminder-optin";
 
 export const dynamic="force-dynamic";
 export const metadata={title:"Student departures and returns",robots:{index:false,follow:false}};
@@ -56,6 +57,7 @@ export default async function StaffOutingsPage({searchParams}:{
        every actual arrival before recording gate return.</p>
     <SafetyQueueRefresh/>
   </div></section>
+  <DeviceReminderOptIn audience="staff"/>
   <form method="get" className="panel entity-form mt-5">
     <label className="field-group"><span>Hostel property</span>
       <select name="property" defaultValue={propertyId??""}>
