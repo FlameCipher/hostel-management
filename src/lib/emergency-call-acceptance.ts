@@ -3,6 +3,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { residentStaff } from "@/lib/resident-access";
 import { MMAMBUGUA_EMERGENCY_ORGANIZATION_ID, MMAMBUGUA_EMERGENCY_PHONES } from "@/lib/hostel-emergency-contacts";
+import {type CallTestResult} from "@/lib/emergency-call-acceptance-policy";
 
 export const EMERGENCY_CALL_TEST_AUDIT_ACTION="HOSTEL_EMERGENCY_CALL_TEST";
 const testSchema=z.object({
@@ -11,13 +12,6 @@ const testSchema=z.object({
  note:z.string().trim().min(10).max(280),
  personallyTested:z.literal(true),
 });
-export type CallTestResult=z.infer<typeof testSchema>["result"];
-export const callTestLabels:Record<CallTestResult,string>={
- ANSWERED:"Staff reports intended responder answered",
- NO_ANSWER:"Call rang but nobody answered",
- WRONG_RECIPIENT:"Wrong recipient / not designated responder",
- FAILED_TO_CONNECT:"Could not connect the call",
-};
 export type EmergencyCallTestRecord={
  line:number;result:CallTestResult;note:string;createdAt:Date;testedBy:string;
 };
