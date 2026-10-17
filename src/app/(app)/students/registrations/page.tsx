@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { registrationCountryCode } from "@/lib/tenant-registration";
 import {
   triageTenantRegistrations,registrationReviewLabels,
-  registrationCaseKind,registrationCaseLabels,type RegistrationCaseKind,
+  registrationCaseKind,registrationCaseLabels,activationOutreachSummary,type RegistrationCaseKind,
   type ReviewRegistration,type RegisteredTenant,
 } from "@/lib/tenant-registration-triage";
 import { RegistrationReviewForm } from "@/components/tenant-registration-forms";
@@ -82,6 +82,10 @@ export default async function RegistrationsPage({
     propertyId=>countryByProperty.get(propertyId)??null,now,
   );
   const propertyById=new Map(properties.map(p=>[p.id,p]));
+  const outreach=activationOutreachSummary(
+    triage.groups,students as RegisteredTenant[],
+    propertyId=>countryByProperty.get(propertyId)??null,now,
+  );
   const groups=triage.groups.filter(g=>
     (focus==="ALL" || registrationCaseKind(g)===focus) &&
     (!search || [g.fullName,g.phone,...g.rooms,propertyById.get(g.propertyId)?.name??""]
@@ -119,6 +123,26 @@ export default async function RegistrationsPage({
       <p><strong>{triage.counts.repeatSubmissions}</strong> extra submissions from repeat applicants;
         <strong> {triage.counts.conflictingRooms}</strong> applicant groups contain conflicting room claims;
         <strong> {triage.counts.conflictingPhoneGroups}</strong> groups share a phone with a different registered name.</p>
+      {complete?<section aria-label="Existing tenant activation work queue">
+        <h3>Resident activation work queue</h3>
+        <p><strong>{outreach.pendingPhoneClaims} eligible resident records already have pending phone claims.</strong>
+          Verify those applications against the existing hostel register before activating accounts.
+          A matching phone number does not prove the applicant's identity.</p>
+        <p><strong>{outreach.needsContactReview} eligible resident records have no currently pending claim
+          on their registered phone for this hostel property.</strong> Review these residents for individual
+          onboarding contact; do not automatically send repeat invitations.
+          {outreach.invalidPhoneOrRoom>0?` ${outreach.invalidPhoneOrRoom} additional record(s) need phone or room verification before contact.`:""}</p>
+        <p><strong>{outreach.expiringCases} applicant cases have their latest request expiring within four days.</strong>
+          {outreach.earliestExpiry?` Earliest latest-request expiry: ${outreach.earliestExpiry.toLocaleString("en-KE",{timeZone:"Africa/Nairobi"})}.`:""}
+          Review expiring cases before the deadline; an expired registration cannot activate an account.</p>
+        <div className={styles.actions}>
+          <Link href="/communications/invitations/mobile" className="secondary-button">Review residents needing outreach</Link>
+          <Link href="/students/registrations" className="secondary-button">Review all pending requests</Link>
+        </div>
+        <p className={styles.meta}>These are record-based counts, not independent identity verification,
+          delivered messages, or permission for bulk activation. If the pending queue is incomplete,
+          do not rely on these figures for outreach.</p>
+      </section>:null}
       <h3>Distinct applicant cases requiring management review</h3>
       <p><strong>{triage.caseCounts.verifyIdentity}</strong> cases have a matching current record and can proceed to
         <strong> independent human identity checking</strong> (not automatic approval);
