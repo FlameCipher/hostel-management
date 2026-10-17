@@ -1,4 +1,7 @@
 import { HostelEmergencyCallLinks } from "@/components/hostel-emergency-call-links";
+import { EmergencyCallAcceptance } from "@/components/emergency-call-acceptance";
+import { latestEmergencyCallTests,EMERGENCY_CALL_TEST_AUDIT_ACTION } from "@/lib/emergency-call-acceptance";
+import { MMAMBUGUA_EMERGENCY_ORGANIZATION_ID } from "@/lib/hostel-emergency-contacts";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardCheck, ShieldCheck, UserPlus, Users, ArrowLeft } from "lucide-react";
@@ -65,6 +68,16 @@ export default async function GateReadinessPage() {
     db.pushDelivery.count({where:{kind:"SOS_ALERT",status:"SENT",subscription:{organizationId}}}),
     db.pushDelivery.count({where:{kind:"SOS_ALERT",status:"FAILED",subscription:{organizationId}}}),
   ]);
+  // Only the Owner/Admin of the actual MMAMBUGUA organization can see
+  // manually recorded emergency-line tests. Never leak these to other hostels.
+  const callRows=organizationId===MMAMBUGUA_EMERGENCY_ORGANIZATION_ID
+    ?await db.auditLog.findMany({
+      where:{organizationId,action:EMERGENCY_CALL_TEST_AUDIT_ACTION,
+        entityType:"Organization",entityId:organizationId},
+      select:{createdAt:true,metadata:true,actor:{select:{name:true}}},
+      orderBy:{createdAt:"desc"},take:100,
+    }):[];
+  const callTests=latestEmergencyCallTests(callRows);
   const inviteCount=(status:string)=>inviteStatuses.find(r=>r.status===status)?._count._all??0;
   const whatsapp=whatsappQueueSummary(whatsAppStatuses,providerStatuses);
   const safety=sosReadinessSummary({
@@ -143,6 +156,8 @@ export default async function GateReadinessPage() {
       </Link>
     </section>:null}
     <HostelEmergencyCallLinks organizationId={organizationId}/>
+    {organizationId===MMAMBUGUA_EMERGENCY_ORGANIZATION_ID?
+      <EmergencyCallAcceptance records={callTests}/>:null}
     <section className="panel mt-5" aria-label="SOS emergency response operational readiness">
       <div className="panel-heading"><div><p className="panel-kicker">Emergency safety · Owner readiness</p>
         <h2>Student SOS response — operational acceptance</h2>
