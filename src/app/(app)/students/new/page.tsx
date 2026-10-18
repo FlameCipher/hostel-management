@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { StudentForm } from "@/components/student-form";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { canOnboardAccounts } from "@/lib/hostel-onboarding-access";
 
 export default async function NewStudentPage() {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
-  if (session.role === "CARETAKER") redirect("/students");
+  if (!canOnboardAccounts(session.role)) redirect("/students");
   const [roomTypes, semesters] = await Promise.all([
     db.roomType.findMany({ where: { organizationId: session.organizationId, active: true }, orderBy: { name: "asc" } }),
     db.semester.findMany({ where: { organizationId: session.organizationId, status: "ACTIVE" }, orderBy: { startDate: "desc" } }),

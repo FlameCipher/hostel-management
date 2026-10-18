@@ -6,6 +6,7 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { tenantWhere } from "@/lib/communications";
 import { emailResult } from "@/lib/communication-email";
 import { managedPropertyHost } from "@/lib/property-host-policy";
+import { onboardingAdmin } from "./hostel-onboarding-access";
 export const invitationLifetime=72*60*60*1000;
 export function invitationHash(token:string){return createHash("sha256").update(token).digest("hex");}
 export function invitationToken(row:{id:string;generation:number;recipient:string|null;expiresAt:Date|null},secret:string){
@@ -16,7 +17,7 @@ export function inviteCandidateWhere(organizationId:string):Prisma.StudentWhereI
  return {...tenantWhere(organizationId),organization:{status:"ACTIVE"},portalEnabled:false,portalPasswordHash:null,portalLastLoginAt:null,portalInviteBlocked:false};
 }
 export async function invitationManager(db:Pick<PrismaClient,"user">,s:SessionPayload|null){
- if(!s)return null;return db.user.findFirst({where:{id:s.userId,organizationId:s.organizationId,active:true,role:{in:["OWNER","ADMIN"]}},select:{id:true}});
+ return onboardingAdmin(db,s);
 }
 export function invitationHost(properties: Array<{ customDomain: string | null }>) {
  const hosts = [...new Set(properties.map(p => managedPropertyHost(p.customDomain)).filter((host): host is string => !!host))];

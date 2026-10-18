@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { matchingStudentIdentifier, normalizeStudentIdentifiers, normalizeGuardianPhone } from "@/lib/student-identifiers";
 import { refreshChargeStatus } from "@/lib/payment-balance";
+import { canOnboardAccounts, requireOnboardingAdmin, studentIdentityUpdateError } from "@/lib/hostel-onboarding-access";
 
 export type StudentFormState = { error: string };
 
@@ -106,6 +107,7 @@ function isPrismaError(error: unknown, code: string) {
 
 export async function createStudentAction(_state: StudentFormState, formData: FormData): Promise<StudentFormState> {
   const session = await requireStudentManager();
+  if (!canOnboardAccounts(session.role)) return { error: "Only the hostel owner or an authorised admin may add students." };
   const parsed = studentIntakeSchema.safeParse({
     ...studentValues(formData),
     roomTypeId: formData.get("roomTypeId"),
@@ -127,6 +129,7 @@ export async function createStudentAction(_state: StudentFormState, formData: Fo
   let chargeId = "";
   try {
     await db.$transaction(async (tx) => {
+    await requireOnboardingAdmin(tx, session);
     const student = await tx.student.create({
       data: {
         organizationId: session.organizationId, fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null,
@@ -173,7 +176,12 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
 
   const guardian = guardianData(parsed.data);
   try {
-    await db.$transaction(async (tx) => {
+    const updateResult = await db.$transaction(async (tx) => {
+    const accessError = await studentIdentityUpdateError(tx, session, studentId, {
+      fullName: parsed.data.fullName, phone: identifiers.phone, email: parsed.data.email || null,
+      status: parsed.data.status, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId,
+    });
+    if (accessError) return { error: accessError };
     await tx.student.update({
       where: { id: studentId },
       data: {
@@ -190,6 +198,7 @@ export async function updateStudentAction(studentId: string, _state: StudentForm
     }
     await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_UPDATED", entityType: "Student", entityId: studentId, metadata: { fullName: parsed.data.fullName, admissionNumber: identifiers.admissionNumber, status: parsed.data.status } } });
     }, { isolationLevel: "Serializable" });
+    if (updateResult?.error) return updateResult;
   } catch (error) {
     if (isPrismaError(error, "P2002")) return { error: "A student with this phone number, admission number, or national ID already exists." };
     throw error;

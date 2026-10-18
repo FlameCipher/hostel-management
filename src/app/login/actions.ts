@@ -8,6 +8,7 @@ import { createSession, deleteSession } from "@/lib/auth/session";
 import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
 import { authenticateCaretakerPhone } from "@/lib/staff-phone-login";
+import { staffHome } from "@/lib/staff-navigation-policy";
 
 export type LoginState = { error: string };
 
@@ -26,7 +27,7 @@ export async function loginAction(
   });
 
   if (!parsed.success) {
-    return { error: "Enter your email or registered caretaker phone number and password." };
+    return { error: "Enter your registered sign-in details and password. Staff must first be onboarded by their hostel owner or authorised admin." };
   }
 
   const context=await requestPropertyContext();
@@ -54,7 +55,7 @@ export async function loginAction(
     },
   });
 
-  if(users.length !== 1) return {error:"Use your hostel website to sign in, or sign in with SYSTEM IN ONE."};
+  if(users.length !== 1) return {error:"Sign-in could not be matched. Check your details and use your hostel website, or sign in with SYSTEM IN ONE. Staff access must first be created by the hostel owner or authorised admin."};
   const user=users[0];
   if (!user || !(await compare(parsed.data.password, user.passwordHash))) {
     return { error: "The email address or password is incorrect." };
@@ -68,7 +69,7 @@ export async function loginAction(
     role: user.role,
   }); } catch { return { error: "Your account changed. Sign in again with your current credentials." }; }
 
-  redirect((await cookies()).get("hostel_sso_code") ? "/platform/connection" : "/dashboard");
+  redirect((await cookies()).get("hostel_sso_code") ? "/platform/connection" : staffHome(user.role));
 }
 
 export async function logoutAction() {

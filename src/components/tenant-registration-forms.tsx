@@ -49,7 +49,7 @@ export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ti
   if(state.success)return <section className={signup.confirmation} role="status">
     <span className={signup.tag}>Step 2 of 2 complete · Request received</span>
     <h2>Registration request received</h2>
-    <p>Management will check your existing hostel record and room before activating your account.</p>
+    <p>Your hostel owner or authorised admin will check your existing hostel record and room before activating your account.</p>
     <p><strong>Creating an account does not book another room or charge you rent.</strong></p>
     <p className={signup.help}>Once management approves your request, sign in using the mobile number and password you chose.</p>
     <Link className="primary-button" href="/tenant/login">Student sign in</Link>
@@ -98,7 +98,7 @@ export function TenantRegistrationForm({ ticket, countryCode, hostelName }: { ti
         <button type="button" className="secondary-button" disabled={pending} onClick={()=>{setFormError("");setStep(1);}}>← Edit my details</button>
         <button className="primary-button" type="submit" disabled={pending}>{pending?"Submitting…":"Submit registration"}</button>
       </div>
-      <p className={signup.help}>Management will verify your identity and current room before granting access. No extra rent is charged.</p>
+      <p className={signup.help}>Your hostel owner or authorised admin must verify your identity and current room before granting access. No extra rent is charged.</p>
     </fieldset>
     {formError?<p className="form-error" role="alert">{formError}</p>:null}
     {state.error?<div className="form-error" role="alert">{state.error}<br/>If you entered a different name, number or room, select <strong>Edit my details</strong>.</div>:null}

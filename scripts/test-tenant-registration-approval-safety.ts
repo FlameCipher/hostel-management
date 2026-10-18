@@ -38,6 +38,9 @@ function fixture(opts?:{
   accountUsed?:boolean;
   noStudent?:boolean;
   wrongOrganization?:boolean;
+  actorRole?:SessionPayload["role"];
+  actorVersion?:number;
+  missingActor?:boolean;
 }) {
   const rows=RequestArray(opts);
   let studentEnabled=opts?.accountUsed??false;
@@ -46,7 +49,7 @@ function fixture(opts?:{
   const audits:Array<Record<string,unknown>>=[];
   const tx={
     $queryRaw:async()=>[],
-    user:{findFirst:async()=>({id:"owner-A",role:"OWNER",sessionVersion:1})},
+    user:{findFirst:async()=>opts?.missingActor ? null : ({id:"owner-A",role:opts?.actorRole??"OWNER",sessionVersion:opts?.actorVersion??1})},
     tenantRegistration:{
       findFirst:async({where}:{where:{id:string;organizationId:string;status:string}})=>{
         if(opts?.wrongOrganization)return null;
@@ -95,6 +98,24 @@ function RequestArray(opts?:{includeConflict?:boolean}):Request[]{
   return [structuredClone(older),structuredClone(latest),...(opts?.includeConflict?[structuredClone(conflicts)]:[])];
 }
 async function run(){
+  // A role claimed in a cookie must never override the actor's current authority.
+  for (const change of [{actorRole:"MANAGER" as const},{actorRole:"CARETAKER" as const},{actorVersion:2},{missingActor:true}]) {
+    const denied=fixture(change);
+    const result=await reviewTenantRegistration(denied.db,owner,{
+      id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
+    },now);
+    assert.match(result.error??"",/owner.*admin/i);
+    assert.equal(denied.approved,0);
+    assert.equal(denied.deletedTokens,0);
+    assert.equal(denied.audits.length,0);
+    assert.ok(denied.rows.every(row=>row.status==="PENDING"));
+  }
+  const delegated=fixture({actorRole:"ADMIN"});
+  assert.ok((await reviewTenantRegistration(delegated.db,{...owner,role:"ADMIN"},{
+    id:"latest",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",
+  },now)).success);
+  assert.equal(delegated.approved,1);
+
   const baseline=fixture();
   let result=await reviewTenantRegistration(baseline.db,owner,{
     id:"old",studentId:"resident-1",approve:true,verified:true,verificationMethod:"IN_PERSON",

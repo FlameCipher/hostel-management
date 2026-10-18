@@ -46,7 +46,7 @@ const links: StaffNavigationLink[] = [
 const caretakerVisible=new Set([
   "/visitors","/outings","/safety","/rooms","/occupancy","/assistant","/install","/account",
 ]);
-const managerHidden=new Set(["/users","/healthfix","/gate-readiness"]);
+const managerHidden=new Set(["/users","/healthfix","/gate-readiness","/students/registrations"]);
 const caretakerSensitive=new Set(["/dashboard","/payments","/expenses","/reports",
   "/search","/notifications","/communications","/students/registrations",
   "/users","/setup","/healthfix","/website","/settings","/vacancy-card"]);
