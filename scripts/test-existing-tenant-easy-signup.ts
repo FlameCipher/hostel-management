@@ -10,7 +10,7 @@ test("existing-student registration shows two concise mobile steps, no new room 
  const form=readFileSync("src/components/tenant-registration-forms.tsx","utf8");
  const styles=readFileSync("src/components/existing-tenant-signup.module.css","utf8");
  assert.match(page,/Existing residents only/);
- assert.match(page,/Creating an account is free and does not book another room/);
+ assert.match(page,/Requesting access is free and does not book another room/);
  assert.doesNotMatch(page,/(?:href|redirect)\s*=\s*["']\/book/);
  assert.match(form,/1 · My hostel details/);
  assert.match(form,/2 · Set password/);
@@ -22,10 +22,10 @@ test("existing-student registration shows two concise mobile steps, no new room 
  assert.match(form,/fieldset hidden=\{step!==2\}/);
  assert.match(styles,/\.fieldset\[hidden\]\{display:none!important\}/);
  assert.match(form,/useActionState\(registerTenantAction/);
- assert.match(form,/Management will check your existing hostel record and room/);
+ assert.match(form,/Your hostel owner or authorised admin will check your existing hostel record and room/);
  assert.match(form,/does not book another room or charge you rent/);
 });
-test("manager retains independent identity verification, unique exact match shortcut and no match denial",()=>{
+test("owner/admin retains independent identity verification, unique exact match shortcut and no match denial",()=>{
  const form=readFileSync("src/components/tenant-registration-forms.tsx","utf8");
  const actions=readFileSync("src/app/tenant/register/actions.ts","utf8");
  const service=readFileSync("src/lib/tenant-registration.ts","utf8");

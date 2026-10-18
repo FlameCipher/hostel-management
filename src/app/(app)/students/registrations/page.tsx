@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
-import { residentStaff } from "@/lib/resident-access";
+import { onboardingAdmin } from "@/lib/hostel-onboarding-access";
 import { db } from "@/lib/db";
 import { registrationCountryCode } from "@/lib/tenant-registration";
 import { registeredResidentCallTarget } from "@/lib/tenant-verification-contact";
@@ -19,9 +19,9 @@ export default async function RegistrationsPage({
   searchParams,
 }:{searchParams:Promise<{page?:string;history?:string;q?:string;focus?:string;urgency?:string}>}){
   const session=await requireSession();
-  if(!(await residentStaff(db,session,true)))return <section className="panel">
+  if(!(await onboardingAdmin(db,session)))return <section className="panel">
     <h1>Tenant verification unavailable</h1>
-    <p>Only authenticated hostel Owners, Admins and Managers can review student access requests.</p>
+    <p>Only the hostel owner or an authorised admin can review and approve student access requests.</p>
   </section>;
   const params=await searchParams;
   const history=params.history==="1";

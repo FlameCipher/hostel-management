@@ -7,12 +7,13 @@ import { requireSession } from "@/lib/auth/session";
 import { parseCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { matchingStudentIdentifier, normalizeStudentIdentifiers } from "@/lib/student-identifiers";
+import { canOnboardAccounts, requireOnboardingAdmin } from "@/lib/hostel-onboarding-access";
 
 export type StudentImportState = { error: string; message: string; details: string[] };
 
 async function requireImportAccess() {
   const session = await requireSession();
-  if (session.role === "CARETAKER") redirect("/students");
+  if (!canOnboardAccounts(session.role)) redirect("/students");
   return session;
 }
 
@@ -81,6 +82,7 @@ export async function importStudentsAction(_state: StudentImportState, formData:
 
     try {
       await db.$transaction(async (tx) => {
+        await requireOnboardingAdmin(tx, session);
         const hasGuardian = Boolean(item.guardianName && item.guardianPhone);
         const student = await tx.student.create({ data: { organizationId: session.organizationId, fullName: item.fullName, phone: identifiers.phone, email: item.email || null, university: item.university, admissionNumber: identifiers.admissionNumber, nationalId: identifiers.nationalId, admittedAt, status: item.status, notes: item.notes || null, ...(hasGuardian ? { guardian: { create: { name: item.guardianName, phone: item.guardianPhone, relationship: item.guardianRelationship || null, email: item.guardianEmail || null } } } : {}) } });
         await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_IMPORTED", entityType: "Student", entityId: student.id, metadata: { rowNumber, admissionNumber: identifiers.admissionNumber } } });

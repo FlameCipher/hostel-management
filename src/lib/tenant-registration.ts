@@ -4,7 +4,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "./auth/session";
 import { verifyBookingTicket } from "./booking-requests";
 import { publishedWhere } from "./property-host-policy";
-import { residentStaff } from "./resident-access";
+import { onboardingAdmin } from "./hostel-onboarding-access";
 import { whatsappNumber } from "./whatsapp-policy";
 import { normalizedResidentName } from "./resident-policy";
 
@@ -47,7 +47,7 @@ export async function reviewTenantRegistration(db: PrismaClient, session: Sessio
   return db.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${session.organizationId} FOR SHARE`;
     await tx.$queryRaw`SELECT id FROM "User" WHERE id=${session.userId} AND "organizationId"=${session.organizationId} FOR SHARE`;
-    if (!await residentStaff(tx, session, true)) return { error: "Only management may verify tenant registration." };
+    if (!await onboardingAdmin(tx, session)) return { error: "Only the hostel owner or an authorised admin may approve student access." };
     // Consistent student-before-request lock order also protects invitation activation.
     if (input.studentId) await tx.$queryRaw`SELECT id FROM "Student" WHERE id=${input.studentId} AND "organizationId"=${session.organizationId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "TenantRegistration" WHERE id=${input.id} AND "organizationId"=${session.organizationId} FOR UPDATE`;
