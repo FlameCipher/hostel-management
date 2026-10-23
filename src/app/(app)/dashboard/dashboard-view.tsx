@@ -74,7 +74,7 @@ export function DashboardView(props: DashboardViewProps) {
           <div className={styles.collected}><span>Collected</span><strong>{props.collected}</strong></div>
           <div className={styles.balance}><span>Outstanding balance</span><strong>{props.outstanding}</strong></div>
           <p className={styles.expected}>Expected rent <span>{props.expected}</span></p>
-          {props.overdueCharges > 0 && <Link className={styles.overdue} href="/reports"><CircleAlert size={16} aria-hidden="true"/>{props.overdueCharges} overdue charge{props.overdueCharges === 1 ? "" : "s"}<ArrowRight size={16} aria-hidden="true"/></Link>}
+          {props.overdueCharges > 0 && <Link className={styles.overdue} href="/reports/arrears"><CircleAlert size={16} aria-hidden="true"/>{props.overdueCharges} overdue charge{props.overdueCharges === 1 ? "" : "s"}<ArrowRight size={16} aria-hidden="true"/></Link>}
         </> : <p className={styles.empty}>No rent charges recorded for this period.</p>}
       </section>
 

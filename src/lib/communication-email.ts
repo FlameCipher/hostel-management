@@ -1,3 +1,4 @@
+import { freshArrearsBody } from "./arrears-reminders";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { tenantWhere } from "@/lib/communications";
 import { z } from "zod";
@@ -14,16 +15,22 @@ export async function sendCommunicationEmails(db:PrismaClient,now=new Date(),fet
  for(const candidate of candidates){
  const item=await db.$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "TenantMessage" WHERE id=${candidate.id} FOR UPDATE`;
- const message=await tx.tenantMessage.findUnique({where:{id:candidate.id}});if(!message || !["QUEUED","RETRY"].includes(message.emailStatus)||message.emailAttempts>=3)return null;
+ let message=await tx.tenantMessage.findUnique({where:{id:candidate.id}});if(!message || !["QUEUED","RETRY"].includes(message.emailStatus)||message.emailAttempts>=3)return null;
+ if(message.category==="ARREARS") {
+   const body=await freshArrearsBody(tx,message,now);
+   if(!body){await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"CANCELLED",emailError:"No eligible overdue balance remains, or the reminder expired."}});return null;}
+   message=await tx.tenantMessage.update({where:{id:message.id},data:{body,...(message.body!==body && message.emailAttempts>0?{emailGeneration:{increment:1}}:{})}});
+ }
  const student=await tx.student.findFirst({where:{...tenantWhere(message.organizationId),id:message.studentId},select:{email:true}});
  if(!student){await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"INELIGIBLE",emailError:"Recipient is no longer a current tenant."}});return null;}
+ if(message.category==="ARREARS" && message.emailRecipient && message.emailRecipient!==student.email){await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"CANCELLED",emailError:"Registered email changed. Prepare a new request."}});return null;}
  const recipient=message.emailRecipient??student.email;
  if(!recipient || !z.string().email().safeParse(recipient).success){await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"MISSING_EMAIL",emailError:"Add a valid student email before retrying."}});return null;}
  return tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"SENDING",emailRecipient:recipient,emailFrom:message.emailFrom??config.from,emailAttempts:{increment:1},emailAttemptAt:now,emailError:null}});
  });if(!item)continue;
  let result:{status:string;error:string|null}={status:"REVIEW",error:"Delivery could not be confirmed. Review the email provider before resending."},providerId:string|undefined;
  try{
- const response=await fetcher("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${config.apiKey}`,"Content-Type":"application/json","Idempotency-Key":`hostel-notice/${item.id}/${item.emailGeneration}`},body:JSON.stringify({from:item.emailFrom,to:[item.emailRecipient],subject:item.title,text:`${item.body}\n\nAccess your private hostel account and contact management: https://hostel.sampesa.com/tenant/login\n\nThis is a hostel service notice. Reply to management through your tenant account.`}),signal:AbortSignal.timeout(10000)});
+ const response=await fetcher("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${config.apiKey}`,"Content-Type":"application/json","Idempotency-Key":`hostel-notice/${item.id}/${item.emailGeneration}`},body:JSON.stringify({from:item.emailFrom,to:[item.emailRecipient],subject:item.title,text:item.category==="ARREARS"?item.body:`${item.body}\n\nAccess your private hostel account and contact management: https://hostel.sampesa.com/tenant/login\n\nThis is a hostel service notice. Reply to management through your tenant account.`}),signal:AbortSignal.timeout(10000)});
  if(response.ok){const payload=await response.json();providerId=typeof payload.id==="string"?payload.id:undefined;}
  result=emailResult(response.status,providerId);
  if(result.status==="RETRY"&&item.emailAttempts>=3)result={status:"FAILED",error:"Email retry limit reached. Management review required."};

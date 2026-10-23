@@ -63,7 +63,7 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  const settings=await database.communicationSettings.findMany({include:{organization:{select:{name:true}}}});
  for(const rule of settings) {
  const scope=tenantWhere(rule.organizationId), day=nairobiDay(now), dom=Number(day.slice(-2));
- if(rule.balanceEnabled && [7,10].includes(dom)) {
+ if(rule.balanceEnabled && !rule.arrearsEnabled && [7,10].includes(dom)) {
  const charges=await database.charge.findMany({where:{organizationId:rule.organizationId,student:scope,dueDate:{lte:new Date(now.getTime()+3*86400000)},status:{in:["UNPAID","PARTIALLY_PAID","OVERDUE"]}},include:{payments:{where:{reversedAt:null},select:{amount:true}}}});
  for(const charge of charges) {
  const balance=outstanding(charge.amount.toString(),charge.payments,charge.currency); if(!balance) continue;

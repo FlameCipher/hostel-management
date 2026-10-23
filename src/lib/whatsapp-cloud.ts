@@ -1,3 +1,4 @@
+import { refreshArrearsNotification } from "./arrears-reminders";
 import { createHmac,timingSafeEqual } from "node:crypto";
 import type { PrismaClient,WhatsAppConnection,Notification } from "@/generated/prisma/client";
 import { openServiceSecret,sealServiceSecret,serviceId } from "./service-security";
@@ -74,9 +75,12 @@ export async function runWhatsAppDelivery(db:PrismaClient,send=sendWhatsAppTempl
   const claimed=await db.$transaction(async tx=>{
    await tx.$queryRaw`SELECT id FROM "Notification" WHERE id=${item.id} AND "organizationId"=${item.organizationId} FOR UPDATE`;
    if(!await tx.notification.findFirst({where:{id:item.id,organizationId:item.organizationId,status:"QUEUED"}}))return false;
-   return (await tx.whatsAppDelivery.updateMany({where:{id:job.id,status:"QUEUED",attempts:job.attempts},data:{status:"SENDING",attemptAt:now,attempts:{increment:1}}})).count>0;
+   const fresh=await refreshArrearsNotification(tx,item,now);
+   if(!fresh){await tx.whatsAppDelivery.update({where:{id:job.id},data:{status:"CANCELLED"}});return null;}
+   if(fresh.message.length>1000){await tx.whatsAppDelivery.update({where:{id:job.id},data:{status:"FAILED",error:"Updated request exceeds the approved template limit. Open the manual draft."}});return null;}
+   return (await tx.whatsAppDelivery.updateMany({where:{id:job.id,status:"QUEUED",attempts:job.attempts},data:{status:"SENDING",attemptAt:now,attempts:{increment:1}}})).count>0 ? fresh : null;
   });if(!claimed)continue;
-  try{const providerId=await send(connection,job.recipient,item.message);await db.$transaction(async tx=>{await tx.whatsAppDelivery.update({where:{id:job.id},data:{status:"ACCEPTED",providerId,error:null}});await tx.notification.update({where:{id:item.id},data:{status:"SENT",sentAt:new Date()}});});sent++;}
+  try{const providerId=await send(connection,job.recipient,claimed.message);await db.$transaction(async tx=>{await tx.whatsAppDelivery.update({where:{id:job.id},data:{status:"ACCEPTED",providerId,error:null}});await tx.notification.update({where:{id:item.id},data:{status:"SENT",sentAt:new Date()}});});sent++;}
   catch(error){const e=error as {definite?:boolean;retry?:boolean};const retry=e.definite&&e.retry&&job.attempts<2;await db.whatsAppDelivery.update({where:{id:job.id},data:{status:retry?"QUEUED":e.definite?"FAILED":"REVIEW",nextAttemptAt:new Date(now.getTime()+5*60000),error:e.definite?"Meta rejected this message. Review sender, template and recipient settings.":"Send outcome is uncertain. Review Meta logs before sending again."}});failed++;}
  }
  return {configured:connections.length>0,queued,sent,failed};

@@ -1149,6 +1149,9 @@ model StudentTermsAcceptance {
 
 model CommunicationSettings {
  organizationId String @id
+ arrearsEnabled Boolean @default(false)
+ arrearsWhatsappCopies Boolean @default(false)
+ arrearsEmailCopies Boolean @default(false)
  balanceEnabled Boolean @default(false)
  holidayEnabled Boolean @default(false)
  inviteEnabled Boolean @default(false)
