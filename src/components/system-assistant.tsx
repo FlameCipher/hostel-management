@@ -14,6 +14,7 @@ import { AssistantActionWorkspace, type AssistantWorkspaceData } from "@/compone
 import { AssistantAnnouncementReview } from "@/components/assistant-announcement-review";
 import type { AnnouncementDraft } from "@/lib/assistant-announcement";
 import { contextualBalanceFollowup } from "@/lib/assistant-report-intents";
+import { systemWorkflowIntent } from "@/lib/system-workflows";
 import styles from "./assistant-chat.module.css";
 import { useAssistantNarrator } from "./use-assistant-narrator";
 
@@ -40,7 +41,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const id=useRef(0);
   const messageLog=useRef<HTMLDivElement>(null);
   const suggestions=role==="MANAGEMENT"
-    ? ["Who hasn't paid?","Room 41 payments","Register a student","Record payment"]
+    ? ["How do I check out a student?","Who hasn't paid?","Room 41 payments","Register a student","Record payment"]
     : ["Who has not checked out?","How many visitors are expected?","Find room 41"];
   const guides=searchSystemGuide(systemGuide(role),submitted).slice(0,3);
 
@@ -54,7 +55,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   async function ask(raw:string) {
     const value=raw.trim();
     if(!value||busy)return;
-    if(role==="MANAGEMENT") {
+    if(role==="MANAGEMENT" && !systemWorkflowIntent(value)) {
       if(transferReviewNavigationRequest(value)){router.push("/occupancy/transfers");return;}
       if(financialAuditNavigationRequest(value)){router.push("/payments/audit");return;}
       if(receiptQueueNavigationRequest(value)){router.push("/payments?delivery=all");return;}

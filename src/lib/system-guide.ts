@@ -1,5 +1,6 @@
+import { systemWorkflowIntent, workflowGuide } from "./system-workflows";
 export type GuideRole = "PUBLIC" | "TENANT" | "CARETAKER" | "MANAGEMENT";
-export type GuideTopic = { title: string; terms: string; body: string; href: string; action: string };
+export type GuideTopic = { id?: string; title: string; terms: string; body: string; href: string; action: string };
 export function systemGuide(role: GuideRole): GuideTopic[] {
   const common: GuideTopic[] = [
     { title: "Install the hostel app", terms: "install app mobile phone android iphone ipad icon home screen download", body: "Open your hostel’s own website and choose Install app. On Android, use Chrome’s Install app or Add to Home screen option. On iPhone or iPad, open Safari, tap Share, then Add to Home Screen, enable Open as Web App if shown, and tap Add. Your phone requires your confirmation. Use your existing account; registration approval still applies. Enable device notifications from My Account (management) or My system assistant (tenants) after installation. Your phone requires permission. Internet is required for current records and changes. Each published hostel website has its own name and icon. This is an installable web app, not an App Store download.", href: "/install", action: "Install hostel app" },
@@ -23,10 +24,22 @@ export function systemGuide(role: GuideRole): GuideTopic[] {
     { title: "Approve an existing resident account", terms: "registration register approve identity self activate pending", body: "Only owners and authorised admins can approve access. Open Tenant registration. Independently verify the requester in person or through the contact already on file, then select the matching resident and activate. Names, phone and current room must match. Existing or blocked accounts cannot be overwritten through self-registration. Requests expire after seven days.", href: "/students/registrations", action: "Verify registrations" },
     { title: "Staff access and system health", terms: "staff permissions role user access health healthfix failure error", body: "Owners and admins create individual staff accounts in Users & Permissions. Assign caretaker access to authorized caretakers or gate staff. HealthFix reports checks and permitted repairs; it does not prove every workflow or external delivery works. Staff must use their own accounts so visitor verifications are attributable.", href: "/users", action: "Users & Permissions" },
   );
-  return common;
+  return [...workflowGuide(role), ...common];
 }
 export function searchSystemGuide(topics: GuideTopic[], question: string) {
-  const words = question.toLowerCase().slice(0, 300).match(/[a-z]{3,}/g)?.filter(x => !["the", "how", "can", "does", "who", "what", "with", "this", "that", "have", "has", "and", "for", "someone"].includes(x)) ?? [];
-  if (!words.length) return topics;
-  return topics.map(topic => ({ topic, score: words.reduce((sum, word) => sum + Number(`${topic.title} ${topic.terms}`.toLowerCase().includes(word)), 0) })).filter(x => x.score).sort((a, b) => b.score - a.score).map(x => x.topic).slice(0, 4);
+  if (!question.trim()) return topics;
+  const workflow = systemWorkflowIntent(question);
+  if (workflow) return topics.filter(topic => topic.id === workflow);
+  const tokenize = (text: string) => text.toLowerCase().replace(/check(?:ed)?[ -]out/g, "checkout").replace(/check(?:ed)?[ -]in/g, "checkin")
+    .match(/[\p{L}]{3,}/gu)?.map(word => word.length > 4 ? word.replace(/s$/, "") : word) ?? [];
+  const stop = new Set(["the", "how", "can", "does", "who", "what", "with", "this", "that", "have", "has", "and", "for", "someone", "please", "want", "would", "should"]);
+  const generic = new Set(["room", "student", "tenant", "hostel", "system", "person"]);
+  const words = [...new Set(tokenize(question.slice(0, 1200)).filter(word => !stop.has(word)))];
+  // Whole words avoid e.g. "move" matching "remove", and a lone "room"
+  // must not recommend photographs to someone asking about a tenancy.
+  return topics.map(topic => {
+    const tokens = new Set(tokenize(`${topic.title} ${topic.terms}`));
+    const matches = words.filter(word => tokens.has(word));
+    return { topic, score: matches.some(word => !generic.has(word)) ? matches.reduce((sum, word) => sum + (generic.has(word) ? 1 : 3), 0) : 0 };
+  }).filter(item => item.score > 0).sort((a, b) => b.score - a.score).map(item => item.topic).slice(0, 4);
 }
