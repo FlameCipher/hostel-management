@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requestPropertyContext } from "@/lib/property-host";
 import { db } from "@/lib/db";
+import { getTenantSession } from "@/lib/auth/tenant-session";
+import { getTenantProfile } from "@/lib/student-profile";
+import type { StudentUpdateSession } from "@/lib/student-update-session";
 import { normalizeStudentDocument, normalizeStudentPhone, normalizeGuardianPhone, normalizeStudentLookupName } from "@/lib/student-identifiers";
 import { clearStudentUpdateSession, createStudentUpdateSession, getPublicLookupFingerprint, getStudentUpdateSession } from "@/lib/student-update-session";
 
@@ -57,6 +60,16 @@ export async function identifyStudentAction(_state: StudentLookupState, formData
 export async function submitStudentDetailsAction(_state: StudentDetailsSubmissionState, formData: FormData): Promise<StudentDetailsSubmissionState> {
   const session = await getStudentUpdateSession();
   if (!session) return { error: "Your update session has expired. Return to the first page and verify your details again." };
+  return submitDetailsForSession(session, formData, false);
+}
+
+export async function submitTenantDetailsAction(_state: StudentDetailsSubmissionState, formData: FormData): Promise<StudentDetailsSubmissionState> {
+  const student = await getTenantProfile(db, await getTenantSession());
+  if (!student) return { error: "Sign in to your active student account to confirm your record." };
+  return submitDetailsForSession({ studentId: student.id, organizationId: student.organizationId, submittedName: student.fullName, submittedPhone: student.phone }, formData, true);
+}
+
+async function submitDetailsForSession(session: StudentUpdateSession, formData: FormData, portal: boolean): Promise<StudentDetailsSubmissionState> {
   const parsed = submissionSchema.safeParse({
     email: formData.get("email") ?? "", admissionNumber: formData.get("admissionNumber") ?? "", nationalId: formData.get("nationalId") ?? "",
     guardianName: formData.get("guardianName"), guardianPhone: formData.get("guardianPhone"), guardianRelationship: formData.get("guardianRelationship"), guardianEmail: formData.get("guardianEmail") ?? "", consent: formData.get("consent"),
@@ -100,7 +113,8 @@ export async function submitStudentDetailsAction(_state: StudentDetailsSubmissio
     if ((error instanceof Error && error.message === "PENDING_EXISTS") || isPrismaError(error, "P2002")) return { error: "An update for this student is already waiting for review." };
     throw error;
   }
-  await clearStudentUpdateSession();
+  if (!portal) await clearStudentUpdateSession();
   revalidatePath("/students/update-requests");
-  redirect("/update-details/submitted");
+  revalidatePath("/tenant/profile");
+  redirect(portal ? "/tenant/profile" : "/update-details/submitted");
 }

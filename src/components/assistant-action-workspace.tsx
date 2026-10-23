@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import { createStudentAction } from "@/app/(app)/students/actions";
 import { recordPaymentAction } from "@/app/(app)/payments/actions";
+import { PaymentBalanceDueDate } from "@/components/payment-balance-due-date";
 import { currencyStep, formatMoney } from "@/lib/currency";
 
 export type AssistantStudentOption = { id: string; label: string; semesterRate: number };
@@ -41,6 +42,7 @@ export function AssistantActionWorkspace({ kind, data, onClose }: Props) {
   const [approved, setApproved] = useState(false);
   const [localError, setLocalError] = useState("");
   const [chargeId, setChargeId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("MPESA");
   const chosen = data.charges.find(charge => charge.id === chargeId);
   const pending = kind === "register" ? studentPending : paymentPending;
@@ -152,13 +154,13 @@ export function AssistantActionWorkspace({ kind, data, onClose }: Props) {
               {data.charges.map(item => <option key={item.id} value={item.id}>{item.studentName} · {item.roomNumber ? "Room " + item.roomNumber + " · " : ""}{item.period} · {formatMoney(item.balance, data.currency)} outstanding</option>)}
             </select>
           </label>
-          <label className="field-group"><span>Amount received ({data.currency}) *</span><input name="amount" type="number" min={currencyStep(data.currency)} step={currencyStep(data.currency)} required /></label>
+          <label className="field-group"><span>Amount received ({data.currency}) *</span><input name="amount" type="number" value={paymentAmount} onChange={event => { setPaymentAmount(event.target.value); reset(); }} max={chosen?.balance} min={currencyStep(data.currency)} step={currencyStep(data.currency)} required /></label>
           <label className="field-group"><span>Payment date *</span><input name="paidAt" type="date" defaultValue={today} required /></label>
           <label className="field-group"><span>Method *</span><select name="method" value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); reset(); }}>
             {["MPESA", "BANK_TRANSFER", "CASH", "CARD", "OTHER"].map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
           </select></label>
           <label className="field-group"><span>{["MPESA", "BANK_TRANSFER", "CARD"].includes(paymentMethod) ? "Verified transaction reference *" : "Reference (optional)"}</span><input name="reference" maxLength={100} required={["MPESA", "BANK_TRANSFER", "CARD"].includes(paymentMethod)} /></label>
-          <label className="field-group"><span>Next partial-balance due date (optional)</span><input name="nextBalanceDueDate" type="date" /></label>
+          <PaymentBalanceDueDate key={chargeId} balance={chosen?.balance} amount={paymentAmount} currency={data.currency} />
           <label className="field-group form-span-2"><span>Notes</span><textarea name="notes" maxLength={500} /></label>
         </div>
         {chosen && <p className="muted-note">Selected outstanding charge: {formatMoney(chosen.balance, data.currency)}. Only enter a payment already received by the hostel.</p>}

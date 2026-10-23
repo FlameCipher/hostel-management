@@ -63,7 +63,7 @@ export async function approveStudentUpdateAction(requestId: string, _state: Upda
     if (isPrismaError(error, "P2002")) return { error: "The submitted admission number or national ID now conflicts with another student.", success: "" };
     throw error;
   }
-  revalidatePath("/students"); revalidatePath("/students/update-requests");
+  revalidatePath("/students"); revalidatePath("/students/update-requests"); revalidatePath("/tenant/profile");
   return { error: "", success: "Student details approved and saved." };
 }
 
@@ -77,5 +77,6 @@ export async function rejectStudentUpdateAction(requestId: string, _state: Updat
   if (!result.count) return { error: "This request has already been reviewed or is unavailable.", success: "" };
   await db.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "STUDENT_DETAILS_UPDATE_REJECTED", entityType: "StudentDetailsUpdateRequest", entityId: requestId, metadata: { reason: parsed.data.reviewNotes } } });
   revalidatePath("/students/update-requests");
+  revalidatePath("/tenant/profile");
   return { error: "", success: "Update request rejected." };
 }

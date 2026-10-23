@@ -136,7 +136,9 @@ export async function generateReceiptPdf(data: ReceiptPdfData) {
     ["Reference", data.reference],
     ["Total charge", money(data.totalCharge)],
     ["Balance remaining", money(data.balanceRemaining)],
-    ["Next balance due", data.nextBalanceDue ?? "Fully paid"],
+    ...(data.balanceRemaining > 0
+      ? [["Next balance due", data.nextBalanceDue ?? "Contact management"]]
+      : [["Payment status", "Paid in full"]]),
   ];
   details.forEach(([label, value], index) => {
     const column = index % 2;
