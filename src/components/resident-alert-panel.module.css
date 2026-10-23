@@ -33,3 +33,21 @@
 @media (min-width: 600px) { .tiles { grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); } .tile { min-height: 78px; } }
 @media (max-width: 360px) { .panel { padding: 16px; } .header { gap: 8px; } .statusIcon { display: none; } .tile { padding: 11px; } }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+.compact { min-width: 0; border: 1px solid #dce4e8; border-radius: 12px; background: white; color: #344753; }
+.compact summary { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 12px 16px; font-size: 14px; font-weight: 600; list-style: none; cursor: pointer; }
+.compact summary::-webkit-details-marker { display: none; }
+.compact summary > svg { flex-shrink: 0; }
+.compact .count { margin-left: auto; font-size: 12px; font-weight: 500; color: #60717d; text-align: right; }
+.compact .pendingCount { padding: 4px 8px; border-radius: 6px; background: #fff3de; color: #865c1f; }
+.compact details[open] > summary > .chevron { transform: rotate(180deg); }
+.compactBody { padding: 0 16px 6px; }
+.compactBody > a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 0; border-top: 1px solid #e7ecef; font-size: 14px; color: #344753; text-decoration: none; }
+.compactBody > a > span { flex: 1; }
+.compactBody > a:hover > span { text-decoration: underline; }
+.compactBody > p { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; color: #60717d; }
+.compactBody > .compactError { color: #943e3e; }
+.compactFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: #60717d; }
+.compactFooter button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px; background: transparent; border: 0; border-radius: 6px; color: #526d7e; font: inherit; cursor: pointer; }
+.compactFooter button:disabled { opacity: .6; cursor: wait; }
+.compact a:focus-visible, .compact button:focus-visible, .compact summary:focus-visible { outline: 3px solid #597a91; outline-offset: 3px; }
+@media (max-width: 360px) { .compact summary { gap: 8px; padding: 12px; font-size: 13px; } .compact .count { font-size: 11px; } }
