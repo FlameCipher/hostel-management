@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CheckCheck, CircleAlert, RefreshCw } from "lucide-react";
+import { ArrowUpRight, CheckCheck, ChevronDown, CircleAlert, RefreshCw } from "lucide-react";
 import type { ResidentAlertSummary } from "@/lib/resident-alerts";
 import styles from "./resident-alert-panel.module.css";
 
-export function ResidentAlertPanel({ tenant = false }: { tenant?: boolean }) {
+export function ResidentAlertPanel({ tenant = false, compact = false, canVerifyRegistrations = true }: { tenant?: boolean; compact?: boolean; canVerifyRegistrations?: boolean }) {
   const [data, setData] = useState<ResidentAlertSummary | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -34,14 +34,26 @@ export function ResidentAlertPanel({ tenant = false }: { tenant?: boolean }) {
     const timer = setInterval(() => { if (!document.hidden) void refresh(controller.signal); }, 60000);
     return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
   }, [refresh]);
-  const total = data ? data.overdueCount + data.pendingVisits + (data.awaitingManagement ?? 0) + (data.pendingRegistrations ?? 0) + (data.unreadMessages ?? 0) : null;
+  const total = data ? data.overdueCount + data.pendingVisits + (data.awaitingManagement ?? 0) + (canVerifyRegistrations ? data.pendingRegistrations ?? 0 : 0) + (data.unreadMessages ?? 0) : null;
   const items = data ? [
     { value: data.overdueCount, label: "Overdue check-outs", accessible: "check-out overdue", href: tenant ? "/tenant/visitors" : "/visitors?filter=OVERDUE", warning: true },
     { value: data.pendingVisits, label: "Visitor requests", accessible: "visitor requests", href: tenant ? "/tenant/visitors" : "/visitors" },
     { value: data.awaitingManagement, label: "Inbox to reply", accessible: "conversations awaiting management", href: "/communications/inbox" },
-    { value: data.pendingRegistrations, label: "Accounts to verify", accessible: "registrations to verify", href: "/students/registrations" },
+    { value: canVerifyRegistrations ? data.pendingRegistrations : null, label: "Accounts to verify", accessible: "registrations to verify", href: "/students/registrations" },
     { value: data.unreadMessages, label: "Unread notices", accessible: "unread notices", href: "/tenant/messages" },
   ].filter(item => item.value !== null) : [];
+  if (compact) return <section className={styles.compact} aria-label="Live resident alerts" aria-busy={refreshing}>
+    <details>
+      <summary><CircleAlert size={19} aria-hidden="true"/><span>Resident requests</span><span className={`${styles.count} ${total ? styles.pendingCount : ""}`} aria-live="polite">{error ? "Unavailable" : total === null ? "Loading…" : `${total} pending`}</span><ChevronDown className={styles.chevron} size={18} aria-hidden="true"/></summary>
+      <div className={styles.compactBody}>
+        {error ? <p className={styles.compactError}>{error} Use refresh to try again.</p> : data ? <>
+          {items.filter(item => (item.value ?? 0) > 0).map(item => <Link key={item.label} href={item.href} aria-label={`${item.value} ${item.accessible}`}><span>{item.label}</span><strong>{item.value}</strong><ArrowUpRight size={16} aria-hidden="true"/></Link>)}
+          {total === 0 && <p>No pending resident requests.</p>}
+        </> : <p>Loading current records…</p>}
+        <div className={styles.compactFooter}><span>{data ? `Updated ${new Date(data.observedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}` : "Live updates"}</span><button type="button" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={15} aria-hidden="true"/>{refreshing ? "Refreshing…" : "Refresh"}</button></div>
+      </div>
+    </details>
+  </section>;
   return <section className={styles.panel} aria-label="Live resident alerts" aria-busy={refreshing}>
     <header className={styles.header}><span className={`${styles.statusIcon} ${total ? styles.needsAction : total === 0 ? styles.clear : ""}`}>{total === 0 ? <CheckCheck aria-hidden="true" size={19}/> : <CircleAlert aria-hidden="true" size={19}/>}</span><div aria-live="polite"><h2 className={styles.title}>{total ? "Follow-up needed" : "Resident activity"}</h2><p className={styles.subtitle}>{total === null ? "Your latest hostel activity" : total === 0 ? "No pending resident alerts" : `${total} ${total === 1 ? "item needs" : "items need"} your attention`}</p></div><button type="button" className={styles.refresh} title="Refresh alerts" aria-label="Refresh alerts" disabled={refreshing} onClick={() => void refresh()}><RefreshCw aria-hidden="true" size={17} className={refreshing ? styles.spinning : undefined}/></button></header>
     {error ? <p role="alert" className={styles.error}>{error} Use refresh to try again.</p> : data ? <>
