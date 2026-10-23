@@ -14,5 +14,5 @@ export default async function ActivatePage({params}:{params:Promise<{token:strin
    if(context.shared || isLegacyHost(context.host)) redirect(`https://${invitation.activationHost}/tenant/activate/${encodeURIComponent(token)}`);
    invitation=null;
  }
- return <main className="marketing-section"><h1>Create your tenant account</h1>{invitation?<TenantActivationForm token={token}/>:<section className="panel entity-form"><p>This private invitation is unavailable, expired or already used. Contact management for a new link.</p><Link className="secondary-button" href="/tenant/login">Student sign in</Link></section>}</main>;
+ return <main className="marketing-section"><h1>Activate access to your student record</h1><p>Your landlord has already enrolled you. Set your password, then sign in to review and complete your details.</p>{invitation?<TenantActivationForm token={token}/>:<section className="panel entity-form"><p>This private invitation is unavailable, expired or already used. Contact management for a new link.</p><Link className="secondary-button" href="/tenant/login">Student sign in</Link></section>}</main>;
 }
