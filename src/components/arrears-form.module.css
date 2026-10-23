@@ -1,0 +1,45 @@
+.page { max-width: 1040px; margin: 0 auto; display: grid; gap: 20px; color: #344753; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+.heading h1 { margin: 0 0 8px; font-size: 28px; }
+.heading p, .note { color: #60717d; line-height: 1.5; font-size: 14px; margin: 4px 0; }
+.page a { color: #415f73; }
+.form { display: grid; gap: 16px; min-width: 0; }
+.toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.search { display: grid; flex: 1; gap: 8px; min-width: 200px; font-size: 14px; }
+.search input { width: 100%; min-height: 46px; border: 1px solid #cbd7df; border-radius: 10px; background: white; padding: 10px 12px; font: inherit; }
+.selection { display: flex; gap: 8px; }
+.selection button, .tenantFooter button, .linkButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd7df; border-radius: 9px; background: white; color: #344753; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; }
+.sendBox { display: grid; gap: 12px; padding: 18px; border: 1px solid #dce4e8; border-radius: 12px; background: white; }
+.sendBox > span, .sendBox p { color: #60717d; font-size: 13px; line-height: 1.5; margin: 0; }
+.channels { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.channels label, .automation label { display: flex; align-items: center; gap: 9px; min-height: 44px; font-size: 14px; }
+.form input[type=checkbox], .automation input[type=checkbox] { width: 20px; height: 20px; flex-shrink: 0; accent-color: #344753; }
+.primary { display: inline-flex; justify-content: center; align-items: center; gap: 8px; border: 0; border-radius: 9px; padding: 12px 16px; min-height: 46px; background: #344753; color: white; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.form button:disabled, .automation button:disabled { opacity: .55; cursor: not-allowed; }
+.list { display: grid; gap: 12px; }
+.tenant { min-width: 0; padding: 18px; background: white; border: 1px solid #dce4e8; border-radius: 12px; }
+.tenantHeader { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.tenantHeader > span { display: grid; flex: 1; min-width: 0; gap: 6px; }
+.tenantHeader strong { font-size: 14px; overflow-wrap: anywhere; }
+.tenantHeader small { color: #60717d; font-size: 12px; line-height: 1.5; }
+.amount { max-width: 40%; text-align: right; font-variant-numeric: tabular-nums; }
+.tenantFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.tenantFooter > span { font-size: 12px; line-height: 1.5; color: #60717d; }
+.tenantFooter button { flex-shrink: 0; }
+.tenant details { border-top: 1px solid #e7ecef; margin-top: 12px; }
+.tenant summary, .automation summary { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; font-size: 13px; list-style: none; }
+.tenant summary svg { margin-left: auto; }
+.tenant summary::-webkit-details-marker, .automation summary::-webkit-details-marker { display: none; }
+.preview { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; margin: 8px 0 16px; }
+.tenant details > a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+.automation { border: 1px solid #dce4e8; background: white; border-radius: 12px; padding: 6px 18px; }
+.automation summary { min-height: 48px; font-size: 15px; font-weight: 600; }
+.automation summary span { margin-left: auto; font-size: 13px; }
+.automation form { display: grid; gap: 8px; padding: 8px 0 14px; }
+.automation p { font-size: 13px; line-height: 1.6; color: #60717d; }
+.error, .success { padding: 14px; border-radius: 10px; line-height: 1.6; font-size: 14px; overflow-wrap: anywhere; }
+.error { background: #fff1f0; color: #8d3030; }
+.success { background: #edf5f0; color: #315f46; }
+.empty { padding: 24px; text-align: center; background: white; border-radius: 12px; color: #60717d; }
+.page :is(a,button,input,summary):focus-visible { outline: 3px solid #597a91; outline-offset: 3px; }
+@media(max-width:420px) { .tenant { padding: 14px; } .tenantHeader { gap: 8px; } .tenantHeader strong { font-size: 13px; } .amount { max-width: 38%; } }

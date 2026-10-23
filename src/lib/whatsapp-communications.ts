@@ -1,3 +1,4 @@
+import { refreshArrearsNotification } from "@/lib/arrears-reminders";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -76,7 +77,7 @@ export async function actOnManualNotification(database: PrismaClient, session: S
   return database.$transaction(async tx => {
     if (!await lockedManager(tx, session)) return { error: "Only active management can manage messages." };
     await tx.$queryRaw`SELECT id FROM "Notification" WHERE id=${id} AND "organizationId"=${session.organizationId} FOR UPDATE`;
-    const item = await tx.notification.findFirst({ where: { id, organizationId: session.organizationId } });
+    let item = await tx.notification.findFirst({ where: { id, organizationId: session.organizationId } });
     const automatic = await tx.whatsAppDelivery.findFirst({ where: { notificationId: id, organizationId: session.organizationId } });
     if (automatic && ["SENDING", "ACCEPTED", "SENT", "DELIVERED", "READ", "REVIEW"].includes(automatic.status)) return { error: "This message is being handled by the business sender. Check automatic delivery status before attempting a manual send." };
     if (automatic && ["OPEN", "CANCEL"].includes(action)) await tx.whatsAppDelivery.update({ where: { id: automatic.id }, data: { status: "CANCELLED" } });
@@ -84,6 +85,10 @@ export async function actOnManualNotification(database: PrismaClient, session: S
     const org = await tx.organization.findUniqueOrThrow({ where: { id: session.organizationId }, select: { whatsappEnabled: true, smsEnabled: true } });
     if (action !== "CANCEL" && !(item.channel === "WHATSAPP" ? org.whatsappEnabled : org.smsEnabled)) return { error: "This channel is disabled in Settings." };
     if (action === "SENT" && item.status !== "OPENED_FOR_SENDING") return { error: "Open the draft and send it in WhatsApp or SMS before marking it sent." };
+    if (action === "OPEN") {
+      item = await refreshArrearsNotification(tx, item);
+      if (!item) return { error: "This payment request was cancelled because the overdue balance is cleared, expired or needs review." };
+    }
     let url: string | undefined;
     if (action === "OPEN") {
       const properties = await messagingProperties(tx, session.organizationId), country = messagingCountry(properties, session.organizationId);
