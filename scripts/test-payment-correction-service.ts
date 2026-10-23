@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "../src/generated/prisma/client";
+import { mock } from "node:test";
+import type { PrismaClient, Prisma } from "../src/generated/prisma/client";
 import type { SessionPayload } from "../src/lib/auth/session";
 import { correctRecordedPaymentAmount } from "../src/lib/payment-amount-correction";
+import { refreshChargeStatus } from "../src/lib/payment-balance";
 
 const session: SessionPayload={
   userId:"owner",organizationId:"hostel",name:"Owner",role:"OWNER",sessionVersion:1,
@@ -59,6 +61,8 @@ const db={
 } as unknown as PrismaClient;
 
 async function run() {
+  // This fixture is before the charge deadline regardless of the build date.
+  mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-10T12:00:00.000Z") });
   const updated=await correctRecordedPaymentAmount(db,session,{
     paymentId:original.id,originalAmount:9500,
     correctedAmount:9000,reason:"Confirmed original receipt was overstated by KES 500",
@@ -87,6 +91,9 @@ async function run() {
   }),/PAYMENT_ALREADY_REVERSED/);
   assert.equal(nextSequence,44,"A repeat must never consume another receipt number.");
   assert.equal(auditEvents.length,2);
+  mock.timers.setTime(Date.parse("2026-10-21T12:00:00.000Z"));
+  await refreshChargeStatus(mockTx as unknown as Prisma.TransactionClient, "charge-1");
+  assert.equal(chargeStatus,"OVERDUE","The same unpaid balance becomes overdue after its deadline.");
   console.log("Atomic payment correction mock and retry safeguards passed");
 }
-run().catch(error=>{console.error(error);process.exitCode=1;});
+run().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>mock.timers.reset());
