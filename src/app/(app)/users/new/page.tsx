@@ -26,10 +26,12 @@ export default async function NewUser({
         <p>Confirm the employee's real name and contact, assign CARETAKER / SECURITY,
           and provide a private temporary password. This role is for operational
           gate work only, not landlord finance or user administration.
-          The account is created only after you submit this form.</p>
+          No login is created until the authorized owner or administrator verifies the staff identity, chooses a private temporary password and submits this form. Duty hours are only planned coverage, not proof of attendance.</p>
       </div>
     </div>:null}
     <UserForm canAssignOwner={session.role==="OWNER"} defaultRole={defaultRole}
-      defaultTimeZone={context.property?.timeZone ?? (session.organizationId === "mama-mbugua-hostel" ? "Africa/Nairobi" : "UTC")}/>
+      defaultTimeZone={context.property?.timeZone ?? (session.organizationId === "mama-mbugua-hostel" ? "Africa/Nairobi" : "UTC")}
+      defaultDutyStart={defaultRole==="CARETAKER" && session.organizationId==="mama-mbugua-hostel" ? "06:00" : ""}
+      defaultDutyEnd={defaultRole==="CARETAKER" && session.organizationId==="mama-mbugua-hostel" ? "22:00" : ""}/>
   </div>;
 }
