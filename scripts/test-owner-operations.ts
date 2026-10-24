@@ -33,3 +33,15 @@ test("dashboard reads tenant-isolated scoped counts and owner-only summary",()=>
  assert.match(view,/Account approvals remain individual/);
  assert.doesNotMatch(view,/activateInvitation\(|sendWhatsAppTemplate\(|deliverPaymentReceipt\(/);
 });
+
+test("unverified private application backup appears only when explicitly scoped",()=>{
+ const base={inactivePortals:0,pendingApplications:0,pendingReceipts:0,activeCaretakers:1};
+ assert.deepEqual(ownerOperationLinks({...base,backupNeedsAttention:true}).map(x=>x.key),["backup"]);
+ assert.equal(ownerOperationLinks({...base,backupNeedsAttention:true})[0].href,"/healthfix");
+ assert.deepEqual(ownerOperationLinks({...base,backupNeedsAttention:false}),[]);
+ const source=readFileSync("src/app/(app)/dashboard/page.tsx","utf8");
+ assert.match(source,/canReviewBackup=canReviewOperations && session.organizationId==="mama-mbugua-hostel"/);
+ assert.match(source,/canReviewBackup \? db.operationalRun.findFirst/);
+ assert.match(source,/backupEvidenceStatus\(lastBackup\)!=="PASSING"/);
+ assert.match(source,/BACKUP_BLOB_STORE_ID\?\.trim\(\)/);
+});
