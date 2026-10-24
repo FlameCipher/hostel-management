@@ -8,6 +8,7 @@ import { tenantWhere } from "./communications";
 import { newReceiptLink } from "./short-receipt-link";
 import { propertyTenantLogin } from "./whatsapp-policy";
 import { approvedSingleBodyTemplate, verifiedHostelSender } from "./whatsapp-sender-policy";
+import { allowWhatsAppProviderTransition } from "./whatsapp-webhook-status-policy";
 
 export function webhookSignature(body:string,signature:string|null,secret=process.env.WHATSAPP_APP_SECRET){
  if(!secret||!signature||!/^sha256=[a-f0-9]{64}$/.test(signature))return false;
@@ -94,6 +95,17 @@ export async function runWhatsAppDelivery(db:PrismaClient,send=sendWhatsAppTempl
 }
 export async function recordWhatsAppStatus(db:PrismaClient,phoneNumberId:string,status:{id?:string;status?:string;recipient_id?:string}){
  if(!status.id||!status.recipient_id)return;
- const rank:Record<string,number>={ACCEPTED:0,SENT:1,DELIVERED:2,READ:3};const value=(status.status??"").toUpperCase();if(!["SENT","DELIVERED","READ","FAILED"].includes(value))return;
- await db.$transaction(async tx=>{await tx.$queryRaw`SELECT id FROM "WhatsAppDelivery" WHERE "providerId"=${status.id} AND "phoneNumberId"=${phoneNumberId} FOR UPDATE`;const item=await tx.whatsAppDelivery.findFirst({where:{providerId:status.id,phoneNumberId,recipient:status.recipient_id}});if(!item||rank[item.status]>=(rank[value]??-1)&&value!=="FAILED"||value==="FAILED"&&["DELIVERED","READ"].includes(item.status))return;await tx.whatsAppDelivery.update({where:{id:item.id},data:{status:value,...(["DELIVERED","READ"].includes(value)?{deliveredAt:item.deliveredAt??new Date()}:{}),...(value==="READ"?{readAt:new Date()}:{}),error:value==="FAILED"?"Meta reported delivery failure.":null}});});
+ const value=(status.status??"").toUpperCase();
+ if(!["SENT","DELIVERED","READ","FAILED"].includes(value))return;
+ await db.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT id FROM "WhatsAppDelivery" WHERE "providerId"=${status.id} AND "phoneNumberId"=${phoneNumberId} FOR UPDATE`;
+  const item=await tx.whatsAppDelivery.findFirst({where:{providerId:status.id,phoneNumberId,recipient:status.recipient_id}});
+  if(!item||!allowWhatsAppProviderTransition(item.status,value))return;
+  await tx.whatsAppDelivery.update({where:{id:item.id},data:{
+    status:value,
+    ...(["DELIVERED","READ"].includes(value)?{deliveredAt:item.deliveredAt??new Date()}:{}),
+    ...(value==="READ"?{readAt:item.readAt??new Date()}:{}),
+    error:value==="FAILED"?"Meta reported delivery failure.":null,
+  }});
+ });
 }
