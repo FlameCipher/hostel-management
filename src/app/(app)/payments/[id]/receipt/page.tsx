@@ -73,7 +73,7 @@ export default async function PaymentReceiptPage({
   const canCorrect=["OWNER","ADMIN"].includes(session.role) && !payment.reversedAt;
   const canEmail=["OWNER","ADMIN","MANAGER"].includes(session.role) && !payment.reversedAt && !!payment.student.email?.trim() && !(payment.receiptDeliveryChannel==="EMAIL"&&payment.receiptDeliveryStatus==="SENT");
   const emailStatus = !payment.student.email ? "No email recorded."
-    : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Receipt emailed."
+    : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Email accepted by provider; inbox delivery not independently confirmed."
     : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed."
     : payment.receiptDeliveryStatus === "PENDING" ? "Receipt is awaiting delivery."
     : "Email not sent.";
@@ -103,7 +103,7 @@ export default async function PaymentReceiptPage({
       {paramsQuery.delivery==="email" ? <p className="review-success print-hidden" role="status">The email provider accepted this receipt for delivery.</p>:null}
       {paramsQuery.delivery==="in-progress" ? <p className="muted-note print-hidden" role="status">An email delivery attempt is already processing. Check the status before trying again.</p>:null}
       {paramsQuery.delivery==="failed" ? <p className="form-error print-hidden" role="alert">The receipt was saved, but email delivery failed. Check the delivery status before retrying.</p>:null}
-      {paramsQuery.delivery==="already-sent" ? <p className="review-success print-hidden" role="status">This receipt was already emailed; no duplicate was sent.</p>:null}
+      {paramsQuery.delivery==="already-sent" ? <p className="review-success print-hidden" role="status">This receipt was already accepted by the email provider; no duplicate was sent.</p>:null}
       {paramsQuery.delivery==="no-email" ? <p className="form-error print-hidden" role="alert">No student email is recorded for this receipt.</p>:null}
       <p className="receipt-email-status print-hidden" role="status">{emailStatus}</p>
       {payment.reversedAt && replacementPaymentId ? <p className="print-hidden" role="status">
