@@ -14,7 +14,13 @@ export async function saveWhatsAppConnection(_state:{error?:string;success?:stri
  if(form.get("pause")==="true"){await db.whatsAppConnection.updateMany({where:{organizationId:session.organizationId},data:{enabled:false}});revalidatePath("/communications/whatsapp");return {success:"Automatic WhatsApp sending is paused."};}
  const parsed=schema.safeParse(Object.fromEntries(form));if(!parsed.success)return {error:"Enter the sender, business account, approved template and current Meta API version."};
  const enabled=form.get("enabled")==="on";if(enabled&&!(process.env.WHATSAPP_APP_SECRET&&process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN))return {error:"The platform's Meta webhook connection must be configured before automatic delivery can be enabled. You can save the sender with automatic delivery unchecked."};
- try{await storeWhatsAppConnection(db,session.organizationId,parsed.data,enabled);await db.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"WHATSAPP_SENDER_CONFIGURED",entityType:"Organization",entityId:session.organizationId,metadata:{enabled}}});revalidatePath("/communications/whatsapp");return {success:enabled?"Sender verified. Future eligible messages can now be sent automatically to opted-in recipients.":"Sender verified and saved. Automatic delivery is paused."};}catch{return {error:"Meta could not verify the sender and approved template. Check the IDs, token permissions, API version and template language. Existing settings were kept."};}
+ try{await storeWhatsAppConnection(db,session.organizationId,parsed.data,enabled);await db.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"WHATSAPP_SENDER_CONFIGURED",entityType:"Organization",entityId:session.organizationId,metadata:{enabled}}});revalidatePath("/communications/whatsapp");return {success:enabled?"Sender verified. Future eligible messages can now be sent automatically to opted-in recipients.":"Sender verified and saved. Automatic delivery is paused."};}catch(error){
+  if(error instanceof Error && error.message==="HOSTEL_WHATSAPP_SENDER_MISMATCH")
+    return {error:"Meta verified a different phone number. MMAMBUGUA HOSTEL is authorized to use 0726 717 120. Select that actual number in Meta without deregistering your WhatsApp Business app."};
+  if(error instanceof Error && error.message==="APPROVED_TEMPLATE_REQUIRED")
+    return {error:"The Meta template is not approved for this language, or it does not contain exactly one text body variable ({{1}}). Check the template in the correct Messaging Account."};
+  return {error:"Meta could not verify the sender and approved template. Check the IDs, token permissions, API version and template language. Existing settings were kept."};
+ }
 }
 export async function recordWhatsAppPermission(form:FormData){
  const session=await requireSession(),staff=await residentStaff(db,session,true);if(!staff)return;
