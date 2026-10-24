@@ -30,7 +30,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     reversedAt: null,
     receiptDeliveryStatus: {in: ["PENDING", "FAILED", "ACTION_REQUIRED"] as const},
   };
-  const [charges, payments, deliveryQueue, deliveryTotal] = await Promise.all([
+  const [charges, payments, deliveryQueue, deliveryTotal, deliveryNeedsEmail] = await Promise.all([
     db.charge.findMany({ where: { organizationId: session.organizationId }, include: { student: true, semester: true, occupancy: {include: {room: {include: {roomType: true}}}}, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, ...(query ? { OR: [{ reference: { contains: query, mode: "insensitive" } }, { receiptNumber: { contains: query, mode: "insensitive" } }, { student: { fullName: { contains: query, mode: "insensitive" } } }] } : {}) }, include: { student: true, charge: { include: { semester: true } }, mpesaTransaction: true }, orderBy: { paidAt: "desc" }, take: query ? 100 : 20 }),
     canManage ? db.payment.findMany({
@@ -44,6 +44,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     }) : Promise.resolve([]),
     canManage ? db.payment.count({
       where: {...deliveryWhere, receiptDeliveryStatus: {in: ["PENDING", "FAILED", "ACTION_REQUIRED"]}},
+    }) : Promise.resolve(0),
+    canManage ? db.payment.count({
+      where: {...deliveryWhere, OR: [
+        {student: {email: null}},
+        {student: {email: ""}},
+      ]},
     }) : Promise.resolve(0),
   ]);
   const rows = charges.map((item) => {
@@ -78,7 +84,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <div>
           <p className="panel-kicker">Receipt communications</p>
           <h2>Receipts awaiting delivery · {deliveryTotal}</h2>
-          <p className="muted-note">Send PDF receipts by email or open WhatsApp to share. A WhatsApp composer is not proof of delivery. Reversed receipts are excluded.</p>
+          <p className="muted-note">Of the {deliveryTotal} receipts needing follow-up, <strong>{deliveryNeedsEmail} need a student email address</strong> and {deliveryTotal - deliveryNeedsEmail} have an email on file. Confirm each address before sending. WhatsApp drafts are not proof of delivery; reversed receipts are excluded.</p>
         </div>
         <Link className="secondary-button no-underline" href={expandedDelivery ? "/payments" : "/payments?delivery=all"}>
           {expandedDelivery ? "Show fewer" : "Review all receipts"}
@@ -115,6 +121,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             <td>{money(Number(payment.amount))}</td>
             <td><span className={`status-pill ${payment.receiptDeliveryStatus === "FAILED" ? "status-maintenance" : "status-partial"}`}>{workflow.label}</span></td>
             <td><div className="row-actions">
+              {!payment.student.email?.trim() ? <Link className="table-action" href={`/students/${payment.student.id}/edit`}>Add student email</Link> : null}
               {workflow.emailAvailable ? <form action={emailPendingReceiptAction.bind(null,payment.id)}>
                 <button className="table-action" type="submit"><Mail size={14}/> Email PDF</button>
               </form> : null}
