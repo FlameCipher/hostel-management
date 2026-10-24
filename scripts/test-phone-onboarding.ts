@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildPhoneOnboardingDraft, pendingPhoneClaim, type PhoneOnboardingInput } from "../src/lib/phone-onboarding";
+import { buildPhoneOnboardingDraft, pendingPhoneClaim, sharedStudentAccountLink, type PhoneOnboardingInput } from "../src/lib/phone-onboarding";
 import { readFileSync } from "node:fs";
 
 function sample(overrides: Partial<PhoneOnboardingInput> = {}): PhoneOnboardingInput {
@@ -135,4 +135,30 @@ test("all-eligible mobile review uses student pagination and shows provider-acce
   assert.match(page,/pendingPhoneClaim\(/);
   assert.doesNotMatch(page,/db\.tenantPortalInvitation\.findMany\(\{/);
   assert.doesNotMatch(page,/sendWhatsapp|publishCommunication\(/);
+});
+
+test("safe shared student link is one public property link with no bearer token", () => {
+  const property={name:"MMAMBUGUA HOSTEL",customDomain:"mmambugua.studentshostels.com",active:true,publicListing:true};
+  const result=sharedStudentAccountLink([property]);
+  assert.equal(result?.url,"https://mmambugua.studentshostels.com/tenant/register");
+  assert.match(result?.message??"",/existing students only/i);
+  assert.match(result?.message??"",/management will independently verify/i);
+  assert.match(result?.message??"",/account activation is free/i);
+  assert.doesNotMatch(result?.message??"",/\/tenant\/activate\/|\btokenHash\b|\bRoom 54\b/i);
+  assert.equal(sharedStudentAccountLink([{...property,customDomain:"evil.example.org"}]),null);
+  assert.equal(sharedStudentAccountLink([{...property,active:false}]),null);
+  assert.equal(sharedStudentAccountLink([property,property]),null);
+  assert.equal(sharedStudentAccountLink([]),null);
+});
+
+test("the management link is scoped, owner-controlled, and does not automatically message residents", () => {
+  const page=readFileSync("src/app/(app)/communications/invitations/mobile/page.tsx","utf8");
+  const component=readFileSync("src/components/student-access-share.tsx","utf8");
+  assert.match(page,/invitationManager\(db, session\)/);
+  assert.match(page,/sharedStudentAccountLink\(publishedProperties\)/);
+  assert.match(page,/organizationId: session.organizationId, active: true, publicListing: true/);
+  assert.match(page,/take: 2/);
+  assert.match(component,/navigator\.clipboard\?\.writeText/);
+  assert.match(component,/Every new request still needs independent identity verification/);
+  assert.doesNotMatch(component,/sendWhatsapp|sendEmail|activateInvitation/);
 });
