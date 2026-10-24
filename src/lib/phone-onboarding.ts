@@ -75,3 +75,28 @@ export function buildPhoneOnboardingDraft(input: PhoneOnboardingInput): PhoneOnb
   const message = `Hello. This is a private account access notice from ${name} management. If you are currently staying at this hostel, open ${url} to request your own student account. Enter your real registered full name, registered mobile number, current room and a password that you choose. Management must verify your identity before access is enabled. Never send anyone your password, payment PIN or verification code. If this message is unexpected, contact the hostel directly.`;
   return { ready: true, host, url, whatsappHref: whatsappLink(number, message), phoneDigits: number, roomNumber: stay.roomNumber };
 }
+
+/** Safe one-link handout for exactly one published property within the signed-in landlord.
+ * The link is public and does not activate, match, or expose any student record.
+ */
+export function sharedStudentAccountLink(
+  properties: readonly {name:string;customDomain:string|null;active:boolean;publicListing:boolean}[],
+) {
+  const published=properties.filter(property=>property.active && property.publicListing);
+  if (published.length!==1) return null;
+  const property=published[0],host=managedPropertyHost(property.customDomain);
+  const name=property.name.trim().replace(/[\r\n]+/g," ").slice(0,120);
+  if (!host || !name) return null;
+  const url=`https://${host}/tenant/register`;
+  const login=`https://${host}/tenant/login`;
+  const message=`${name} — Existing students only
+
+Management has already registered your student record. To request online access, open: ${url}
+
+Use the same full name, mobile number and current room recorded by the hostel. Choose your own password. Management will independently verify your identity before access is enabled. You will then be able to confirm your personal details, view your rent statement and access payment receipts.
+
+If you already have an active account or an invitation link, use that to sign in: ${login}
+
+Account activation is free. Never share your password, M-Pesa PIN or verification codes. Contact hostel management if your details do not match.`;
+  return {url,message};
+}
