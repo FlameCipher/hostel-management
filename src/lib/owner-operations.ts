@@ -4,14 +4,20 @@ export type OwnerOperationsCounts={
   pendingApplications:number;
   pendingReceipts:number;
   activeCaretakers:number;
+  backupNeedsAttention?:boolean;
 };
-export type OwnerOperation={key:"registration"|"accounts"|"receipts"|"caretaker";href:string;label:string;detail:string};
+export type OwnerOperation={key:"backup"|"registration"|"accounts"|"receipts"|"caretaker";href:string;label:string;detail:string};
 export function ownerOperationLinks(input:OwnerOperationsCounts):OwnerOperation[]{
   const out:OwnerOperation[]=[];
   const count=(value:number)=>Number.isSafeInteger(value)&&value>0?value:0;
   const applicants=count(input.pendingApplications);
   const inactive=count(input.inactivePortals);
   const receipts=count(input.pendingReceipts);
+  if(input.backupNeedsAttention===true)out.push({
+    key:"backup",href:"/healthfix",
+    label:"Private application backup needs verification",
+    detail:"Check the private storage connection and a recent full-archive readback. Database snapshots are separate.",
+  });
   if(applicants)out.push({
     key:"registration",href:"/students/registrations",
     label:`${applicants} registration application${applicants===1?"":"s"} to review`,

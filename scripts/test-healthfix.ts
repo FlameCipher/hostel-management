@@ -19,6 +19,24 @@ test('backup destination readiness is separate from any real private backup read
  assert.equal(recovery.checks.find(c=>c.code==='restore')?.status,'UNKNOWN');
  assert.ok(!JSON.stringify(selected).includes('store-fixture-private'));
 });
+test('backup monitoring never treats provider status without full archive evidence as healthy',async()=>{
+ const complete={status:'COMPLETED',createdAt:now,completedAt:now,
+   metadata:{readbackVerified:true,archiveSha256:'a'.repeat(64)}};
+ const check=async(run:unknown)=>{
+  const fake={...reads().db,operationalRun:{
+    findFirst:async({where}:{where:{kind:string}})=>where.kind==='BACKUP'?run:null,
+  }} as unknown as PrismaClient;
+  const report=await collectHealthfix(fake,'one',now,env);
+  return report.modules.find(m=>m.code==='recovery')!.checks.find(c=>c.code==='backup')?.status;
+ };
+ assert.equal(await check(complete),'PASSING');
+ assert.equal(await check({...complete,metadata:{readbackVerified:true}}),'WARNING');
+ assert.equal(await check({...complete,metadata:{readbackVerified:true,archiveSha256:'not-hash'}}),'WARNING');
+ assert.equal(await check({...complete,metadata:{readbackVerified:false,archiveSha256:'a'.repeat(64)}}),'WARNING');
+ assert.equal(await check({...complete,completedAt:new Date(now.getTime()-27*3600000)}),'WARNING');
+ assert.equal(await check({...complete,status:'FAILED'}),'FAILING');
+ assert.equal(await check(null),'UNKNOWN');
+});
 test('failed module read preserves other checks without leaking database details',async()=>{const report=await collectHealthfix(reads('occupancy').db,'one',now,env);assert.equal(report.modules.find(m=>m.code==='bookings')?.status,'DEGRADED');assert.equal(report.modules.find(m=>m.code==='database')?.status,'HEALTHY');assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(report).includes('PRIVATE_DATABASE_ERROR'))});
 test('database outage yields degraded report instead of an invented healthy result',async()=>{const report=await collectHealthfix(reads('database').db,undefined,now,env);assert.equal(report.modules.find(m=>m.code==='database')?.status,'DEGRADED');assert.equal(report.status,'DEGRADED')});
 test('missing configuration fails explicitly and report contains no configuration values',async()=>{const report=await collectHealthfix(reads().db,'one',now,{});assert.equal(report.status,'DEGRADED');assert.ok(!JSON.stringify(await collectHealthfix(reads().db,'one',now,env)).includes('fake-long-session-secret'))});
