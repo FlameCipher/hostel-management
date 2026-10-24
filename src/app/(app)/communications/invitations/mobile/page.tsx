@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { invitationManager, inviteCandidateWhere } from "@/lib/portal-invitations";
-import { buildPhoneOnboardingDraft, pendingPhoneClaim, type PhoneOnboardingStay } from "@/lib/phone-onboarding";
+import { buildPhoneOnboardingDraft, pendingPhoneClaim, sharedStudentAccountLink, type PhoneOnboardingStay } from "@/lib/phone-onboarding";
+import { StudentAccessShare } from "@/components/student-access-share";
 import { ArrowLeft, MessageCircle, ShieldCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function MobileOnboardingPage({
   // This includes residents with provider-accepted emails who have not activated.
   const where = inviteCandidateWhere(session.organizationId);
   const now = new Date();
-  const [all, items, pending] = await Promise.all([
+  const [all, items, pending, publishedProperties] = await Promise.all([
     db.student.count({ where }),
     db.student.findMany({
       where,
@@ -64,7 +65,13 @@ export default async function MobileOnboardingPage({
       select: { propertyId: true, phone: true },
       take: 501,
     }),
+    db.property.findMany({
+      where: { organizationId: session.organizationId, active: true, publicListing: true },
+      select: { name: true, customDomain: true, active: true, publicListing: true },
+      take: 2,
+    }),
   ]);
+  const sharedLink=sharedStudentAccountLink(publishedProperties);
   const queueComplete = pending.length <= 500;
   const current = items.slice(0, 20).map(item => {
     const latest = item.portalInvitations[0];
@@ -111,6 +118,11 @@ export default async function MobileOnboardingPage({
       <article className="compact-stat"><div><p>Pending phone claims to review on this page</p><strong>{awaitingReview}</strong></div></article>
       <article className="compact-stat"><div><p>Email accepted, portal inactive on this page</p><strong>{acceptedButInactive}</strong></div></article>
     </div>
+
+    <section className="panel mt-5">
+      <h2>One link for all existing students</h2>
+      {sharedLink ? <StudentAccessShare {...sharedLink}/> : <p>Use the correct published property-specific registration link. A universal hostel link is unavailable when more than one published property or no safe hostname is configured.</p>}
+    </section>
 
     <section className="panel mt-5">
       <h2><ShieldCheck size={19} aria-hidden="true" /> No automatic account activation</h2>
