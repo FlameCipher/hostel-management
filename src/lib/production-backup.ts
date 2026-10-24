@@ -9,6 +9,25 @@ import type { PrismaClient } from "@/generated/prisma/client";
 export type HostelBackup={format:"hostel-logical-v1";createdAt:string;commit:string;schema:Array<{name:string;sql:string}>;assets:Array<{url:string;contentType:string;base64:string;checksum:string}>;tables:Array<{name:string;rows:string[];checksum:string}>};
 export function identifier(value:string){return '"'+value.replace(/"/g,'""')+'"';}
 export function backupChecksum(rows:string[]){return createHash("sha256").update(JSON.stringify([...rows].sort())).digest("hex");}
+/** Verify the exact compressed archive, not just its database rows.
+ * Schema migrations, photos, metadata and all remaining fields are covered.
+ */
+export function verifyBackupArchiveReadback(expected:Uint8Array,received:Uint8Array){
+ const expectedHash=createHash("sha256").update(expected).digest("hex");
+ const actualHash=createHash("sha256").update(received).digest("hex");
+ if(expected.byteLength!==received.byteLength||expectedHash!==actualHash)throw Error("BACKUP_ARCHIVE_READBACK_MISMATCH");
+ return expectedHash;
+}
+/** Retain the newest 30 archives regardless of date, even after an outage
+ * leaves fewer than 30 successful daily backups in the last month.
+ */
+export function expiredBackupUrls(blobs:readonly {url:string;uploadedAt:Date}[],now=Date.now()){
+ const newest=[...blobs].sort((a,b)=>b.uploadedAt.getTime()-a.uploadedAt.getTime());
+ const protectedUrls=new Set(newest.slice(0,30).map(b=>b.url));
+ const cutoff=now-30*86400000;
+ return newest.filter(b=>!protectedUrls.has(b.url)&&b.uploadedAt.getTime()<cutoff).map(b=>b.url);
+}
+
 export function validateBackup(snapshot:HostelBackup){
  if(snapshot.format!=="hostel-logical-v1"||!snapshot.schema.length||!snapshot.tables.some(t=>t.name==="Organization")||new Set(snapshot.tables.map(t=>t.name)).size!==snapshot.tables.length)throw Error("INVALID_BACKUP_FORMAT");
  for(const table of snapshot.tables){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(table.name)||table.checksum!==backupChecksum(table.rows))throw Error("BACKUP_CHECKSUM_MISMATCH");for(const row of table.rows)if(!JSON.parse(row)||typeof JSON.parse(row)!=="object"||Array.isArray(JSON.parse(row)))throw Error("INVALID_BACKUP_ROW");}
@@ -61,10 +80,23 @@ export async function runProductionBackup(db:PrismaClient){
   const snapshot=await captureBackup(process.env.DB_DATABASE_URL_UNPOOLED??process.env.DB_DATABASE_URL??process.env.DATABASE_URL!);const stats=validateBackup(snapshot);const bytes=gzipSync(JSON.stringify(snapshot));
   const pathname=`hostel-backups/${snapshot.createdAt.replace(/[:.]/g,"-")}-${run.id}.json.gz`;
   stage="private-storage-write";const saved=await put(pathname,bytes,{...storageOptions(),access:"private",addRandomSuffix:false,allowOverwrite:false,contentType:"application/gzip"});
-  stage="private-storage-readback";const verified=await readStoredBackup(saved.pathname);if(backupChecksum(snapshot.tables.map(t=>t.checksum))!==backupChecksum(verified.snapshot.tables.map(t=>t.checksum)))throw Error("BACKUP_READBACK_MISMATCH");
-  await db.operationalRun.update({where:{id:run.id},data:{status:"COMPLETED",completedAt:new Date(),metadata:{pathname:saved.pathname,...stats,bytes:bytes.length,capturedAt:snapshot.createdAt,readbackVerified:true,restoreVerified:false,commit:snapshot.commit}}});
-  // Retain at least 30 daily snapshots. Cleanup only follows a confirmed new read-back.
-  const all=await list({...storageOptions(),prefix:"hostel-backups/",limit:1000});const cutoff=Date.now()-30*86400000;const old=all.blobs.filter(b=>b.uploadedAt.getTime()<cutoff);if(old.length)await del(old.map(b=>b.url),storageOptions()).catch(()=>undefined);
-  return {status:"COMPLETED",id:run.id,...stats,readbackVerified:true};
+  stage="private-storage-readback";
+  const verified=await readStoredBackup(saved.pathname);
+  const archiveSha256=verifyBackupArchiveReadback(bytes,verified.bytes);
+  // Cleanup is independent of durability. A failed listing/deletion must not
+  // overwrite a successful archive verification, but must appear in the receipt.
+  stage="retention-cleanup";
+  let retentionStatus:"COMPLETED"|"REVIEW"="COMPLETED";
+  try{
+   const all=await list({...storageOptions(),prefix:"hostel-backups/",limit:1000});
+   const expired=expiredBackupUrls(all.blobs);
+   if(expired.length)await del(expired,storageOptions());
+  }catch{retentionStatus="REVIEW";}
+  stage="record-receipt";
+  await db.operationalRun.update({where:{id:run.id},data:{status:"COMPLETED",completedAt:new Date(),metadata:{
+    pathname:saved.pathname,...stats,bytes:bytes.length,capturedAt:snapshot.createdAt,
+    archiveSha256,readbackVerified:true,restoreVerified:false,retentionStatus,commit:snapshot.commit,
+  }}});
+  return {status:"COMPLETED",id:run.id,...stats,readbackVerified:true,retentionStatus};
  }catch(error){const code=error instanceof Error?error.name:"Error",diagnostic=serviceDiagnostic(error);await db.operationalRun.update({where:{id:run.id},data:{status:"FAILED",completedAt:new Date(),metadata:{stage,code,diagnostic,reason:"Backup capture or private-storage verification failed. Review deployment configuration; no restore was attempted."}}});return {status:"FAILED",id:run.id,stage,code,diagnostic};}
 }
