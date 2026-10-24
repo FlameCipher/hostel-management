@@ -7,6 +7,7 @@ import { getEffectiveRoomStatus } from "@/lib/rooms";
 import { requestPropertyContext } from "@/lib/property-host";
 import { hostelTimeZone } from "@/lib/resident-policy";
 import { ownerOperationLinks } from "@/lib/owner-operations";
+import { backupEvidenceStatus } from "@/lib/backup-readiness";
 
 export default async function DashboardPage() {
   const currency = await managementCurrency();
@@ -14,7 +15,10 @@ export default async function DashboardPage() {
   const session = await requireStaffFinanceAccess();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
   const canReviewOperations=session.role==="OWNER" || session.role==="ADMIN";
-  const [rooms, students, charges, recentPayments, activeSOS, overdueOutings, lateUnacknowledged, returnReported, portalsEnabled, pendingApplications, pendingReceipts, activeCaretakers] = await Promise.all([
+  // Private archives are platform-wide. Keep their infrastructure status visible
+  // only to the nominated hostel owner/admin, not arbitrary tenant landlords.
+  const canReviewBackup=canReviewOperations && session.organizationId==="mama-mbugua-hostel";
+  const [rooms, students, charges, recentPayments, activeSOS, overdueOutings, lateUnacknowledged, returnReported, portalsEnabled, pendingApplications, pendingReceipts, activeCaretakers, lastBackup] = await Promise.all([
     db.room.findMany({ where: { organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, include: { student: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, include: { student: true } } }, orderBy: { number: "asc" } }),
     db.student.count({ where: { organizationId: session.organizationId, status: "ACTIVE" } }),
     db.charge.findMany({ where: { organizationId: session.organizationId, ...(semester ? { semesterId: semester.id } : {}) }, include: { payments: { where: { reversedAt: null } } } }),
@@ -29,6 +33,7 @@ export default async function DashboardPage() {
     canReviewOperations ? db.tenantRegistration.count({where:{organizationId:session.organizationId,status:"PENDING"}}) : Promise.resolve(0),
     canReviewOperations ? db.payment.count({where:{organizationId:session.organizationId,reversedAt:null,receiptDeliveryStatus:{in:["PENDING","FAILED","ACTION_REQUIRED"]}}}) : Promise.resolve(0),
     canReviewOperations ? db.user.count({where:{organizationId:session.organizationId,active:true,role:"CARETAKER"}}) : Promise.resolve(0),
+    canReviewBackup ? db.operationalRun.findFirst({where:{kind:"BACKUP"},orderBy:{createdAt:"desc"},select:{status:true,createdAt:true,completedAt:true,metadata:true}}) : Promise.resolve(null),
   ]);
   const context = await requestPropertyContext();
   const timeZone = hostelTimeZone(context.property?.timeZone, context.property?.countryCode ?? "");
@@ -64,6 +69,7 @@ export default async function DashboardPage() {
       pendingApplications,
       pendingReceipts,
       activeCaretakers,
+      backupNeedsAttention:canReviewBackup && (!process.env.BACKUP_BLOB_STORE_ID?.trim() || backupEvidenceStatus(lastBackup)!=="PASSING"),
     }) : []}
     recentPayments={recentPayments.map(payment => ({
       id: payment.id,
