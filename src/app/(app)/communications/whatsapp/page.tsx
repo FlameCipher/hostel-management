@@ -52,7 +52,10 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
       <p className={styles.note}>Manual drafts use WhatsApp on your device. Automatic delivery requires this hostel’s verified business sender and recipient opt-in. Replies remain in WhatsApp; private portal conversations are separate.</p>
     </section>
     {manager && <>
-      {["OWNER","ADMIN"].includes(session.role)&&<WhatsAppConnectionForm connection={connection}/>}
+      {["OWNER","ADMIN"].includes(session.role)&&<WhatsAppConnectionForm connection={connection}
+        webhookConfigured={Boolean(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN)}
+        hostelWebhookUrl={session.organizationId==="mama-mbugua-hostel" ? "https://mmambugua.studentshostels.com/api/whatsapp/webhook" : null}
+        centralSharedNumber={session.organizationId==="mama-mbugua-hostel"}/>}
       <section className={`panel ${styles.draft}`} aria-label="Whole-hostel WhatsApp delivery queue">
         <h2>Current WhatsApp sending position</h2>
         <p>This is the entire hostel queue, not just the latest 30 drafts. Opening a message or marking it sent manually does not verify delivery.</p>
