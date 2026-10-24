@@ -26,7 +26,7 @@ test("form does not fake sender, callback, opt-in or multi-business readiness",(
  assert.match(page,/\["OWNER","ADMIN"\]\.includes\(session.role\)/);
  assert.match(page,/webhookConfigured=\{Boolean\(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN\)\}/);
  assert.match(page,/centralSharedNumber=\{session.organizationId==="mama-mbugua-hostel"\}/);
- assert.match(form,/does not yet prove that messages are safely routed/);
+ assert.match(form,/cannot by itself prove cross-business routing/);
  assert.match(form,/recipient permissions/);
  assert.match(actions,/residentStaff\(db,session\)/);
  assert.match(actions,/if\(enabled&&!\(process.env.WHATSAPP_APP_SECRET&&process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN\)\)/);
