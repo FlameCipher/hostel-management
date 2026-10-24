@@ -7,6 +7,7 @@ import { whatsappNumber } from "./whatsapp-policy";
 import { tenantWhere } from "./communications";
 import { newReceiptLink } from "./short-receipt-link";
 import { propertyTenantLogin } from "./whatsapp-policy";
+import { approvedSingleBodyTemplate, verifiedHostelSender } from "./whatsapp-sender-policy";
 
 export function webhookSignature(body:string,signature:string|null,secret=process.env.WHATSAPP_APP_SECRET){
  if(!secret||!signature||!/^sha256=[a-f0-9]{64}$/.test(signature))return false;
@@ -20,13 +21,19 @@ export async function verifyWhatsAppConnection(input:{phoneNumberId:string;busin
  const base=`https://graph.facebook.com/${input.apiVersion}`;const headers={Authorization:`Bearer ${input.accessToken}`};
  const [phone,templates]=await Promise.all([fetch(`${base}/${input.phoneNumberId}?fields=display_phone_number,verified_name`,{headers,signal:AbortSignal.timeout(10000)}),fetch(`${base}/${input.businessAccountId}/message_templates?name=${encodeURIComponent(input.templateName)}&fields=name,language,status,components`,{headers,signal:AbortSignal.timeout(10000)})]);
  if(!phone.ok||!templates.ok)throw Error("META_VERIFICATION_FAILED");
- const number=await phone.json(),items=await templates.json();const match=items.data?.find((t:{name:string;language:string;status:string;components?:Array<{type:string;text?:string}>})=>t.name===input.templateName&&t.language===input.templateLanguage&&t.status==="APPROVED");
- // This integration uses one positional body parameter and no media/header/button variables.
- if(!match||match.components?.some((c:{type:string;text?:string})=>c.type!=="BODY"&&c.type!=="FOOTER")||!match.components?.some((c:{type:string;text?:string})=>c.type==="BODY"&&c.text?.includes("{{1}}")&&!/\{\{(?!1\}\})/.test(c.text)))throw Error("APPROVED_TEMPLATE_REQUIRED");
- if(typeof number.display_phone_number!=="string")throw Error("SENDER_NOT_VERIFIED");return number.display_phone_number as string;
+ const number=await phone.json(),items=await templates.json();
+ // Only an approved utility template with exactly ONE positional body variable
+ // is compatible with cloudTemplate(). Footers are allowed but variable
+ // buttons, media/header parameters and extra placeholders are NOT.
+ if(!approvedSingleBodyTemplate(items,input.templateName,input.templateLanguage))throw Error("APPROVED_TEMPLATE_REQUIRED");
+ if(typeof number.display_phone_number!=="string")throw Error("SENDER_NOT_VERIFIED");
+ return number.display_phone_number as string;
 }
 export async function storeWhatsAppConnection(db:PrismaClient,organizationId:string,input:Parameters<typeof verifyWhatsAppConnection>[0],enabled:boolean){
  const displayPhone=await verifyWhatsAppConnection(input);
+ // This hostel nominated a specific existing multi-business WhatsApp number.
+ // An authorized token alone must not silently attach the wrong Meta sender.
+ if(!verifiedHostelSender(organizationId,displayPhone))throw Error("HOSTEL_WHATSAPP_SENDER_MISMATCH");
  const data={phoneNumberId:input.phoneNumberId,businessAccountId:input.businessAccountId,apiVersion:input.apiVersion,displayPhone,accessToken:sealServiceSecret(input.accessToken,organizationId),templateName:input.templateName,templateLanguage:input.templateLanguage,enabled,verifiedAt:new Date()};
  await db.whatsAppConnection.upsert({where:{organizationId},create:{organizationId,...data},update:data});
 }
