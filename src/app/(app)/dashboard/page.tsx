@@ -6,13 +6,15 @@ import { db } from "@/lib/db";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 import { requestPropertyContext } from "@/lib/property-host";
 import { hostelTimeZone } from "@/lib/resident-policy";
+import { ownerOperationLinks } from "@/lib/owner-operations";
 
 export default async function DashboardPage() {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireStaffFinanceAccess();
   const semester = await db.semester.findFirst({ where: { organizationId: session.organizationId, status: "ACTIVE" } });
-  const [rooms, students, charges, recentPayments, activeSOS, overdueOutings, lateUnacknowledged, returnReported] = await Promise.all([
+  const canReviewOperations=session.role==="OWNER" || session.role==="ADMIN";
+  const [rooms, students, charges, recentPayments, activeSOS, overdueOutings, lateUnacknowledged, returnReported, portalsEnabled, pendingApplications, pendingReceipts, activeCaretakers] = await Promise.all([
     db.room.findMany({ where: { organizationId: session.organizationId }, include: { roomType: true, occupancies: { where: { status: "ACTIVE" }, include: { student: true } }, breakReservations: { where: { status: { in: ["RESERVED_FREE", "CHARGED"] }, intent: "RETURNING", clearedAt: null }, include: { student: true } } }, orderBy: { number: "asc" } }),
     db.student.count({ where: { organizationId: session.organizationId, status: "ACTIVE" } }),
     db.charge.findMany({ where: { organizationId: session.organizationId, ...(semester ? { semesterId: semester.id } : {}) }, include: { payments: { where: { reversedAt: null } } } }),
@@ -23,6 +25,10 @@ export default async function DashboardPage() {
     db.studentOuting.count({where:{organizationId:session.organizationId,status:"OUT",
       lateNotifiedAt:{not:null},lateAcknowledgedAt:null}}),
     db.studentOuting.count({where:{organizationId:session.organizationId,status:"RETURN_REPORTED"}}),
+    canReviewOperations ? db.student.count({where:{organizationId:session.organizationId,status:"ACTIVE",portalEnabled:true}}) : Promise.resolve(0),
+    canReviewOperations ? db.tenantRegistration.count({where:{organizationId:session.organizationId,status:"PENDING"}}) : Promise.resolve(0),
+    canReviewOperations ? db.payment.count({where:{organizationId:session.organizationId,reversedAt:null,receiptDeliveryStatus:{in:["PENDING","FAILED","ACTION_REQUIRED"]}}}) : Promise.resolve(0),
+    canReviewOperations ? db.user.count({where:{organizationId:session.organizationId,active:true,role:"CARETAKER"}}) : Promise.resolve(0),
   ]);
   const context = await requestPropertyContext();
   const timeZone = hostelTimeZone(context.property?.timeZone, context.property?.countryCode ?? "");
@@ -52,7 +58,13 @@ export default async function DashboardPage() {
     overdueOutings={overdueOutings}
     lateUnacknowledged={lateUnacknowledged}
     returnReported={returnReported}
-    canVerifyRegistrations={session.role === "OWNER" || session.role === "ADMIN"}
+    canVerifyRegistrations={canReviewOperations}
+    operations={canReviewOperations ? ownerOperationLinks({
+      inactivePortals: Math.max(0,students-portalsEnabled),
+      pendingApplications,
+      pendingReceipts,
+      activeCaretakers,
+    }) : []}
     recentPayments={recentPayments.map(payment => ({
       id: payment.id,
       student: payment.student.fullName,
