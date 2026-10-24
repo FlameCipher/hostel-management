@@ -54,7 +54,10 @@ export function buildPhoneOnboardingDraft(input: PhoneOnboardingInput): PhoneOnb
   if (!input.accountEligible) return { ready: false, reason: "Account is no longer eligible. Review the existing resident record." };
   if (input.queueComplete === false) return { ready: false, reason: "The registration queue could not be fully checked. Review existing applications before contacting this student." };
   if (input.pendingRegistration) return { ready: false, reason: "A pending registration already claims this registered number at the same hostel property. Verify that request first; do not send another registration invitation." };
-  if (!["MISSING_EMAIL", "EXPIRED"].includes(input.status)) {
+  if (input.status === "PROVIDER_ACCEPTED") {
+    return { ready: false, reason: "An invitation was accepted by the email provider, but activation is unconfirmed. Check its delivery and expiry with the resident before reissuing or opening another channel." };
+  }
+  if (!["MISSING_EMAIL", "EXPIRED", "NO_INVITATION"].includes(input.status)) {
     return { ready: false, reason: "This resident's invitation needs the normal email/provider workflow." };
   }
   if (input.stays.length !== 1) return { ready: false, reason: "A single active or reserved hostel room must be verified before contact." };
