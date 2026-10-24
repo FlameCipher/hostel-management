@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
 import { assistantConfiguration } from "./assistant-config";
+import { backupEvidenceStatus } from "./backup-readiness";
 type CheckStatus = "PASSING" | "WARNING" | "FAILING" | "UNKNOWN";
 type Check = { code: string; name: string; status: CheckStatus; checkType: string };
 type Module = { code: string; name: string; status: "HEALTHY" | "DEGRADED" | "UNKNOWN"; checks: Check[] };
@@ -79,7 +80,10 @@ export async function collectHealthfix(db: PrismaClient, organizationId?: string
   const aiConfigurationName = assistant.code === "OPENAI_API_KEY_MISSING" ? "Direct OpenAI awaits its server API key" : assistant.code === "OPENAI_MODEL_MISSING_OR_INVALID" ? "Direct OpenAI model is missing or invalid" : "Direct OpenAI model and server key configured with bounded usage";
   modules.push(module("assistant", "System assistant", [assistant.enabled?configuration("ai",aiConfigurationName,assistant.configured):unknown("ai","AI is disabled; documented guide remains available"),receipt("provider","Latest response from the configured direct OpenAI model",currentAIProbe)]));
   modules.push(module("mobile-notifications", "Background mobile notifications", [env.VAPID_PUBLIC_KEY?configuration("push","Device notification keys configured",Boolean(env.VAPID_PRIVATE_KEY&&env.VAPID_SUBJECT)):unknown("push","Device notification keys await configuration"),receipt("worker","Background delivery worker completed within 20 minutes",deliveryRun,20*60000),unknown("device","Actual closed-app display must be confirmed on the subscriber's device")]));
-  modules.push(module("recovery", "Backup and recovery", [configuration("private-backup-destination", "Private application backup destination selected (project connection and readback must still be verified)", Boolean(env.BACKUP_BLOB_STORE_ID?.trim())),receipt("backup","Private daily backup captured and read back within 26 hours",backup,26*3600000),receipt("restore","Latest isolated restore drill",restore,30*86400000)]));
+  modules.push(module("recovery", "Backup and recovery", [configuration("private-backup-destination", "Private application backup destination selected (project connection and readback must still be verified)", Boolean(env.BACKUP_BLOB_STORE_ID?.trim())),{
+    code:"backup",name:"Private daily backup captured and full archive read back within 26 hours",
+    status:backupEvidenceStatus(backup,now),checkType:"FUNCTIONAL",
+  },receipt("restore","Latest isolated restore drill",restore,30*86400000)]));
   const old = new Date(now.getTime() - interruptedAfterMs), overdue = new Date(now.getTime() - backlogAfterMs);
   async function warning(code: string, name: string, query: () => Promise<number>): Promise<Check> {
     let status: CheckStatus;
