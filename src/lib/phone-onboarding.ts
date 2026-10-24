@@ -95,7 +95,7 @@ Management has already registered your student record. To request online access,
 
 Use the same full name, mobile number and current room recorded by the hostel. Choose your own password. Management will independently verify your identity before access is enabled. You will then be able to confirm your personal details, view your rent statement and access payment receipts.
 
-If you already have an active account or an invitation link, use that to sign in: ${login}
+If your account is already activated, sign in here: ${login}. If you received an unexpired private invitation link, follow that invitation instead of submitting another request.
 
 Account activation is free. Never share your password, M-Pesa PIN or verification codes. Contact hostel management if your details do not match.`;
   return {url,message};
