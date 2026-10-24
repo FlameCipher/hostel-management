@@ -34,6 +34,11 @@ export async function captureBackup(connectionString:string){
  }finally{await client.end();}
 }
 export function backupConfigured(){return Boolean(process.env.BACKUP_BLOB_STORE_ID&&(process.env.VERCEL==="1"||process.env.VERCEL_OIDC_TOKEN||process.env.BACKUP_BLOB_READ_WRITE_TOKEN));}
+/** A backup cron is healthy only when a private backup was actually captured
+ * and read back. Missing configuration and all unknown states must fail closed.
+ */
+export function backupHttpStatus(status:string){return status==="COMPLETED"||status==="SKIPPED"?200:503;}
+
 function storageOptions(){if(!backupConfigured())throw Error("BACKUP_STORAGE_NOT_CONFIGURED");return {storeId:process.env.BACKUP_BLOB_STORE_ID!,...(process.env.BACKUP_BLOB_READ_WRITE_TOKEN?{token:process.env.BACKUP_BLOB_READ_WRITE_TOKEN}: {})};}
 export async function readStoredBackup(pathname:string){
  if(!/^hostel-backups\/\d{4}-\d{2}-\d{2}T[\d-]+Z-[A-Za-z0-9_-]+\.json\.gz$/.test(pathname))throw Error("INVALID_BACKUP_PATH");
@@ -42,7 +47,15 @@ export async function readStoredBackup(pathname:string){
 }
 export async function runProductionBackup(db:PrismaClient){
  if(process.env.VERCEL_ENV!=="production")return {status:"SKIPPED",reason:"Backups run only in production."};
- if(!backupConfigured())return {status:"NOT_CONFIGURED"};
+ if(!backupConfigured()){
+  // A missing private destination must leave a durable, sanitized failed run
+  // rather than an HTTP 200 and no execution receipt. Never try public storage.
+  const run=await db.operationalRun.create({data:{kind:"BACKUP",status:"FAILED",completedAt:new Date(),metadata:{
+    stage:"configuration",code:"PRIVATE_BACKUP_STORAGE_NOT_CONFIGURED",
+    reason:"Private backup storage is not configured; no backup was captured or saved.",
+  }}});
+  return {status:"NOT_CONFIGURED",id:run.id,stage:"configuration"};
+ }
  const run=await db.operationalRun.create({data:{kind:"BACKUP",status:"RUNNING"}});let stage="capture";
  try{
   const snapshot=await captureBackup(process.env.DB_DATABASE_URL_UNPOOLED??process.env.DB_DATABASE_URL??process.env.DATABASE_URL!);const stats=validateBackup(snapshot);const bytes=gzipSync(JSON.stringify(snapshot));
