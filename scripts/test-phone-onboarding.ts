@@ -31,6 +31,18 @@ test("creates a property-branded public registration WhatsApp draft without bear
   assert.doesNotMatch(result.whatsappHref, /m-pesa|receipt|tokenHash/i);
 });
 
+test("eligible residents without an invitation can request a new account safely", () => {
+  const result = buildPhoneOnboardingDraft(sample({ status: "NO_INVITATION" }));
+  assert.equal(result.ready, true);
+  if (result.ready) assert.equal(result.url, "https://mmambugua.studentshostels.com/tenant/register");
+});
+
+test("email-provider acceptance cannot trigger a second WhatsApp draft", () => {
+  const result = buildPhoneOnboardingDraft(sample({ status: "PROVIDER_ACCEPTED" }));
+  assert.equal(result.ready, false);
+  if (!result.ready) assert.match(result.reason, /activation is unconfirmed/);
+});
+
 test("expiry supports secure public self-registration, not reuse of expired bearer invitation", () => {
   const result = buildPhoneOnboardingDraft(sample({ status: "EXPIRED" }));
   assert.equal(result.ready, true);
@@ -109,5 +121,18 @@ test("mobile onboarding reads only active pending phone claims and blocks incomp
   assert.match(page,/queueComplete = pending.length <= 500/);
   assert.match(page,/pendingPhoneClaim\(/);
   assert.match(page,/pendingRegistration, queueComplete, stays/);
+  assert.doesNotMatch(page,/sendWhatsapp|publishCommunication\(/);
+});
+
+test("all-eligible mobile review uses student pagination and shows provider-accepted inactive accounts", () => {
+  const page = readFileSync("src/app/(app)/communications/invitations/mobile/page.tsx","utf8");
+  assert.match(page,/db\.student\.count\(\{ where \}\)/);
+  assert.match(page,/db\.student\.findMany\(\{/);
+  assert.match(page,/portalInvitations: \{/);
+  assert.match(page,/take: 1/);
+  assert.match(page,/NO_INVITATION/);
+  assert.match(page,/PROVIDER_ACCEPTED/);
+  assert.match(page,/pendingPhoneClaim\(/);
+  assert.doesNotMatch(page,/db\.tenantPortalInvitation\.findMany\(\{/);
   assert.doesNotMatch(page,/sendWhatsapp|publishCommunication\(/);
 });
