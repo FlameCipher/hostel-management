@@ -46,7 +46,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       where: {...deliveryWhere, receiptDeliveryStatus: {in: ["PENDING", "FAILED", "ACTION_REQUIRED"]}},
     }) : Promise.resolve(0),
     canManage ? db.payment.count({
-      where: {...deliveryWhere, OR: [
+      where: {...deliveryWhere, receiptDeliveryStatus: {in: ["PENDING", "FAILED", "ACTION_REQUIRED"]}, OR: [
         {student: {email: null}},
         {student: {email: ""}},
       ]},
