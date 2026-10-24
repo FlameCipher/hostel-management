@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Banknote, BedDouble, ChevronDown, CircleAlert, DoorOpen, MessageCircle, ShieldCheck, Smartphone, Users, Wallet } from "lucide-react";
 import { ResidentAlertPanel } from "@/components/resident-alert-panel";
 import styles from "./dashboard.module.css";
+import type { OwnerOperation } from "@/lib/owner-operations";
 
 export type DashboardViewProps = {
   semester: string;
@@ -22,6 +23,7 @@ export type DashboardViewProps = {
   lateUnacknowledged: number;
   returnReported: number;
   canVerifyRegistrations: boolean;
+  operations: OwnerOperation[];
   recentPayments: { id: string; student: string; amount: string; date: string; receipt: string }[];
 };
 
@@ -60,6 +62,15 @@ export function DashboardView(props: DashboardViewProps) {
     </section>
 
     <div className={styles.updates}>
+      {props.canVerifyRegistrations && props.operations.length>0 ? <details className={styles.gate} aria-label="Owner activation and delivery priorities">
+        <summary><CircleAlert size={19} aria-hidden="true"/><span>Operations to finish</span><span className={styles.review}>{props.operations.length} area{props.operations.length===1?"":"s"}</span><ChevronDown className={styles.chevron} size={18} aria-hidden="true"/></summary>
+        <div className={styles.gateContent}>
+          {props.operations.map(item=><Link key={item.key} href={item.href} aria-label={item.label}>
+            <span><strong>{item.label}</strong><small className={styles.operationDetail}>{item.detail}</small></span><ArrowRight size={16} aria-hidden="true"/>
+          </Link>)}
+          <p>Live record counts are not proof that an invitation, receipt or emergency alert was delivered. Account approvals remain individual.</p>
+        </div>
+      </details>:null}
       <ResidentAlertPanel compact canVerifyRegistrations={props.canVerifyRegistrations}/>
       {gateUpdates.length > 0 && <details className={styles.gate}>
         <summary><DoorOpen size={19} aria-hidden="true"/><span>Gate updates</span><span className={styles.review}>Review</span><ChevronDown className={styles.chevron} size={18} aria-hidden="true"/></summary>
