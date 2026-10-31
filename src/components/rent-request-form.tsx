@@ -18,7 +18,7 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
   if (!charges.length) return <p>No outstanding charges. Add a charge before requesting payment.</p>;
   return <form action={submit} className={styles.form}>
     <input type="hidden" name="requestId" value={requestId}/>
-    <label>Student and rent charge<select name="chargeId" value={chargeId} onChange={event => setChargeId(event.target.value)} required>{charges.map(c => <option key={c.id} value={c.id}>{c.label} · {formatMoney(c.balance, "KES")} due</option>)}</select></label>
+    <label>Student and rent charge<select name="chargeId" value={chargeId} onChange={event => { setChargeId(event.target.value); setPayer("student"); }} required>{charges.map(c => <option key={c.id} value={c.id}>{c.label} · {formatMoney(c.balance, "KES")} due</option>)}</select></label>
     <label key={chargeId}>Amount to pay (KES)<input name="amount" type="number" min="0.01" step="0.01" max={charge?.balance} defaultValue={charge?.balance} required/></label>
     <label>Who will pay?<select value={payer} onChange={event => setPayer(event.target.value)}><option value="student">{tenant ? "I will pay" : "Student"}</option>{!tenant && charge?.guardian && <option value="guardian">Parent / guardian</option>}<option value="other">Someone else</option></select></label>
     <fieldset key={chargeId + payer}><legend>Payer contact details</legend><p>The payer receives the payment request. The payment credits the student selected above.</p>
