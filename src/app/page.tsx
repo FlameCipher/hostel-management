@@ -13,6 +13,7 @@ import { activeBreakHoldWhere } from "@/lib/room-status";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 import { countryName, countryOptions, locationLabel, propertyMapUrl } from "@/lib/property-location";
 import { PLATFORM_SETUP_FEE, PLATFORM_MANUAL_PAYMENT } from "@/lib/landlord-commercial-policy";
+import { hostelRentCollection } from "@/lib/rent-collection";
 
 
 export async function generateMetadata() {
@@ -36,6 +37,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
   if (!context.shared && !context.property) notFound();
   const p = context.property;
   const currency = p ? await organizationCurrency(p.organizationId) : "KES";
+  const rentCollection = p ? hostelRentCollection(p.organizationId, currency) : null;
   const money = (v: number) => formatMoney(v, currency);
   const title = p?.name ?? "StudentsHostels";
   const mapUrl=p?propertyMapUrl(p):null;
@@ -77,10 +79,11 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
       <div className="marketing-links">
         {p ? <><a href="#rooms">Rooms & rates</a><Link href="/book">Book a room</Link><a href="#location">Contact</a></> : <a href="https://studentshostels.com">All hostels</a>}
         <a href={p ? "/tenant/login" : "https://studentshostels.com/tenant/login"}>Student portal</a>
+        {rentCollection && <Link href="/pay-rent">Pay rent</Link>}
         <a className="marketing-login" href={p ? "/login" : "https://studentshostels.com/login"}>Owner / admin</a>
       </div>
     </nav>
-    {p && <nav className="hostel-section-nav" aria-label="Explore this hostel"><a href="#about">About</a><a href="#rooms">Rooms & prices</a>{photos.length > 0 && <a href="#photos">Photos</a>}<a href="#booking-guide">How to book</a><a href="#viewing">Before moving in</a><a href="#faq">FAQs</a><a href="#location">Contact</a><Link href="/tenant/login">Student portal</Link></nav>}
+    {p && <nav className="hostel-section-nav" aria-label="Explore this hostel"><a href="#about">About</a><a href="#rooms">Rooms & prices</a>{photos.length > 0 && <a href="#photos">Photos</a>}<a href="#booking-guide">How to book</a><a href="#viewing">Before moving in</a><a href="#faq">FAQs</a><a href="#location">Contact</a><Link href="/tenant/login">Student portal</Link>{rentCollection && <Link href="/pay-rent">Pay rent</Link>}</nav>}
     <section className="approved-hero" id="home">
       <div className="approved-hero-copy">
         <span>{p ? "YOUR STUDENT HOME" : "STUDENT ACCOMMODATION"}</span><h1>{title}</h1><p>{heroDescription}</p>
