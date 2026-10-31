@@ -754,3 +754,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .outstanding-selector-balance { border-top: 1px solid #e7edf3; margin-top: 6px; padding-top: 9px; }
 .outstanding-selector-balance strong { font-size: 16px; }
 .outstanding-selector-card:focus-visible, .outstanding-selector-trigger:focus-visible { outline: 3px solid #237ed0; outline-offset: 2px; }
+
+/* Student self-service: readable steps and controls on phones. */
+.student-update-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; gap: 8px; padding: 0; margin: 20px 0; text-align: center; }
+.student-update-steps li { display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 12px; color: #536676; }
+.student-update-steps li span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #edf2f5; font-weight: 700; }
+.student-update-steps li[aria-current="step"] { color: #215c75; font-weight: 700; }
+.student-update-steps li[aria-current="step"] span { color: white; background: #215c75; }
+.public-update-form .field-group { font-size: 14px; }
+.public-update-form .field-group input { min-height: 48px; font-size: 16px; }
+.public-update-form .field-group small, .student-update-form-note { color: #536676; font-size: 13px; line-height: 1.6; }
+.public-update-form .public-form-section p:not(.panel-kicker), .public-update-form .public-consent { font-size: 13px; }
+.public-update-form .primary-button, .public-update-form .secondary-button { min-height: 48px; font-size: 14px; }
+.public-update-heading > p:not(.eyebrow), .public-message-card > p:not(.eyebrow) { font-size: 14px; }
+.public-update-card > p, .student-update-help { font-size: 14px; line-height: 1.6; }
+.student-update-help { margin-top: 20px; padding: 14px; border-radius: 10px; background: #f3f7fa; }
+.student-update-help summary { cursor: pointer; font-weight: 600; }
+.public-update-card .public-privacy-note { font-size: 12px; }

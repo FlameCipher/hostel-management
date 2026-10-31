@@ -1,3 +1,4 @@
+import { StudentUpdateSteps } from "@/components/student-update-steps";
 import Link from "next/link";
 import { Building2, Clock3, ShieldCheck } from "lucide-react";
 import { StudentDetailsUpdateForm } from "@/components/student-details-update-forms";
@@ -17,11 +18,12 @@ export default async function StudentDetailsFormPage() {
   }) : null;
   if (!session || !student) return <main className="public-update-page"><section className="public-update-card public-message-card"><Clock3 size={30} /><h1>Verification required</h1><p>Your secure session has expired. Verify your name and phone number again.</p><Link className="primary-button no-underline" href="/update-details">Return to verification</Link></section></main>;
 
-  if (student.detailsUpdateRequests.length) return <main className="public-update-page"><section className="public-update-card public-message-card"><ShieldCheck size={34} /><h1>Update already submitted</h1><p>Your details are waiting for review by the hostel office. You do not need to submit them again.</p></section></main>;
+  if (student.detailsUpdateRequests.length) return <main className="public-update-page"><section className="public-update-card public-message-card"><ShieldCheck size={34} /><h1>Your details are awaiting review</h1><p>Your details are waiting for review by the hostel office. You do not need to submit them again.</p></section></main>;
 
   return <main className="public-update-page"><section className="public-update-card public-update-card-wide">
     <div className="public-update-brand"><span className="brand-mark"><Building2 size={21} /></span><div><strong>{student.organization.name}</strong><span>Student details update</span></div></div>
     <div className="public-update-heading"><span className="public-update-icon"><ShieldCheck size={22} /></span><p className="eyebrow">Record verified</p><h1>Complete your details</h1><p>Verified as <strong>{session.submittedName}</strong> · {maskPhone(session.submittedPhone)}. Stored private values are not displayed.</p></div>
+    <StudentUpdateSteps current={2}/>
     <StudentDetailsUpdateForm missing={{ email: !student.email, admissionNumber: !student.admissionNumber, nationalId: !student.nationalId }} />
   </section></main>;
 }

@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { formatMoney, minorUnits } from "@/lib/currency";
 import { nairobiDayBounds, requestedFinancePeriod, type FinancePeriod } from "@/lib/assistant-finance-period";
+import { normalizeAssistantQuestion } from "./assistant-question";
 
 export type ManagementIntent = {kind:"debtors";month:string|null} | {kind:"collected";month:string|null} | {kind:"register"} | {kind:"payment"} | null;
 const monthNames=["january","february","march","april","may","june","july","august","september","october","november","december"];
@@ -16,11 +17,12 @@ export function financialMonthFromQuestion(question:string):string|null {
   return `${year}-${String(word+1).padStart(2,"0")}`;
 }
 export function managementIntent(question:string):ManagementIntent {
-  const q=question.trim().toLocaleLowerCase("en");
+  if(question.length>1200)return null;
+  const q=normalizeAssistantQuestion(question).toLocaleLowerCase("en");
   if(!q||q.length>1200)return null;
   const month=financialMonthFromQuestion(q);
   if(/^(?:please\s+)?(?:who|which|show|list|find|tell(?: me)?|give(?: me)?|report|calculate|total|how much|what|nani|onyesha)\b/.test(q)&&
-      /(?:\b(?:unpaid|outstanding|debtor(?:s)?|arrears|owing|owe|owed|balances? due|not paid|hasn.t paid|haven.t paid)\b|\bmadeni\b|\bdeni\b|\bhajalipa\b)/.test(q))return {kind:"debtors",month};
+      /(?:\b(?:unpaid|outstanding|debtor(?:s)?|arrears|owing|owes?|owed|balances? due|not paid|hasn.t paid|haven.t paid|yet to pay|still to pay)\b|\bmadeni\b|\bdeni\b|\bhajalipa\b)/.test(q))return {kind:"debtors",month};
   if(/(?:\b(?:how much|total|sum|collected|received|collection|paid to us|money in)\b|makusanyo)/.test(q) &&
       /\b(?:collected|received|payment|rent|money|income|collection|paid|total|how much)\b/.test(q))return {kind:"collected",month};
   if(/^(?:please\s+)?(?:add|register|enrol|enroll|create)\s+(?:(?:a|this|new)\s+){0,3}(?:student|tenant|resident)\b/.test(q))return {kind:"register"};

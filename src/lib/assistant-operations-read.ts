@@ -1,10 +1,12 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { normalizeAssistantQuestion } from "./assistant-question";
 
 export type OperationalIntent =
  | {kind:"room";number:string} | {kind:"overdue-visitors"} | {kind:"visitor-count"}
  | {kind:"registrations"} | {kind:"receipt-queue"} | {kind:"gate-staff"} | {kind:"whatsapp-queue"} | {kind:"rollout"} | null;
 export function operationalIntent(question:string):OperationalIntent {
- const q=question.trim().toLowerCase();if(!q||q.length>1200)return null;
+ if(question.length>1200)return null;
+ const q=normalizeAssistantQuestion(question).toLowerCase();if(!q)return null;
  if(/(?:who|which|show|list|find|check|how many|any|nani|onyesha)/.test(q)&&/(?:visitor|guest|wageni|check(?:ed)?[\s-]?out|departure|left|overdue)/.test(q)){
   if(/(?:not[\s-]?checked[\s-]?out|hasn.t[\s-]?checked[\s-]?out|haven.t[\s-]?checked[\s-]?out|overdue|departure.*not|not.*departed|still inside|not left|haven.t left)/.test(q))return{kind:"overdue-visitors"};
   if(/(?:how many|number|total|count|pending visitors|expected visitors)/.test(q))return{kind:"visitor-count"};
@@ -14,7 +16,7 @@ export function operationalIntent(question:string):OperationalIntent {
  if(/(?:where are we|what remains|what(?:'s| is) left|what next|hostel (?:status|progress|readiness|rollout|activation)|operational (?:status|readiness)|system progress)/.test(q)&&
     !/(?:whats?\s*app|receipts?|payments?|balance|room\s*\d+|visitors?)/.test(q))return{kind:"rollout"};
  const room=q.match(/\broom\s*(?:number\s*)?([0-9]{1,5}[a-z]?)\b/i);
- if(room&&/(?:who|occup(?:y|ies|ant)|student|tenant|resident|room status|in room|nani)/.test(q))return{kind:"room",number:room[1].toUpperCase()};
+ if(room&&(/(?:who|occup(?:y|ies|ant)|student|tenant|resident|room status|in room|nani|find|show|check|what about)/.test(q)||/^room\s+\d+[a-z]?[?!.]*$/i.test(q)))return{kind:"room",number:room[1].toUpperCase()};
  if(/(?:pending|awaiting|waiting|how many|show|list)/.test(q)&&/(?:registrations?|portal approval|account requests?)/.test(q))return{kind:"registrations"};
  if(/(?:whats?\s*app|wa\s+messages?)/.test(q)&&/(?:pending|queued|draft|unsent|not sent|opened|sending|failed|delivery|delivered|how many|count|status|backlog)/.test(q))
    return {kind:"whatsapp-queue"};
@@ -34,7 +36,7 @@ export async function answerOperationalQuestion(db:PrismaClient,organizationId:s
   if(!rooms.length)return{mode:"records",text:"Room "+intent.number+" is not found in your organization's register.",links:[link("Rooms","/rooms","Open rooms")]};
   if(rooms.length>1)return{mode:"records",text:"Multiple properties use room "+intent.number+". Select the correct property in the occupancy register.",links:[link("Rooms","/rooms","Select property")]};
   const room=rooms[0],names=room.occupancies.map(x=>x.student.fullName+" ("+x.status.toLowerCase()+")");
-  return{mode:"records",text:"Room "+room.number+", "+room.property.name+". Recorded status: "+room.status+". "+(names.length?"Recorded residents: "+names.join("; ")+".":"No current resident allocation is recorded.")+" An allocation is not independent proof of physical presence.",links:[link("Occupancies","/occupancy","Verify allocations")]};
+  return{mode:"records",text:"Room "+room.number+" — "+room.property.name+"\n"+(names.length?"Recorded residents:\n"+names.map(name=>"• "+name).join("\n"):"No current resident allocation is recorded.")+"\nRecorded status: "+room.status+". An allocation is not independent proof of physical presence.",links:[link("Room "+room.number+" residents","/occupancy?q="+encodeURIComponent(room.number),"View room "+room.number+" residents")]};
  }
  if(intent.kind==="overdue-visitors"){
   const where={organizationId,status:"CHECKED_IN",checkedOutAt:null,expectedDeparture:{lt:now}};

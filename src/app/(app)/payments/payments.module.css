@@ -1,0 +1,25 @@
+.updatePanel { margin: 0 20px 20px; padding: 20px; border: 1px solid #cbdce3; border-radius: 14px; background: #f4f8fa; scroll-margin-top: 90px; }
+.updatePanel h3 { margin: 0 0 8px; font-size: 18px; }
+.updatePanel p { font-size: 14px; line-height: 1.6; }
+.updatePanel a, .receiptCard a { color: #235c77; text-underline-offset: 3px; }
+.updateLinks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.receiptGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; padding: 0 20px 20px; }
+.receiptCard { min-width: 0; border: 1px solid #dce3e7; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; font-size: 14px; line-height: 1.5; }
+.receiptCard header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.receiptCard h3 { margin: 0 0 3px; font-size: 16px; overflow-wrap: anywhere; }
+.receiptCard p { margin: 0; }
+.amount { font-size: 17px; }
+.account { display: block; font-size: 13px; color: #536676; }
+.deliveryState { padding-top: 12px; border-top: 1px solid #e3e8eb; }
+.deliveryState p { margin-top: 8px; color: #536676; font-size: 13px; }
+.deliveryState span { white-space: normal; font-size: 12px; }
+.missingContact { background: #fff8e9; padding: 12px; border-radius: 9px; font-size: 13px; }
+.missingContact a { display: block; padding: 10px 0; }
+.receiptActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.receiptActions button { min-height: 44px; font-size: 13px; white-space: normal; }
+.receiptCard small { color: #536676; font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) {
+  .updatePanel { margin: 0 12px 16px; padding: 14px; }
+  .receiptGrid { padding: 0 12px 16px; }
+  .receiptActions, .receiptActions form, .receiptActions button { width: 100%; }
+}

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { studentLinkIntent, assistantPage, safeStudentLink, type StudentLink } from "@/lib/assistant-navigation";
+import { AssistantStudentLinks } from "./assistant-student-links";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Bot, SendHorizontal, ShieldCheck, Sparkles, Volume2, Pause, Play, Square, LoaderCircle } from "lucide-react";
 import { searchSystemGuide, systemGuide, type GuideRole } from "@/lib/system-guide";
@@ -14,12 +16,14 @@ import { AssistantActionWorkspace, type AssistantWorkspaceData } from "@/compone
 import { AssistantAnnouncementReview } from "@/components/assistant-announcement-review";
 import type { AnnouncementDraft } from "@/lib/assistant-announcement";
 import { contextualBalanceFollowup } from "@/lib/assistant-report-intents";
+import { isRoomFinanceFollowup } from "@/lib/assistant-followup-intents";
+import { normalizeAssistantQuestion, referencedAssistantRooms } from "@/lib/assistant-question";
 import { systemWorkflowIntent } from "@/lib/system-workflows";
 import styles from "./assistant-chat.module.css";
 import { useAssistantNarrator } from "./use-assistant-narrator";
 
 type ChatLink = { title:string; href:string; action:string };
-type Message = { id:number; role:"user"|"assistant"; text:string; mode?:string; links?:ChatLink[];voiceTicket?:string };
+type Message = { id:number; role:"user"|"assistant"; text:string; mode?:string; links?:ChatLink[];shareLinks?:StudentLink[];voiceTicket?:string };
 const safeLink = (candidate:unknown):candidate is ChatLink => {
   if(!candidate||typeof candidate!=="object")return false;
   const value=candidate as Partial<ChatLink>;
@@ -41,8 +45,10 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const id=useRef(0);
   const messageLog=useRef<HTMLDivElement>(null);
   const suggestions=role==="MANAGEMENT"
-    ? ["How do I check out a student?","Who hasn't paid?","Room 41 payments","Register a student","Record payment"]
-    : ["Who has not checked out?","How many visitors are expected?","Find room 41"];
+    ? ["Who is in room 66?","Who hasn't paid?","How do I check out a student?","Register a student","Record payment"]
+    : role==="CARETAKER"
+      ? ["Who has not checked out?","How many visitors are expected?","Who is in room 66?"]
+      : ["What is my balance?","How do I register a visitor?","How do I request a room transfer?"];
   const guides=searchSystemGuide(systemGuide(role),submitted).slice(0,3);
 
   // Keep scrolling inside the conversation rather than jumping the entire
@@ -55,18 +61,21 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   async function ask(raw:string) {
     const value=raw.trim();
     if(!value||busy)return;
-    if(role==="MANAGEMENT" && !systemWorkflowIntent(value)) {
-      if(transferReviewNavigationRequest(value)){router.push("/occupancy/transfers");return;}
-      if(financialAuditNavigationRequest(value)){router.push("/payments/audit");return;}
-      if(receiptQueueNavigationRequest(value)){router.push("/payments?delivery=all");return;}
-      if(!personSearchIntent(value)) {
-        const shortcut=occupancySearchShortcut(value);
+    const routingQuestion=normalizeAssistantQuestion(value);
+    const isFollowup=isRoomFinanceFollowup(routingQuestion)||isPersonSearchFollowup(routingQuestion)||contextualBalanceFollowup(routingQuestion);
+    if(role==="MANAGEMENT" && !studentLinkIntent(routingQuestion) && !assistantPage(routingQuestion,role,"OWNER") && !systemWorkflowIntent(routingQuestion) && !isFollowup) {
+      if(transferReviewNavigationRequest(routingQuestion)){router.push("/occupancy/transfers");return;}
+      if(financialAuditNavigationRequest(routingQuestion)){router.push("/payments/audit");return;}
+      if(receiptQueueNavigationRequest(routingQuestion)){router.push("/payments?delivery=all");return;}
+      // Questions about a room get a verified answer first. Explicit "open"
+      // commands retain the direct navigation shortcut.
+      if(!personSearchIntent(routingQuestion) && (!referencedAssistantRooms(routingQuestion).length || (/^open\b/i.test(routingQuestion)&&referencedAssistantRooms(routingQuestion).length===1))) {
+        const shortcut=occupancySearchShortcut(routingQuestion);
         if(shortcut){router.push("/occupancy?q="+encodeURIComponent(shortcut));return;}
       }
     }
-    // Send the signed, short-lived room pointer only for explicit pronoun
-    // follow-ups. It is never saved to URLs, local storage, analytics or logs.
-    const isFollowup=/^(?:and\s+|okay[,\s]+|then\s+|what about\s+)?(?:how much\s+(?:has|did|does)\s+(?:he|she|they|that\s+(?:student|resident|tenant))\s+(?:paid|pay|owe)|what(?:'s| is)\s+(?:his|her|their|that\s+(?:student|resident|tenant)'?s)\s+(?:balance|rent|payment)|(?:has|did)\s+(?:he|she|they)\s+pay|show\s+(?:his|her|their)\s+(?:payments?|balance)|(?:his|her|their)\s+(?:payment|rent|balance))/i.test(value.toLowerCase());
+    // Send the signed, short-lived subject only for recognized follow-ups.
+    // It is never saved to URLs, local storage, analytics or logs.
     const requestId=++id.current;
     setMessages(items=>[...items.slice(-17),{id:requestId,role:"user",text:value}]);
     setQuestion("");
@@ -74,10 +83,11 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     setBusy(true);
     setWorkflow(null);
     setAnnouncement(null);
+    setContextToken(null);
     try {
       const response=await fetch("/api/assistant",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:(isFollowup||isPersonSearchFollowup(value)||contextualBalanceFollowup(value))?contextToken:null}),
+        body:JSON.stringify({question:value,audience:role==="TENANT"?"tenant":"staff",contextToken:isFollowup?contextToken:null}),
         cache:"no-store",signal:AbortSignal.timeout(35000)
       });
       const result=await response.json();
@@ -86,7 +96,9 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       // The server signs and scopes the context after rechecking the session.
       setContextToken(typeof result.contextToken==="string"&&result.contextToken.length<=1200?result.contextToken:null);
       const text=typeof result.text==="string"?result.text:"I could not verify an answer. Please try again.";
-      setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links,voiceTicket:typeof result.voiceTicket==="string"?result.voiceTicket:undefined}]);
+      setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links,shareLinks:Array.isArray(result.shareLinks)?result.shareLinks.filter(safeStudentLink).slice(0,3):[],voiceTicket:typeof result.voiceTicket==="string"?result.voiceTicket:undefined}]);
+      if(typeof result.navigateTo==="string"&&Array.isArray(result.shareLinks)&&result.shareLinks.some((link:unknown)=>safeStudentLink(link)&&link.url===result.navigateTo))window.location.assign(result.navigateTo);
+      if(typeof result.navigateTo==="string"&&links.some((link:ChatLink)=>link.href===result.navigateTo))router.push(result.navigateTo);
       if(role==="MANAGEMENT"&&workspace&&(result.workflow==="register"||result.workflow==="payment"))setWorkflow(result.workflow);
       if(role==="MANAGEMENT"&&result.workflow==="announcement"&&result.draft&&typeof result.draft==="object")setAnnouncement(result.draft as AnnouncementDraft);
     } catch(error) {
@@ -108,7 +120,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
         <h3>How can I help?</h3>
         <p>{role==="MANAGEMENT"
           ?"Ask about an individual room, who has paid, overdue balances, or ask me to prepare a transaction."
-          :"Ask about rooms, expected visitors and gate records."}</p>
+          :role==="CARETAKER"?"Ask about rooms, expected visitors and gate records.":"Ask about your account, visitors, room requests and hostel services."}</p>
       </div> : messages.map(message=><article key={message.id} className={styles.message+" "+(message.role==="user"?styles.user:styles.assistant)}>
         <span className={styles.messageLabel}>{message.role==="user"?"You":message.mode==="records"?"Live hostel records":message.mode==="workflow"?"Action review":message.mode==="error"?"Connection issue":"Hostel Assistant"}</span>
         <div className={message.mode==="error"?styles.subtleError:styles.bubble}>{message.text}</div>
@@ -141,6 +153,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
            </button>:null}
           {narrator.state.id===message.id&&narrator.state.error?<span className={styles.voiceHint} role="status">{narrator.state.error}</span>:null}
         </div>:null}
+        {message.shareLinks?.map(link=><AssistantStudentLinks key={link.url} link={link}/>)}
         {message.links?.length ? <div className={styles.messageLinks}>
           {message.links.map(link=><Link key={link.href+link.action} href={link.href}>{link.action}<ArrowUpRight size={13} aria-hidden="true"/></Link>)}
         </div> : null}

@@ -11,10 +11,10 @@ const submissionInitial: StudentDetailsSubmissionState = { error: "" };
 export function StudentLookupForm() {
   const [state, action, pending] = useActionState(identifyStudentAction, lookupInitial);
   return <form action={action} className="public-update-form">
-    <label className="field-group"><span>Full name *</span><input autoComplete="name" maxLength={120} name="fullName" placeholder="As registered with the hostel" required /></label>
+    <label className="field-group"><span>Your registered full name *</span><input autoComplete="name" maxLength={120} name="fullName" placeholder="As registered with the hostel" required /></label>
     <label className="field-group"><span>Registered phone number *</span><input autoComplete="tel" inputMode="tel" name="phone" placeholder="e.g. 0712 345 678" required /></label>
     {state.error ? <p className="form-error public-form-error" role="alert">{state.error}</p> : null}
-    <button className="primary-button public-update-submit" disabled={pending} type="submit">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <Search size={18} />}{pending ? "Checking…" : "Continue securely"}</button>
+    <button className="primary-button public-update-submit" disabled={pending} type="submit">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <Search size={18} />}{pending ? "Checking…" : "Find my student record"}</button>
   </form>;
 }
 
@@ -27,18 +27,20 @@ export function StudentDetailsUpdateForm({
 }) {
   const [state, action, pending] = useActionState(portal ? submitTenantDetailsAction : submitStudentDetailsAction, submissionInitial);
   return <form action={action} className="public-update-form">
+    <p className="student-update-form-note">Fields marked * are required. Only missing student details are requested. For changes to details already on file, contact the hostel office.</p>
     {missing.email || missing.admissionNumber || missing.nationalId ? <div className="public-form-section"><p className="panel-kicker">Missing student details</p><h2>Complete your record</h2></div> : null}
-    {missing.email ? <label className="field-group"><span>Student email *</span><input autoComplete="email" name="email" placeholder="name@example.com" required type="email" /></label> : null}
-    {missing.admissionNumber ? <label className="field-group"><span>Admission number *</span><input autoCapitalize="characters" maxLength={50} name="admissionNumber" required /></label> : null}
+    {missing.email ? <label className="field-group"><span>Your email address *</span><input autoComplete="email" name="email" placeholder="name@example.com" required type="email" /><small>Use an email you can open. The hostel can send your receipts here after your details are approved.</small></label> : null}
+    {missing.admissionNumber ? <label className="field-group"><span>University / college admission number *</span><input autoCapitalize="characters" maxLength={50} name="admissionNumber" required /></label> : null}
     {missing.nationalId ? <label className="field-group"><span>National ID or identification number *</span><input autoCapitalize="characters" maxLength={30} name="nationalId" required /></label> : null}
 
-    <div className="public-form-section"><p className="panel-kicker">Emergency contact</p><h2>Guardian details</h2><p>Guardian name, relationship and phone are required for every submission.</p></div>
+    <div className="public-form-section"><p className="panel-kicker">Emergency contact</p><h2>Guardian details</h2><p>Enter a parent, guardian or trusted adult the hostel can contact in an emergency. Their name, relationship and phone number are required.</p></div>
     <label className="field-group"><span>Guardian full name *</span><input autoComplete="name" maxLength={120} name="guardianName" defaultValue={guardian?.name ?? ""} required /></label>
     <label className="field-group"><span>Relationship *</span><input maxLength={50} name="guardianRelationship" defaultValue={guardian?.relationship ?? ""} placeholder="e.g. Mother, Father, Aunt" required /></label>
     <label className="field-group"><span>Guardian phone number *</span><input autoComplete="tel" inputMode="tel" name="guardianPhone" defaultValue={guardian?.phone ?? ""} placeholder="e.g. 0712 345 678" required /></label>
-    <label className="field-group"><span>Guardian email</span><input autoComplete="email" name="guardianEmail" defaultValue={guardian?.email ?? ""} placeholder="Optional" type="email" /></label>
+    <label className="field-group"><span>Guardian email (optional)</span><input autoComplete="email" name="guardianEmail" defaultValue={guardian?.email ?? ""} placeholder="Optional" type="email" /></label>
     <label className="public-consent"><input name="consent" required type="checkbox" /><span>I confirm that this is my existing student record and that the details I am submitting are accurate. They may be used by the hostel for administration and emergency communication.</span></label>
     {state.error ? <p className="form-error public-form-error" role="alert">{state.error}</p> : null}
-    <div className="public-update-actions"><Link className="secondary-button no-underline" href={portal ? "/tenant/account" : "/update-details"}><ArrowLeft size={17} /> {portal ? "My account" : "Start again"}</Link><button className="primary-button" disabled={pending} type="submit">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <Send size={18} />}{pending ? "Submitting…" : "Confirm and submit for review"}</button></div>
+    <p className="student-update-form-note">The hostel office checks your submission before updating your record. This does not create a new account, change your rent or send a receipt.</p>
+    <div className="public-update-actions"><Link className="secondary-button no-underline" href={portal ? "/tenant/account" : "/update-details"}><ArrowLeft size={17} /> {portal ? "My account" : "Start again"}</Link><button className="primary-button" disabled={pending} type="submit">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <Send size={18} />}{pending ? "Submitting…" : "Submit my details"}</button></div>
   </form>;
 }

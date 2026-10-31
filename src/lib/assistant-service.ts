@@ -1,3 +1,4 @@
+import { studentLinkIntent, answerStudentLinks, assistantPage } from "./assistant-navigation";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { PrismaClient } from "@/generated/prisma/client";
@@ -23,6 +24,7 @@ import { answerOutstandingTotal } from "./assistant-outstanding-total";
 import { answerStudentGenderReport } from "./assistant-student-demographics";
 import { answerSystemWorkflow } from "./system-workflows";
 import { canOnboardAccounts } from "./hostel-onboarding-access";
+import { normalizeAssistantQuestion, referencedAssistantRooms } from "./assistant-question";
 export { assistantEnabled } from "./assistant-config";
 
 export async function generateHostelAnswer(question:string, role:GuideRole, facts:unknown) {
@@ -39,11 +41,24 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  const staff=tenant?null:await residentStaff(database,session as SessionPayload);
  if(tenant?!await residentTenant(database,session as TenantSession):!staff)return {error:"Your account is no longer eligible. Sign in again.",status:401};
  if(!question.trim()||question.length>1200)return {error:"Enter a question of up to 1,200 characters.",status:400};
+ question=normalizeAssistantQuestion(question);
  const role:GuideRole=tenant?"TENANT":staff?.role==="CARETAKER"?"CARETAKER":"MANAGEMENT";
+ const studentLink = announcementIntent(question) ? null : studentLinkIntent(question);
+ if(studentLink){
+   const answer=await answerStudentLinks(database,session.organizationId,studentLink);
+   const first="shareLinks" in answer?answer.shareLinks?.[0]:null;
+   return {...answer,...(first&&/^(?:open|go to|take me to)\b/i.test(question)&&!/\b(?:copy|share|link|links)\b/i.test(question)?{navigateTo:first.url}:{})};
+ }
+ const page = assistantPage(question,role,staff?.role);
+ if(page)return {mode:"guide" as const,text:"Opening "+page.label+".",navigateTo:page.href,links:[{title:page.label,href:page.href,action:"Open "+page.label}]};
  // Procedure questions must win over record keywords: "make a room vacant"
  // is student checkout guidance, not a vacancy count or visitor departure.
  const procedure=answerSystemWorkflow(question,role,staff?.role);
  if(procedure)return procedure;
+ if(!tenant && (referencedAssistantRooms(question).length>1 || /\brooms\s*\d|\broom\s*\d+[a-z]?\s*(?:,|and|or|\/|&|-)\s*\d/i.test(question)))return {
+   mode:"guide",text:"Please ask about one room at a time, for example ‘Who is in room 66?’ or ‘Room 66 payments’. I have not combined residents or balances from different rooms.",
+   links:[{title:"Occupancies",href:"/occupancy",action:"Choose a room"}]
+ };
  const links=searchSystemGuide(systemGuide(role),question).map(({title,href,action})=>({title,href,action}));
  // Deterministic, tenant-scoped queries answer from the actual ledger without
  // giving financial records to an AI provider or granting autonomous writes.
@@ -58,8 +73,22 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
    if(isRoomFinanceFollowup(question)) {
      const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
      if(!subject)return {mode:"guide",text:"Which room or student are you asking about? Please give a room number or a registered student name again. I will not guess or show unrelated payments.",links:[{title:"Rooms",href:"/rooms",action:"Find room"}]};
-     if(subject.kind==="student-search")return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
-     const answer=await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     const period=requestedFinancePeriod(question,financialMonthFromQuestion(question));
+     const answer=subject.kind==="student-search"
+       ?await namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,period)
+       :await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,period);
+     return {...answer,contextToken};
+   }
+   // Resolve pronouns before treating phrases such as "show me their room" as names.
+   if(isPersonSearchFollowup(question)) {
+     const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
+     if(!subject)return {mode:"guide",text:"Which student or room do you mean? Please give the registered name or room number again.",links:[{title:"Students",href:"/students",action:"Open students"}]};
+     if(subject.kind==="room") {
+       const answer=await answerOperationalQuestion(database,session.organizationId,staff.role,{kind:"room",number:subject.number});
+       return {...answer,contextToken};
+     }
+     const {contextName,...answer}=await answerPersonSearch(database,session.organizationId,staff.role,subject.query,true);
+     void contextName;
      return {...answer,contextToken};
    }
    const person=personSearchIntent(question);
@@ -68,23 +97,25 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
      const {contextName,...answer}=found;
      return {...answer,contextToken:contextName?issueAssistantContext({kind:"student-search",query:contextName},pointerPrincipal,secret):null};
    }
-   if(isPersonSearchFollowup(question)) {
-     const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
-     if(subject?.kind!=="student-search")return {mode:"guide",text:"Which student do you mean? Please give the registered name again so I can search the student register.",links:[{title:"Students",href:"/students",action:"Open students"}]};
-     const found=await answerPersonSearch(database,session.organizationId,staff.role,subject.query,true);
-     const {contextName,...answer}=found;
-     return {...answer,contextToken};
-   }
    const named=namedStudentAccountIntent(question);
-   if(named) return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},named.name,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+   if(named) {
+     const answer=await namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},named.name,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     return {...answer,contextToken:issueAssistantContext({kind:"student-search",query:named.name},pointerPrincipal,secret)};
+   }
    if(genderReportIntent(question))return answerStudentGenderReport(database,session.organizationId);
    // Bare "How much is balance?" refers to the last verified room/student only
    // when the client provides a valid signed context. Otherwise report the clearly
    // labeled total outstanding for the entire hostel, not collections.
    if(contextualBalanceFollowup(question)) {
      const subject=readAssistantContext(contextToken,pointerPrincipal,secret);
-     if(subject?.kind==="room")return answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
-     if(subject?.kind==="student-search")return namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,requestedFinancePeriod(question,financialMonthFromQuestion(question)));
+     if(subject) {
+       const period=requestedFinancePeriod(question,financialMonthFromQuestion(question));
+       const answer=subject.kind==="room"
+         ?await answerRoomAccount(database,{organizationId:session.organizationId,role:staff.role},subject.number,period)
+         :await namedStudentAccountAnswer(database,{organizationId:session.organizationId,role:staff.role},subject.query,period);
+       return {...answer,contextToken};
+     }
+     if(contextToken)return {mode:"guide",text:"That conversation reference has expired or is no longer valid. Please give the room number or registered student name again before I show a balance.",links:[{title:"Occupancies",href:"/occupancy",action:"Find resident"}]};
    }
    const balance=financialBalanceIntent(question);
    if(balance==="bank-unavailable")return {mode:"guide",text:"I can verify outstanding hostel charges and recorded payments, but I do not have a verified live bank, M-Pesa or cash-wallet account balance. Please reconcile those accounts before reporting cash available.",links:[{title:"Reconciliation",href:"/payments/reconciliation",action:"Review payments"}]};

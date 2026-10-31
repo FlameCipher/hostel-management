@@ -7,6 +7,9 @@ import { emailPendingReceiptAction } from "./[id]/receipt/email-action";
 import { receiptDeliveryQueueState } from "@/lib/receipt-delivery-queue";
 import { currentRentAccountDisplay } from "@/lib/current-rent-account-display";
 import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
+import { AssistantStudentLinks } from "@/components/assistant-student-links";
+import { managedPropertyHost } from "@/lib/property-host-policy";
+import styles from "./payments.module.css";
 import { db } from "@/lib/db";
 
 const chargeType: Record<string, string> = { SEMESTER_RENT: "Semester rent", BREAK_ACCOMMODATION: "Break accommodation", DAMAGE: "Damage", OTHER: "Other" };
@@ -30,7 +33,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     reversedAt: null,
     receiptDeliveryStatus: {in: ["PENDING", "FAILED", "ACTION_REQUIRED"] as const},
   };
-  const [charges, payments, deliveryQueue, deliveryTotal, deliveryNeedsEmail] = await Promise.all([
+  const [charges, payments, deliveryQueue, deliveryTotal, deliveryNeedsEmail, publishedProperties, pendingUpdates] = await Promise.all([
     db.charge.findMany({ where: { organizationId: session.organizationId }, include: { student: true, semester: true, occupancy: {include: {room: {include: {roomType: true}}}}, payments: { where: { reversedAt: null } } }, orderBy: { dueDate: "asc" } }),
     db.payment.findMany({ where: { organizationId: session.organizationId, ...(query ? { OR: [{ reference: { contains: query, mode: "insensitive" } }, { receiptNumber: { contains: query, mode: "insensitive" } }, { student: { fullName: { contains: query, mode: "insensitive" } } }] } : {}) }, include: { student: true, charge: { include: { semester: true } }, mpesaTransaction: true }, orderBy: { paidAt: "desc" }, take: query ? 100 : 20 }),
     canManage ? db.payment.findMany({
@@ -51,7 +54,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         {student: {email: ""}},
       ]},
     }) : Promise.resolve(0),
+    db.property.findMany({where:{organizationId:session.organizationId,active:true,publicListing:true},select:{id:true,name:true,customDomain:true}}),
+    db.studentDetailsUpdateRequest.count({where:{organizationId:session.organizationId,status:"PENDING"}}),
   ]);
+  const studentLinks=publishedProperties.flatMap(property=>{
+    const host=managedPropertyHost(property.customDomain);
+    return host?[{title:property.name+" · Student details",url:"https://"+host+"/update-details"}]:[];
+  });
   const rows = charges.map((item) => {
     const paid = item.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const net = roundCurrency(Number(item.amount) - paid, currency);
@@ -83,16 +92,21 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       <div className="panel-heading">
         <div>
           <p className="panel-kicker">Receipt communications</p>
-          <h2>Receipts awaiting delivery · {deliveryTotal}</h2>
-          <p className="muted-note">Of the {deliveryTotal} receipts needing follow-up, <strong>{deliveryNeedsEmail} need a student email address</strong> and {deliveryTotal - deliveryNeedsEmail} have an email on file. Confirm each address before sending. WhatsApp drafts are not proof of delivery; reversed receipts are excluded.</p>
+          <h2>Receipts needing follow-up · {deliveryTotal}</h2>
+          <p className="muted-note">These payments are recorded; their receipts still need follow-up. {deliveryNeedsEmail} receipts have no student email on file. This is not an unpaid-rent warning.</p>
         </div>
         <Link className="secondary-button no-underline" href={expandedDelivery ? "/payments" : "/payments?delivery=all"}>
           {expandedDelivery ? "Show fewer" : "Review all receipts"}
         </Link>
       </div>
-      {deliveryQueue.length ? <div className="table-scroll"><table className="data-table">
-        <thead><tr><th>Receipt</th><th>Resident</th><th>Room / rent account</th><th>Amount</th><th>Delivery status</th><th>Next action</th></tr></thead>
-        <tbody>{deliveryQueue.map((payment) => {
+      <section id="student-details-links" className={styles.updatePanel} aria-label="Student contact updates">
+        <h3>Students: update your details</h3>
+        <p>Copy or share your hostel’s link with existing students. They enter their registered name and phone, complete missing details, then submit for review. No new student or rent charge is created.</p>
+        {studentLinks.length ? <div className={styles.updateLinks}>{studentLinks.map(link=><AssistantStudentLinks key={link.url} link={link}/>)}</div> : <p>No published student-update address is available. Confirm your hostel website in <Link href="/website">My Website</Link> before sharing.</p>}
+        <p><strong>{pendingUpdates} student update{pendingUpdates===1?"":"s"} awaiting review.</strong> {canReverse?<Link href="/students/update-requests">Review student updates</Link>:"The owner or authorised administrator reviews submissions."} After approval, use Send receipt by email below. Updating details does not send a receipt.</p>
+      </section>
+      {deliveryQueue.length ? <div className={styles.receiptGrid}>
+        {deliveryQueue.map((payment) => {
           const currentAccount = currentRentAccountDisplay({
             chargeType: payment.charge.type,
             description: payment.charge.description,
@@ -114,23 +128,20 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             hasEmail: Boolean(payment.student.email?.trim()),
             hasPhone: Boolean(payment.student.phone?.trim()),
           });
-          return <tr key={payment.id}>
-            <td><Link className="table-action" href={`/payments/${payment.id}/receipt`}>{payment.receiptNumber}</Link></td>
-            <td><strong>{payment.student.fullName}</strong></td>
-            <td>{payment.charge.occupancy?.room.number ? `Room ${payment.charge.occupancy.room.number}` : "Pending allocation"}<small className="table-subtext">{currentAccount.label}</small></td>
-            <td>{money(Number(payment.amount))}</td>
-            <td><span className={`status-pill ${payment.receiptDeliveryStatus === "FAILED" ? "status-maintenance" : "status-partial"}`}>{workflow.label}</span></td>
-            <td><div className="row-actions">
-              {!payment.student.email?.trim() ? <Link className="table-action" href={`/students/${payment.student.id}/edit`}>Add student email</Link> : null}
-              {workflow.emailAvailable ? <form action={emailPendingReceiptAction.bind(null,payment.id)}>
-                <button className="table-action" type="submit"><Mail size={14}/> Email PDF</button>
-              </form> : null}
+          return <article className={styles.receiptCard} key={payment.id} aria-label={"Receipt for "+payment.student.fullName}>
+            <header><div><h3>{payment.student.fullName}</h3><Link href={`/payments/${payment.id}/receipt`}>{payment.receiptNumber}</Link></div><strong className={styles.amount}>{money(Number(payment.amount))}</strong></header>
+            <p>{payment.charge.occupancy?.room.number ? `Room ${payment.charge.occupancy.room.number}` : "Room not yet allocated"}<span className={styles.account}>{currentAccount.label}</span></p>
+            <div className={styles.deliveryState}><span className={`status-pill ${payment.receiptDeliveryStatus === "FAILED" ? "status-maintenance" : "status-partial"}`}>{workflow.label}</span><p>{workflow.hint}</p></div>
+            {!payment.student.email?.trim() ? <div className={styles.missingContact}><strong>Student email missing</strong><p>Ask the student to complete their details using the link above.</p><a href="#student-details-links">Get student update link</a>{canReverse?<Link href={`/students/${payment.student.id}/edit`}>Edit verified contact details</Link>:null}</div> : null}
+            {!payment.student.phone?.trim() ? <p className={styles.missingContact}>No student phone is recorded. {canReverse?<Link href={`/students/${payment.student.id}/edit`}>Verify and add their phone</Link>:"Ask the owner or administrator to verify their phone."}</p>:null}
+            <div className={styles.receiptActions}>
+              {workflow.emailAvailable ? <form action={emailPendingReceiptAction.bind(null,payment.id)}><button className="secondary-button" type="submit"><Mail size={16}/> Send receipt by email</button></form> : null}
               {workflow.whatsappAvailable ? <ReceiptShareActions paymentId={payment.id}/> : null}
-              {!workflow.emailAvailable && !workflow.whatsappAvailable ? <Link className="table-action" href={`/students/${payment.student.id}/edit`}>Update contact</Link> : null}
-            </div></td>
-          </tr>;
-        })}</tbody>
-      </table></div> : <div className="inline-empty"><ReceiptText size={25}/><strong>All active receipts have been handled</strong><p>There are no undelivered receipts requiring action.</p></div>}
+            </div>
+            {workflow.whatsappAvailable ? <small>WhatsApp opens a receipt draft. Check the recipient and press Send in WhatsApp; opening it does not confirm delivery.</small>:null}
+          </article>;
+        })}
+      </div> : <div className="inline-empty"><ReceiptText size={25}/><strong>No receipts need follow-up</strong><p>No pending, failed or action-required receipts are recorded.</p></div>}
       {expandedDelivery && deliveryTotal>100 ? <p className="muted-note">Showing the latest 100 of {deliveryTotal} receipts needing action.</p> : null}
     </section> : null}
     <section className="panel mt-5 overflow-hidden"><div className="panel-heading"><div><p className="panel-kicker">Receivables</p><h2>{outstandingOnly ? "Outstanding charges" : "Student balances across all semesters"}{month ? ` · Due in ${month}` : ""}</h2>{month ? <p className="muted-note">Filtered by charge due date, not by accommodation month. Semester charges may cover several months.</p> : null}</div><div><Link className="secondary-button no-underline" href={outstandingOnly ? (month ? `/payments?month=${month}` : "/payments") : (month ? `/payments?view=outstanding&month=${month}` : "/payments?view=outstanding")}>{outstandingOnly ? "Show all charges" : "Show outstanding only"}</Link></div></div>{visibleRows.length ? <div className="table-scroll"><table className="data-table payments-table"><thead><tr><th>Student</th><th>Charge</th><th>Total</th><th>Paid</th><th>Balance / credit</th><th>Due date</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead><tbody>{visibleRows.map((item) => { const isOverdue = item.balance > 0 && item.dueDate < new Date(); return <tr key={item.id}><td><strong>{item.student.fullName}</strong></td><td>{chargeType[item.type]}<small className="table-subtext">{item.semester?.name ? `${item.semester.name} · ` : ""}{item.currentAccountLabel}</small>{canReverse && item.roomRateNeedsReview ? <small className="table-subtext">Room type differs from charged accommodation · <Link href="/payments/audit">Review agreement</Link></small> : null}</td><td>{money(item.amountNumber)}</td><td>{money(item.paid)}</td><td><strong>{item.credit > 0 ? `Credit ${money(item.credit)}` : money(item.balance)}</strong></td><td>{item.balance > 0 ? item.dueDate.toLocaleDateString("en-KE", { timeZone: "UTC" }) : "—"}</td><td><span className={`status-pill ${item.credit > 0 ? "status-partial" : item.balance === 0 ? "status-full" : isOverdue ? "status-maintenance" : "status-partial"}`}>{item.credit > 0 ? "Credit due" : item.balance === 0 ? "Fully paid" : isOverdue ? "Overdue" : item.paid ? "Part paid" : "Unpaid"}</span></td>{canManage ? <td>{item.balance > 0 ? <Link className="table-action" href={`/payments/new?chargeId=${item.id}`}>Record payment</Link> : null}</td> : null}</tr>; })}</tbody></table></div> : <div className="inline-empty"><ReceiptText size={25} /><strong>No charges yet</strong><p>Create a semester rent charge before recording a payment.</p></div>}</section>
