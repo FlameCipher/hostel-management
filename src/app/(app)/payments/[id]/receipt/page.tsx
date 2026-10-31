@@ -116,7 +116,7 @@ export default async function PaymentReceiptPage({
       </p>:null}
 
       <article className={`receipt-sheet ${payment.reversedAt ? "receipt-reversed" : ""}`}>
-        {payment.reversedAt ? <div className="reversal-banner"><strong>REVERSED</strong><span>{payment.reversalType === "MPESA_CONFIRMED" ? "M-Pesa reversal confirmed" : "Internal correction"} · {payment.reversedAt.toLocaleDateString("en-KE")}</span><p>{payment.reversalReason}</p></div> : null}
+        {payment.reversedAt ? <div className="reversal-banner"><strong>REVERSED</strong><span>{payment.reversalType === "GATEWAY_CONFIRMED" ? "Reversal verified by Pesapal" : payment.reversalType === "MPESA_CONFIRMED" ? "M-Pesa reversal confirmed" : "Internal correction"} · {payment.reversedAt.toLocaleDateString("en-KE")}</span><p>{payment.reversalReason}</p></div> : null}
         <header className="receipt-header">
           <span className="brand-mark"><Building2 size={21} /></span>
           <div><h1>{payment.organization.name}</h1><p>Official payment receipt</p></div>

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { db } from "@/lib/db";
+import { activeRentGateway } from "@/lib/rent-payments";
 import { notFound } from "next/navigation";
 import { RentPaymentLink } from "@/components/rent-payment-link";
 import { requestPropertyContext } from "@/lib/property-host";
@@ -14,6 +16,8 @@ export default async function PayRentPage() {
   const collection = hostelRentCollection(property.organizationId, await organizationCurrency(property.organizationId));
   if (!collection) notFound();
 
+  const gateway = await activeRentGateway(db, property.organizationId);
+  if (gateway) return <main className={styles.page}><Link href="/">← {property.name}</Link><h1>Pay your hostel rent</h1><section className={styles.card}><h2>Existing students</h2><p>Sign in, choose your rent charge and amount, then pay securely with Pesapal. The system verifies your payment, updates your balance and issues your receipt automatically.</p><Link className="primary-button" href="/tenant/pay">Sign in and pay rent</Link></section><section className={styles.card}><h2>Parents, guardians and other payers</h2><p>Open the individual payment request sent by the landlord or student. It already identifies the correct student and rent charge. You do not need a student login to pay that request.</p></section><section className={styles.card}><h2>New students</h2><p>Confirm your room and rent charge with management first. Management can send you a payment request once your student record and charge are created.</p><Link href="/book">Apply for accommodation</Link></section><section className={styles.card}><h2>After payment</h2><p>Payments are collected through Sampesa Group Limited on Pesapal. Keep your receipt. If money was deducted but confirmation is pending, wait for the system to verify it before paying again.</p><p>Cash payments must be recorded by management when received. Payments through the earlier general store link still need matching.</p></section></main>;
   return <main className={styles.page}>
     <Link href="/">← {property.name}</Link>
     <p className="eyebrow">Rent payments</p>

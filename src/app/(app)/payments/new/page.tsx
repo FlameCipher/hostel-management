@@ -6,7 +6,7 @@ import { ChargeForm, PaymentForm } from "@/components/payment-forms";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ mode?: string; chargeId?: string; intake?: string; semesterId?: string }> }) {
+export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ mode?: string; method?: string; chargeId?: string; intake?: string; semesterId?: string }> }) {
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireSession();
@@ -46,5 +46,5 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
   const options = students.map((student) => ({ id: student.id, label: student.fullName }));
   const semesterOptions = semesters.map((semester) => ({ id: semester.id, label: `${semester.name} · ${semester.status}` }));
   const intake = params.intake === "1";
-  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Add student to semester" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Use the student’s existing record and create the appropriate semester charge." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to any outstanding charge, including balances from previous semesters."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · ${money(Number(type.semesterRate))}` }))} selectedSemesterId={params.semesterId} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} intake={intake} selectedChargeId={params.chargeId} />}</div>;
+  return <div className="form-page"><div className="page-heading-row"><div><p className="eyebrow">Payments</p><h1>{params.mode === "charge" ? "Add student to semester" : intake ? "Record initial payment" : "Record payment"}</h1><p>{params.mode === "charge" ? "Use the student’s existing record and create the appropriate semester charge." : intake ? "Record the first payment, then select the student’s specific room number." : "Apply a payment to any outstanding charge, including balances from previous semesters."}</p></div></div>{params.mode === "charge" ? <ChargeForm roomTypes={roomTypes.map((type) => ({ id: type.id, label: `${type.name} · ${money(Number(type.semesterRate))}` }))} selectedSemesterId={params.semesterId} students={options} semesters={semesterOptions} /> : <PaymentForm charges={chargeOptions} cash={params.method === "CASH"} intake={intake} selectedChargeId={params.chargeId} />}</div>;
 }
