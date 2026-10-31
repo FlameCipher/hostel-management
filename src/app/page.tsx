@@ -83,7 +83,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
         <a className="marketing-login" href={p ? "/login" : "https://studentshostels.com/login"}>Owner / admin</a>
       </div>
     </nav>
-    {p && <nav className="hostel-section-nav" aria-label="Explore this hostel"><a href="#about">About</a><a href="#rooms">Rooms & prices</a>{photos.length > 0 && <a href="#photos">Photos</a>}<a href="#booking-guide">How to book</a><a href="#viewing">Before moving in</a><a href="#faq">FAQs</a><a href="#location">Contact</a><Link href="/tenant/login">Student portal</Link></nav>}
+    {p && <nav className="hostel-section-nav" aria-label="Explore this hostel"><a href="#about">About</a><a href="#rooms">Rooms & prices</a>{photos.length > 0 && <a href="#photos">Photos</a>}<a href="#booking-guide">How to book</a><a href="#viewing">Before moving in</a><a href="#faq">FAQs</a><a href="#location">Contact</a><Link href="/tenant/login">Student portal</Link>{rentCollection && <Link href="/pay-rent">Pay rent</Link>}</nav>}
     <section className="approved-hero" id="home">
       <div className="approved-hero-copy">
         <span>{p ? "YOUR STUDENT HOME" : "STUDENT ACCOMMODATION"}</span><h1>{title}</h1><p>{heroDescription}</p>
