@@ -16,7 +16,7 @@ test("existing student update questions resolve to a verified full public link b
   for (const q of ["Give me a link for existing students to update their details", "How can existing students update their account?", "Share the student details update link", "Open the student update details page"]) {
     const answer = await answerHostelQuestion(database(), session, false, q, noModel);
     assert.match(answer.text!, /https:\/\/example.studentshostels.com\/update-details/);
-    assert.ok("shareLinks" in answer && answer.shareLinks?.length === 1);
+    assert.ok("shareLinks" in answer && Array.isArray(answer.shareLinks) && answer.shareLinks.length === 1);
     if(q.startsWith("Open")) assert.equal("navigateTo" in answer && answer.navigateTo, "https://example.studentshostels.com/update-details");
     else assert.ok(!("navigateTo" in answer), "Link remains available for copying");
     assert.deepEqual(answer.links, []);

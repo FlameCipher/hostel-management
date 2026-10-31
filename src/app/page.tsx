@@ -13,6 +13,7 @@ import { activeBreakHoldWhere } from "@/lib/room-status";
 import { getEffectiveRoomStatus } from "@/lib/rooms";
 import { countryName, countryOptions, locationLabel, propertyMapUrl } from "@/lib/property-location";
 import { PLATFORM_SETUP_FEE, PLATFORM_MANUAL_PAYMENT } from "@/lib/landlord-commercial-policy";
+import { hostelRentCollection } from "@/lib/rent-collection";
 
 
 export async function generateMetadata() {
@@ -36,6 +37,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
   if (!context.shared && !context.property) notFound();
   const p = context.property;
   const currency = p ? await organizationCurrency(p.organizationId) : "KES";
+  const rentCollection = p ? hostelRentCollection(p.organizationId, currency) : null;
   const money = (v: number) => formatMoney(v, currency);
   const title = p?.name ?? "StudentsHostels";
   const mapUrl=p?propertyMapUrl(p):null;
@@ -77,6 +79,7 @@ export default async function Home({searchParams}:{searchParams:Promise<{country
       <div className="marketing-links">
         {p ? <><a href="#rooms">Rooms & rates</a><Link href="/book">Book a room</Link><a href="#location">Contact</a></> : <a href="https://studentshostels.com">All hostels</a>}
         <a href={p ? "/tenant/login" : "https://studentshostels.com/tenant/login"}>Student portal</a>
+        {rentCollection && <Link href="/pay-rent">Pay rent</Link>}
         <a className="marketing-login" href={p ? "/login" : "https://studentshostels.com/login"}>Owner / admin</a>
       </div>
     </nav>

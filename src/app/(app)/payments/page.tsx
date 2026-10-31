@@ -11,6 +11,8 @@ import { AssistantStudentLinks } from "@/components/assistant-student-links";
 import { managedPropertyHost } from "@/lib/property-host-policy";
 import styles from "./payments.module.css";
 import { db } from "@/lib/db";
+import { hostelRentCollection } from "@/lib/rent-collection";
+import { RentPaymentLink } from "@/components/rent-payment-link";
 
 const chargeType: Record<string, string> = { SEMESTER_RENT: "Semester rent", BREAK_ACCOMMODATION: "Break accommodation", DAMAGE: "Damage", OTHER: "Other" };
 
@@ -18,6 +20,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const currency = await managementCurrency();
   const money = (value: number) => formatMoney(value, currency);
   const session = await requireStaffFinanceAccess();
+  const rentCollection = hostelRentCollection(session.organizationId, currency);
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const outstandingOnly = params.view === "outstanding";
@@ -88,6 +91,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   return <div><div className="page-heading-row"><div><p className="eyebrow">Rent collection</p><h1>Payments</h1><p>Manage rent charges, partial payments, balances and printable receipts.</p></div>{canManage ? <div className="heading-actions">{canReverse?<Link className="secondary-button no-underline" href="/payments/audit"><ShieldCheck size={17}/> Financial integrity</Link>:null}<Link className="secondary-button no-underline" href="/payments/reconciliation"><ListChecks size={17} /> Reconcile M-Pesa</Link><Link className="secondary-button no-underline" href="/payments/new?mode=charge"><FilePlus2 size={17} /> Add charge</Link><Link className="primary-button no-underline" href="/payments/new"><Plus size={17} /> Record payment</Link></div> : null}</div>
     <section className="room-summary-grid payments-summary"><article className="compact-stat"><span className="metric-icon metric-blue"><Banknote size={22} /></span><div><p>Total charges</p><strong>{money(expected)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-green"><WalletCards size={22} /></span><div><p>Collected</p><strong>{money(collected)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-violet"><ReceiptText size={22} /></span><div><p>Outstanding</p><strong>{money(outstanding)}</strong></div></article><article className="compact-stat"><span className="metric-icon metric-red"><AlertCircle size={22} /></span><div><p>Credits</p><strong>{money(credits)}</strong><small>Paid above adjusted charges</small></div></article></section>
+    {canManage && rentCollection && <section className="panel entity-form mt-5" aria-label="Collect rent with Pesapal"><h2>Collect rent with Pesapal</h2><p>Share the MMAMBUGUA HOSTEL rent link. Students and guardians pay through {rentCollection.merchant} and provide the student’s name, room and rent period.</p><RentPaymentLink share/><p>Before recording a payment, verify its completed status, amount, currency and reference in your <a href="https://business.pesapal.com/transactions" target="_blank" rel="noopener noreferrer">Pesapal dashboard</a>. Match it to the correct student and charge and check that the reference has not already been recorded. Then use Record payment and send the hostel receipt. Hosted-link payments do not update balances automatically.</p></section>}
     {canManage ? <section className="panel mt-5 overflow-hidden" aria-label="Receipt delivery queue">
       <div className="panel-heading">
         <div>
