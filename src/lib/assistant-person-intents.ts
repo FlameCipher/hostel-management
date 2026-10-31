@@ -2,6 +2,7 @@
  * Interpret person-finding questions before generic hostel knowledge or vacancy
  * intents. The text is merely a search term, never an account selector.
  */
+import { normalizeAssistantQuestion, referencedAssistantRooms } from "./assistant-question";
 export type PersonSearchIntent={kind:"student-search";name:string;asksAvailability:boolean};
 const NAME=/^[\p{L}][\p{L}\p{M}.'’\- ]{1,99}$/u;
 const stopwords=/^(?:rooms?|hostels?|beds?|prices?|rates?|rent|visitor|visitors|students?|tenants?|guardians?|owners?|staff|caretakers?|security|gate|office|management|vacancies|availability|anyone|somebody|someone|everybody|everyone|one|ones|them|they|he|she|there|here|today|tomorrow|yesterday|payments?|receipts?|balances?|accounts?)$/i;
@@ -13,9 +14,10 @@ function personName(raw:string):string|null {
   return value;
 }
 export function personSearchIntent(question:string):PersonSearchIntent|null {
- const q=question.trim();if(!q||q.length>1200)return null;
+ if(question.length>1200)return null;
+ const q=normalizeAssistantQuestion(question);if(!q||referencedAssistantRooms(q).length||isPersonSearchFollowup(q))return null;
  // Avoid stealing a private finance question from the dedicated finance reader.
- if(/\b(?:paid|payment|pay|rent|arrears|balance|owe|owing|debtor|receipt|invoice|collected)\b/i.test(q))return null;
+ if(/\b(?:paid|payments?|pay|rent|arrears|balances?|owes?|owing|debtors?|receipts?|invoices?|collected)\b/i.test(q))return null;
  const patterns=[
   /^(?:i(?:'m| am)?|am|we(?:'re| are)?)\s+(?:looking|searching)\s+for\s+(?:a\s+)?(?:student\s+|tenant\s+|resident\s+|person\s+)?(.+)$/i,
   /^(?:find|locate|search(?: for)?|look(?:ing)? for|show me|show|where is|where's)\s+(?:student\s+|tenant\s+|resident\s+|person\s+)?(.+)$/i,
@@ -35,7 +37,7 @@ export function personSearchIntent(question:string):PersonSearchIntent|null {
  return null;
 }
 export function isPersonSearchFollowup(question:string):boolean {
- const q=question.trim().toLowerCase();
+ const q=normalizeAssistantQuestion(question).toLowerCase();
  if(!q||q.length>200||/\broom\s*\d+/i.test(q))return false;
- return /^(?:(?:and|then|okay|so)\s+)?(?:which\s+(?:one|of them)\s+(?:is|are)\s+(?:currently\s+)?(?:available|active|registered|here|staying)|(?:is|are)\s+(?:he|she|they|that (?:person|student))\s+(?:currently\s+)?(?:available|active|registered|here|staying)|where\s+(?:is|are)\s+(?:he|she|they)\s+(?:staying|living)|(?:tell me|show me)\s+(?:more about|their room|his room|her room)|which\s+(?:one|of them)\??)/i.test(q);
+ return /^(?:(?:and|then|okay|so)\s+)?(?:which\s+(?:one|of them)\s+(?:is|are)\s+(?:currently\s+)?(?:available|active|registered|here|staying)|(?:is|are)\s+(?:he|she|they|that (?:person|student))\s+(?:currently\s+)?(?:available|active|registered|here|staying)|where\s+(?:is|are)\s+(?:he|she|they)\s+(?:staying|living)|(?:which|what)\s+room\s+(?:is|are)\s+(?:he|she|they)\s+in|(?:tell me|show me)\s+(?:more about|their room|his room|her room)|which\s+(?:one|of them)\??)/i.test(q);
 }

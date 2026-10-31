@@ -1,3 +1,4 @@
+import { receiptDeliveryQueueState } from "@/lib/receipt-delivery-queue";
 import { formatMoney, roundCurrency } from "@/lib/currency";
 import { currentRentAccountDisplay } from "@/lib/current-rent-account-display";
 import Link from "next/link";
@@ -72,11 +73,15 @@ export default async function PaymentReceiptPage({
     currentAccount.label !== currentAccount.originalDescription;
   const canCorrect=["OWNER","ADMIN"].includes(session.role) && !payment.reversedAt;
   const canEmail=["OWNER","ADMIN","MANAGER"].includes(session.role) && !payment.reversedAt && !!payment.student.email?.trim() && !(payment.receiptDeliveryChannel==="EMAIL"&&payment.receiptDeliveryStatus==="SENT");
-  const emailStatus = !payment.student.email ? "No email recorded."
-    : payment.receiptDeliveryChannel === "EMAIL" && payment.receiptDeliveryStatus === "SENT" ? "Email accepted by provider; inbox delivery not independently confirmed."
-    : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed."
-    : payment.receiptDeliveryStatus === "PENDING" ? "Receipt is awaiting delivery."
-    : "Email not sent.";
+  const receiptStatus = receiptDeliveryQueueState({
+    receiptDeliveryStatus: payment.receiptDeliveryStatus,
+    receiptDeliveryChannel: payment.receiptDeliveryChannel === "EMAIL" ? "EMAIL" : payment.receiptDeliveryChannel === "WHATSAPP" ? "WHATSAPP" : null,
+    receiptDeliveryError: payment.receiptDeliveryError,
+    updatedAt: payment.updatedAt,
+    reversedAt: payment.reversedAt,
+    hasEmail: Boolean(payment.student.email?.trim()),
+    hasPhone: Boolean(payment.student.phone?.trim()),
+  });
 
   return (
     <div className="receipt-page">
@@ -89,7 +94,7 @@ export default async function PaymentReceiptPage({
           </Link>
           {!payment.reversedAt ? <ReceiptShareActions paymentId={payment.id} /> : null}
           {canEmail ? <form action={emailPendingReceiptAction.bind(null,payment.id)}>
-            <button className="secondary-button" type="submit"><Mail size={17}/> Email receipt</button>
+            <button className="secondary-button" type="submit"><Mail size={17}/> Send receipt by email</button>
           </form> : null}
           {canCorrect ? <Link className="secondary-button no-underline" href={`/payments/${payment.id}/correct`}>
             <PencilLine size={17}/> Correct amount
@@ -105,7 +110,7 @@ export default async function PaymentReceiptPage({
       {paramsQuery.delivery==="failed" ? <p className="form-error print-hidden" role="alert">The receipt was saved, but email delivery failed. Check the delivery status before retrying.</p>:null}
       {paramsQuery.delivery==="already-sent" ? <p className="review-success print-hidden" role="status">This receipt was already accepted by the email provider; no duplicate was sent.</p>:null}
       {paramsQuery.delivery==="no-email" ? <p className="form-error print-hidden" role="alert">No student email is recorded for this receipt.</p>:null}
-      <p className="receipt-email-status print-hidden" role="status">{emailStatus}</p>
+      <p className="receipt-email-status print-hidden" role="status"><strong>{receiptStatus.label}.</strong> {receiptStatus.hint}</p>
       {payment.reversedAt && replacementPaymentId ? <p className="print-hidden" role="status">
         This receipt was superseded by an internal correction. <Link href={`/payments/${encodeURIComponent(replacementPaymentId)}/receipt`}>Open the valid replacement receipt</Link>.
       </p>:null}

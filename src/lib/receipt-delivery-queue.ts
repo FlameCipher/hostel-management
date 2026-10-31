@@ -24,11 +24,25 @@ export function receiptDeliveryQueueState(payment: ReceiptDeliveryRow, now = new
     !!payment.updatedAt && now.getTime() - payment.updatedAt.getTime() < 120_000;
   const emailAvailable = queued && !processing && payment.hasEmail;
   const whatsappAvailable = queued && !processing && payment.hasPhone;
-  const label = !queued ? "Completed or reversed"
+  const sendingUnavailable = queued && payment.receiptDeliveryStatus === "FAILED" &&
+    /(?:RESEND_API_KEY|RECEIPT_EMAIL_FROM).*not configured/i.test(payment.receiptDeliveryError ?? "");
+  const label = payment.reversedAt ? "Receipt reversed"
+    : !queued ? (payment.receiptDeliveryChannel === "EMAIL" ? "Email sent — delivery unconfirmed" : "Receipt sent")
     : processing ? "Sending email…"
-    : payment.receiptDeliveryStatus === "FAILED" ? "Email delivery failed"
-    : payment.receiptDeliveryStatus === "PENDING" ? "Not yet delivered"
-    : payment.receiptDeliveryChannel === "WHATSAPP" ? "WhatsApp sharing required"
-    : "Action required";
-  return {queued, processing, label, emailAvailable, whatsappAvailable};
+    : sendingUnavailable ? "Receipt email setup needed"
+    : !payment.hasEmail && !payment.hasPhone ? "Student contact needed"
+    : payment.receiptDeliveryStatus === "FAILED" ? (payment.receiptDeliveryChannel === "EMAIL" ? "Email not sent" : payment.receiptDeliveryChannel === "WHATSAPP" ? "WhatsApp send failed" : "Receipt send failed")
+    : payment.receiptDeliveryChannel === "WHATSAPP" ? "WhatsApp send not confirmed"
+    : "Receipt not sent yet";
+  const hint = payment.reversedAt ? "This reversed receipt cannot be sent."
+    : !queued ? "The sending service accepted this receipt. Delivery to the student and reading are not confirmed here."
+    : processing ? "Please wait while the current email attempt finishes."
+    : sendingUnavailable ? "Management needs to complete the receipt email setup. If a student phone is available, prepare the receipt in WhatsApp instead."
+    : !payment.hasEmail && !payment.hasPhone ? "Ask the student to complete their details, then have management verify them."
+    : payment.receiptDeliveryChannel === "WHATSAPP" ? "Check whether you sent the WhatsApp draft before sending it again."
+    : payment.receiptDeliveryStatus === "FAILED" ? "Check the student's contact details before trying again."
+    : payment.hasEmail && payment.hasPhone ? "Payment recorded. Send the receipt by email or prepare a WhatsApp message."
+    : payment.hasEmail ? "Payment recorded. Use Send receipt by email."
+    : "Payment recorded. Prepare the WhatsApp receipt, then press Send in WhatsApp. To use email, ask the student to update their details.";
+  return {queued, processing, label, hint, emailAvailable, whatsappAvailable};
 }

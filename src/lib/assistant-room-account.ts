@@ -3,14 +3,16 @@ import { formatMoney, minorUnits } from "@/lib/currency";
 import type { SessionPayload } from "@/lib/auth/session";
 import type { FinancePeriod } from "@/lib/assistant-finance-period";
 import { resolveFinanceWindow } from "@/lib/assistant-management-intents";
+import { normalizeAssistantQuestion } from "./assistant-question";
 
 export function roomAccountIntent(question: string): { number: string } | null {
   if (!question.trim() || question.length > 1200) return null;
+  question = normalizeAssistantQuestion(question);
   const match = question.match(/\broom\s*(?:number\s*)?([0-9]{1,5}[a-z]?)\b/i);
   if (!match) return null;
   // A specific room plus a financial question always outranks the all-hostel
   // "how much was collected" classifier. No numerical records are inferred.
-  if (!/(?:how much|how many|payments?|paid|pay\b|balance|balances|rent|owing|owed|arrears|receipts?|received|statement|transactions?|amelipa|kalipa)/i.test(question)) return null;
+  if (!/(?:how much|payments?|paid|pay\b|balance|balances|rent|owing|owed|arrears|receipts?|received|statement|transactions?|amelipa|kalipa)/i.test(question)) return null;
   return { number: match[1].toUpperCase() };
 }
 

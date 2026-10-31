@@ -41,7 +41,7 @@ export async function answerPersonSearch(db:PrismaClient,organizationId:string,r
    ?"If by 'available' you mean physically present, reachable by phone, or available to meet, these records cannot confirm that. They show only registration and room allocation status. Which meaning do you want?"
    :"These are registered student and room-allocation records, not proof a person is physically present. You can ask which of these students is currently registered.")+
    "\nNo student or payment records were changed.",
-  links:[link("Student register","/students","Open students"),link("Occupancy","/occupancy","Check allocations")],
+  links:[link("Occupancy","/occupancy?q="+encodeURIComponent(exact.length===1?exact[0].fullName:broad?tokens[0]:name),"View matching residents"),link("Student register","/students","Open students")],
   contextName:broad?name.trim().split(/\s+/)[0]:name
  };
 }
