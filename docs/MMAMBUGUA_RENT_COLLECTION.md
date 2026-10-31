@@ -1,3 +1,5 @@
+> For the new individual payment requests and automatic verification, see [AUTOMATIC_RENT_PAYMENTS.md](AUTOMATIC_RENT_PAYMENTS.md). The general store link documented below still requires manual matching.
+
 # MMAMBUGUA hosted rent collection
 
 Verified and configured in the existing Sampesa Group Limited Pesapal account on 31 October 2026.

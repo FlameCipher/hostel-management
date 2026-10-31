@@ -29,6 +29,7 @@ export async function deliverPaymentReceipt(
       where: { id: paymentId, organizationId, reversedAt: null },
       include: {
         organization: true,
+        rentPaymentRequest: { select: { id: true } },
         student: true,
         recordedBy: true,
         charge: {
@@ -40,7 +41,7 @@ export async function deliverPaymentReceipt(
       },
     });
 
-    if (!payment?.charge.occupancy) return "deferred";
+    if (!payment || (!payment.charge.occupancy && !payment.rentPaymentRequest)) return "deferred";
     if(payment.receiptDeliveryStatus==="SENT") return "already-sent";
     const money = (value: number) => formatMoney(value, payment.currency);
 
@@ -90,7 +91,7 @@ export async function deliverPaymentReceipt(
 
     const paid = payment.charge.payments.reduce((sum, item) => sum + Number(item.amount), 0);
     const balance = Math.max(0, roundCurrency(Number(payment.charge.amount) - paid, payment.currency));
-    const roomNumber = payment.charge.occupancy.room.number;
+    const roomNumber = payment.charge.occupancy?.room.number ?? "Pending allocation";
     const pdf = await generateReceiptPdf({
     currency: payment.currency,
     securityReference: payment.securityReference,
@@ -106,7 +107,7 @@ export async function deliverPaymentReceipt(
       studentPhone: payment.student.phone,
       studentEmail: payment.student.email,
       roomNumber: `Room ${roomNumber}`,
-      semesterName: payment.charge.occupancy.semester.name,
+      semesterName: (payment.charge.occupancy?.semester.name ?? payment.charge.description),
       paymentDate: payment.paidAt.toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" }),
       description: payment.charge.description,
       amountReceived: Number(payment.amount),
@@ -115,7 +116,7 @@ export async function deliverPaymentReceipt(
       totalCharge: Number(payment.charge.amount),
       balanceRemaining: balance,
       nextBalanceDue: balance > 0 ? payment.charge.dueDate.toLocaleDateString("en-KE", { timeZone: "UTC" }) : null,
-      receivedBy: payment.recordedBy?.name ?? "Hostel management",
+      receivedBy: payment.recordedBy?.name ?? (payment.rentPaymentRequest ? "Verified automatically with Pesapal" : "Hostel management"),
       reversed: false,
     });
     const response = await fetch("https://api.resend.com/emails", {
@@ -140,7 +141,7 @@ export async function deliverPaymentReceipt(
             <table style="width:100%;border-collapse:collapse">
               <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Student</td><td style="padding:9px;border-bottom:1px solid #e4edf6"><strong>${escapeHtml(payment.student.fullName)}</strong></td></tr>
               <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Room</td><td style="padding:9px;border-bottom:1px solid #e4edf6"><strong>Room ${escapeHtml(roomNumber)}</strong></td></tr>
-              <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Semester</td><td style="padding:9px;border-bottom:1px solid #e4edf6">${escapeHtml(payment.charge.occupancy.semester.name)}</td></tr>
+              <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Semester</td><td style="padding:9px;border-bottom:1px solid #e4edf6">${escapeHtml((payment.charge.occupancy?.semester.name ?? payment.charge.description))}</td></tr>
               <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Payment</td><td style="padding:9px;border-bottom:1px solid #e4edf6"><strong>${money(Number(payment.amount))}</strong></td></tr>
               <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Method</td><td style="padding:9px;border-bottom:1px solid #e4edf6">${escapeHtml(payment.method.replaceAll("_", " "))}</td></tr>
               <tr><td style="padding:9px;border-bottom:1px solid #e4edf6">Reference</td><td style="padding:9px;border-bottom:1px solid #e4edf6">${escapeHtml(payment.reference ?? "Not applicable")}</td></tr>

@@ -123,6 +123,7 @@ enum PaymentMethod {
 }
 
 enum PaymentReversalType {
+  GATEWAY_CONFIRMED
   INTERNAL_CORRECTION
   MPESA_CONFIRMED
 }
@@ -251,6 +252,8 @@ enum ChargeAdjustmentReason {
 }
 
 model Organization {
+  rentGateways RentGateway[]
+  rentPaymentRequests RentPaymentRequest[]
   pushSubscriptions PushSubscription[]
   assistantRuns AssistantRun[]
   whatsappConnection WhatsAppConnection?
@@ -820,6 +823,7 @@ model BreakReservation {
 }
 
 model Charge {
+  rentPaymentRequests RentPaymentRequest[]
   currency String @default("KES")
   id                 String       @id @default(cuid())
   organizationId     String
@@ -917,6 +921,7 @@ model ChargeAdjustment {
 }
 
 model Payment {
+  rentPaymentRequest RentPaymentRequest?
   currency String @default("KES")
   id                     String                  @id @default(cuid())
   organizationId         String
@@ -1461,4 +1466,53 @@ model RecoveryRateLimit {
   attempts Int @default(1)
   createdAt DateTime @default(now())
   @@index([createdAt])
+}
+
+// Credentials are encrypted with the organization as authenticated context.
+// Connections are immutable so existing orders retain their merchant binding.
+model RentGateway {
+  id String @id @default(cuid())
+  organizationId String
+  environment String
+  credentials String
+  notificationId String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requests RentPaymentRequest[]
+  @@index([organizationId, active])
+}
+
+model RentPaymentRequest {
+  id String @id
+  token String @unique
+  organizationId String
+  chargeId String
+  studentId String
+  gatewayId String
+  createdById String?
+  amount Decimal @db.Decimal(15, 3)
+  currency String
+  payerName String
+  payerEmail String?
+  payerPhone String?
+  status String @default("READY")
+  trackingId String? @unique
+  checkoutUrl String?
+  paymentId String? @unique
+  confirmationCode String?
+  exception String?
+  emailStatus String @default("NOT_SENT")
+  emailAttemptedAt DateTime?
+  lastCheckedAt DateTime?
+  nextCheckAt DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  gateway RentGateway @relation(fields: [gatewayId], references: [id], onDelete: Restrict)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  @@index([organizationId, createdAt])
+  @@index([status, nextCheckAt])
 }

@@ -33,11 +33,12 @@ export async function correctRecordedPaymentAmount(
 
     const original = await tx.payment.findFirst({
       where: {id: input.paymentId, organizationId: session.organizationId},
-      include: {mpesaTransaction: true},
+      include: {mpesaTransaction: true, rentPaymentRequest: {select:{id:true}}},
     });
     if (!original) throw Error("PAYMENT_NOT_FOUND");
     if (original.reversedAt) throw Error("PAYMENT_ALREADY_REVERSED");
     if (Number(original.amount) !== input.originalAmount) throw Error("PAYMENT_CHANGED");
+    if (original.rentPaymentRequest) throw Error("GATEWAY_VERIFIED_PAYMENT");
     if (original.mpesaTransaction) throw Error("IMPORTED_MPESA_REVIEW");
 
     await tx.$queryRaw`SELECT id FROM "SemesterCharge" WHERE id=${original.chargeId} AND "organizationId"=${session.organizationId} FOR UPDATE`;

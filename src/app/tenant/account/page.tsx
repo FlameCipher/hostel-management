@@ -9,6 +9,7 @@ import { sosPilotEnabled } from "@/lib/student-safety";
 import { db } from "@/lib/db";
 import { tenantLogoutAction } from "../login/actions";
 import { hostelRentCollection } from "@/lib/rent-collection";
+import { activeRentGateway } from "@/lib/rent-payments";
 import { RentPaymentLink } from "@/components/rent-payment-link";
 
 export default async function TenantAccountPage() {
@@ -21,8 +22,9 @@ export default async function TenantAccountPage() {
  const paid=student.charges.reduce((s,x)=>s+x.payments.reduce((a,p)=>a+Number(p.amount),0),0);
  const balance=Math.max(0,total-paid), occupancy=student.occupancies[0];
  const rentCollection=hostelRentCollection(session.organizationId,organization.currency);
+ const rentGateway=rentCollection ? await activeRentGateway(db,session.organizationId) : null;
  return <main className="marketing-section"><div className="page-heading-row"><div><p className="eyebrow">Student account</p><h1>{student.fullName}</h1><p>{organization.name} tenant portal</p></div><form action={tenantLogoutAction}><button className="secondary-button">Sign out</button></form></div>
- {rentCollection && balance > 0 && <section className="panel entity-form" aria-label="Pay my rent"><h2>Pay my rent</h2><p>Recorded outstanding balance: <strong>{money(balance)}</strong>. Check your charges below and confirm any recent payments before paying again.</p><p>On Pesapal, enter <strong>{student.fullName}</strong>{occupancy ? <> and <strong>Room {occupancy.room.number}</strong></> : " and your room as confirmed by management"}, the semester or rent period, and the amount you are paying.</p><p>Payments go to <strong>{rentCollection.merchant}</strong>. Management verifies the payment and updates your hostel balance; this is not automatic.</p><RentPaymentLink/><p><Link href={rentCollection.guideUrl}>Payment instructions</Link> · <Link href="/tenant/contact">Send your payment reference to management</Link></p></section>}
+ {rentGateway && balance > 0 ? <section className="panel entity-form"><h2>Pay my rent</h2><p>Choose your charge and amount. Confirmed Pesapal payments update your balance and create a receipt automatically.</p><Link className="primary-button" href="/tenant/pay">Pay rent</Link></section> : rentCollection && balance > 0 && <section className="panel entity-form" aria-label="Pay my rent"><h2>Pay my rent</h2><p>Recorded outstanding balance: <strong>{money(balance)}</strong>. Check your charges below and confirm any recent payments before paying again.</p><p>On Pesapal, enter <strong>{student.fullName}</strong>{occupancy ? <> and <strong>Room {occupancy.room.number}</strong></> : " and your room as confirmed by management"}, the semester or rent period, and the amount you are paying.</p><p>Payments go to <strong>{rentCollection.merchant}</strong>. Management verifies the payment and updates your hostel balance; this is not automatic.</p><RentPaymentLink/><p><Link href={rentCollection.guideUrl}>Payment instructions</Link> · <Link href="/tenant/contact">Send your payment reference to management</Link></p></section>}
  <section className="panel entity-form" aria-label="My student record"><h2>My registered details</h2><p>Your landlord has already created your student record. Review it, complete missing information and confirm your guardian details.</p><Link className="primary-button" href="/tenant/profile">View and confirm my details</Link></section>
  <section className="panel entity-form" aria-label="Student safety SOS">
    <h2>Danger / SOS — need urgent help?</h2>

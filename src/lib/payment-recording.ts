@@ -21,6 +21,10 @@ export async function recordPayment(database: PrismaClient, session: SessionPayl
       await tx.$queryRaw`SELECT id FROM "SemesterCharge" WHERE id=${input.chargeId} AND "organizationId"=${session.organizationId} FOR UPDATE`;
       const charge = await tx.charge.findFirst({ where: { id: input.chargeId, organizationId: session.organizationId }, include: { semester: { select: { status: true } }, payments: { where: { reversedAt: null }, select: { amount: true } } } });
       if (!charge) throw new Error("CHARGE_NOT_FOUND");
+      if (input.reference) {
+        const verified = await tx.payment.findFirst({ where: { organizationId: session.organizationId, reference: { equals: input.reference, mode: "insensitive" }, rentPaymentRequest: { isNot: null } } });
+        if (verified) throw new Error(`DUPLICATE_REFERENCE:${verified.receiptNumber}`);
+      }
       if (input.method === "MPESA" && input.reference) {
         const duplicateReference = await tx.payment.findFirst({ where: { organizationId: session.organizationId, method: "MPESA", reference: { equals: input.reference, mode: "insensitive" }, reversedAt: null } });
         if (duplicateReference) throw new Error(`DUPLICATE_REFERENCE:${duplicateReference.receiptNumber}`);

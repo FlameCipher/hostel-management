@@ -26,9 +26,10 @@ export async function reversePaymentAction(_state: ReversalFormState, formData: 
       await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${session.organizationId} FOR UPDATE`;
       const payment = await tx.payment.findFirst({
         where: { id: parsed.data.paymentId, organizationId: session.organizationId },
-        include: { mpesaTransaction: true },
+        include: { mpesaTransaction: true, rentPaymentRequest: {select:{id:true}} },
       });
       if (!payment) throw new Error("NOT_FOUND");
+      if (payment.rentPaymentRequest) throw new Error("GATEWAY_VERIFIED_PAYMENT");
       if (payment.reversedAt) throw new Error("ALREADY_REVERSED");
       if (parsed.data.reversalType === "MPESA_CONFIRMED" && payment.method !== "MPESA") throw new Error("NOT_MPESA");
 
@@ -57,6 +58,7 @@ export async function reversePaymentAction(_state: ReversalFormState, formData: 
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    if (message === "GATEWAY_VERIFIED_PAYMENT") return { error: "This payment is verified by Pesapal. Provider reversals are detected automatically; this form cannot refund or reverse it." };
     if (message === "NOT_FOUND") return { error: "Payment not found." };
     if (message === "ALREADY_REVERSED") return { error: "This payment has already been reversed." };
     if (message === "NOT_MPESA") return { error: "A confirmed M-Pesa reversal can only be used for an M-Pesa payment." };

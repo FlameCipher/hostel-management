@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/service-delivery",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/rent-payments",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -47,6 +47,7 @@ export async function correctPaymentAmountAction(
   } catch (error) {
     const key = error instanceof Error ? error.message : "";
     const messages: Record<string, string> = {
+      GATEWAY_VERIFIED_PAYMENT: "This amount was confirmed by Pesapal and cannot be edited. Review any charge or allocation issue separately.",
       CORRECTION_NOT_AUTHORIZED: "Your finance permission has changed. Sign in again.",
       PAYMENT_NOT_FOUND: "The payment no longer exists in your hostel.",
       PAYMENT_ALREADY_REVERSED: "This receipt was already reversed. No duplicate correction was made.",
