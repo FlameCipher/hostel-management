@@ -8,7 +8,7 @@ import { propertyTenantLogin } from "@/lib/whatsapp-policy";
 
 export const communicationSchema = z.object({
  title: z.string().trim().min(3).max(160), body: z.string().trim().min(10).max(3000),
- audience: z.enum(["ALL", "SELECTED", "MALE", "FEMALE"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
+ audience: z.enum(["ALL", "SELECTED", "MALE", "FEMALE", "UNPAID"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
  category: z.enum(["GENERAL", "EXAM", "HOLIDAY", "BALANCE"]),
  publishAt: z.date(), email: z.boolean().default(false), whatsapp: z.boolean(), requestId: z.string().uuid(),
  // Optional for non-UI internal callers. The management composer always sends
@@ -43,13 +43,15 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const parsed = communicationSchema.safeParse(input);
  if (!parsed.success) return { error: "Check the title, message, recipients and schedule." };
  const value=parsed.data;
- if (value.category === "BALANCE") return { error: "Use Rent payment demands to check overdue balances and approved payment dates before sending." };
+ if (value.category === "BALANCE") return { error: "Use Unpaid rent reminders to check overdue balances and approved payment dates before sending." };
  if(value.audience === "SELECTED" && !value.studentIds.length) return { error: "Select at least one tenant." };
  return database.$transaction(async tx => {
  const org=await tx.organization.findUnique({where:{id:session.organizationId},select:{whatsappEnabled:true}});
  if(value.whatsapp && !org?.whatsappEnabled) return {error:"Enable WhatsApp in Settings first."};
  const ids=[...new Set(value.studentIds)];
- const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : value.audience === "MALE" || value.audience === "FEMALE" ? {gender:value.audience} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
+ const overdueIds = value.audience === "UNPAID" ? (await (await import("./arrears-reminders")).readArrears(tx,session.organizationId)).rows.map(row=>row.studentId) : [];
+
+ const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "UNPAID" ? {id:{in:overdueIds}} : value.audience === "SELECTED" ? {id:{in:ids}} : value.audience === "MALE" || value.audience === "FEMALE" ? {gender:value.audience} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
  if(!students.length || students.length>5000 || (value.audience === "SELECTED" && students.length !== ids.length)) return {error:"Recipients must be current tenants of this hostel. Maximum 5,000 recipients."};
  if(value.expectedRecipientCount!==undefined && students.length!==value.expectedRecipientCount)
    return {error:"The recipient register changed since your review. Refresh the notice, check the recipients again, and confirm before saving."};
@@ -57,9 +59,9 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const accessiblePortals=students.filter(student=>student.portalEnabled && student.portalPasswordHash!==null).length;
  const awaitingPortal=students.length-accessiblePortals;
  let added=0;
- for(const student of students) added+=await addMessage(tx,{organizationId:session.organizationId,studentId:student.id,batchId:value.requestId,dedupKey:value.requestId,title:value.title,body:value.body,category:value.category,publishAt:value.publishAt,whatsappCopy:value.whatsapp,emailCopy:value.email});
+ for(const student of students) added+=await addMessage(tx,{organizationId:session.organizationId,studentId:student.id,batchId:value.requestId,dedupKey:value.requestId,title:value.title,body:value.body,category:value.audience==="UNPAID"?"BALANCE":value.category,publishAt:value.publishAt,whatsappCopy:value.whatsapp,emailCopy:value.email});
  if(added) await tx.auditLog.create({data:{organizationId:session.organizationId,actorUserId:session.userId,action:"TENANT_COMMUNICATION_PUBLISHED",entityType:"TenantMessage",entityId:value.requestId,metadata:{recipients:added,audience:value.audience,publishAt:value.publishAt.toISOString(),activePortals:accessiblePortals,withoutActivePortal:awaitingPortal,emailCopyRequested:value.email,whatsappDraftRequested:value.whatsapp}}});
- return {success:`Saved ${students.length} private tenant notice${students.length===1?"":"s"}; ${accessiblePortals} recipient${accessiblePortals===1?"":"s"} currently ${accessiblePortals===1?"has":"have"} portal access, and ${awaitingPortal} cannot read their hostel inbox until activated. ${value.publishAt > new Date() ? "Inbox publication is scheduled." : "Inbox records are available to activated accounts."} ${value.email ? "Email copies requested for queue processing, not confirmed delivered." : "No email copies requested."} ${value.whatsapp ? "WhatsApp copies requested as drafts, not sent." : "No WhatsApp copies requested."} Check actual delivery and read statuses before treating anyone as notified.`};
+ return {reportId:value.requestId,success:`Saved ${students.length} private tenant notice${students.length===1?"":"s"}; ${accessiblePortals} recipient${accessiblePortals===1?"":"s"} currently ${accessiblePortals===1?"has":"have"} portal access, and ${awaitingPortal} cannot read their hostel inbox until activated. ${value.publishAt > new Date() ? "Inbox publication is scheduled." : "Inbox records are available to activated accounts."} ${value.email ? "Email copies requested for queue processing, not confirmed delivered." : "No email copies requested."} ${value.whatsapp ? "WhatsApp copies requested as drafts, not sent." : "No WhatsApp copies requested."} Check actual delivery and read statuses before treating anyone as notified.`};
  },{timeout:30000});
 }
 export async function runCommunications(database: PrismaClient, now=new Date()) {
@@ -87,8 +89,13 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  }
  }
  }
+ queued=await queueCommunicationCopies(database,now);
+ return {created,queued};
+}
+export async function queueCommunicationCopies(database: PrismaClient, now=new Date(), scope?:{organizationId:string;batchId:string}) {
+ let queued=0;
  // Copies are queued, never labelled delivered. Revalidate tenancy and channel at queue time.
- const pending=await database.tenantMessage.findMany({where:{publishAt:{lte:now},notificationId:null,whatsappCopy:true},select:{id:true},take:500});
+ const pending=await database.tenantMessage.findMany({where:{...scope,category:{not:"ARREARS"},publishAt:{lte:now},notificationId:null,whatsappCopy:true},select:{id:true},take:500});
  for(const candidate of pending) await database.$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "TenantMessage" WHERE id=${candidate.id} FOR UPDATE`;
  const item=await tx.tenantMessage.findUnique({where:{id:candidate.id}}); if(!item || item.notificationId) return;
@@ -103,5 +110,5 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  const notification=await tx.notification.create({data:{organizationId:item.organizationId,studentId:student.id,channel:"WHATSAPP",recipientType:"STUDENT",recipientName:student.fullName,recipientPhone:student.phone,message:`${item.title}\n\n${item.body}\n\nYour account: ${propertyTenantLogin(properties)}`,status:"QUEUED",scheduledAt:now}});
  await tx.tenantMessage.update({where:{id:item.id},data:{notificationId:notification.id}});queued++;
  });
- return {created,queued};
+ return queued;
 }

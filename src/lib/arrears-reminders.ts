@@ -9,7 +9,7 @@ import { tenantWhere } from "@/lib/communications";
 import { localSessionCurrent } from "@/lib/account-security-policy";
 import { hostelTimeZone } from "@/lib/resident-policy";
 import { whatsappNumber, propertyTenantLogin } from "@/lib/whatsapp-policy";
-import { arrearsCooldown, arrearsFingerprint, arrearsMessage, arrearsPosition, ARREARS_INTERVAL_DAYS } from "@/lib/arrears-policy";
+import { arrearsCooldown, arrearsFingerprint, arrearsMessage, arrearsWhatsAppMessage, arrearsPosition, ARREARS_INTERVAL_DAYS } from "@/lib/arrears-policy";
 import { formatMoney } from "@/lib/currency";
 
 type Reader = Pick<Prisma.TransactionClient, "organization" | "student" | "property" | "tenantMessage" | "charge" | "studentTermsAcceptance">;
@@ -50,33 +50,35 @@ export async function readArrears(database: Reader, organizationId: string, now 
     return [{ studentId: student.id, name: student.fullName, room, phone, email, amount: position.balance, balance: formatMoney(position.balance, org.currency), due,
       portalReady: student.portalEnabled && student.portalPasswordHash !== null,
       fingerprint: arrearsFingerprint({ studentId: student.id, amount: position.balance, currency: org.currency, due, phone, email, name: student.fullName, room, policy: noticeDate + penalty }),
+      whatsappMessage: arrearsWhatsAppMessage({hostel:org.name,name:student.fullName,amount:position.balance,currency:org.currency,due,login,noticeDate}),
       message: arrearsMessage({ hostel: org.name, name: student.fullName, amount: position.balance, currency: org.currency, due, login, noticeDate, penalty }),
       lastAt: last?.createdAt.toISOString() ?? null, lastNotificationId: last?.notificationId ?? null, lastRead: !!last?.readAt, lastEmailStatus: last?.emailStatus ?? null }];
   });
   return { org, rows, review, deferred };
 }
 export type ArrearsRow = Awaited<ReturnType<typeof readArrears>>["rows"][number];
-export type ArrearsResult = { error?: string; success?: string; notificationId?: string };
+import type { MessageDeliveryReport } from "./message-delivery";
+export type ArrearsResult = { error?: string; success?: string; notificationId?: string; reportId?: string; report?: MessageDeliveryReport };
 const requestSchema = z.object({ requestId: z.string().uuid(), recipients: z.array(z.object({ studentId: z.string().min(1).max(128), fingerprint: z.string().length(64) })).min(1).max(500), whatsapp: z.boolean(), email: z.boolean(), manual: z.boolean().default(false) });
 
 async function saveNotice(tx: Prisma.TransactionClient, organizationId: string, row: ArrearsRow, options: { key: string; whatsapp: boolean; email: boolean; actor?: string }, now: Date) {
   const messageId = randomUUID(), notificationId = options.whatsapp && row.phone ? `arrears_${messageId}` : null;
   const data = { id: messageId, organizationId, studentId: row.studentId, batchId: options.key, dedupKey: options.key, category: "ARREARS", title: "Formal demand for overdue rent", body: row.message, publishAt: now, createdAt: now,
-    whatsappCopy: !!notificationId, notificationId, emailCopy: options.email, emailStatus: options.email ? "QUEUED" : "NOT_REQUESTED" };
+    whatsappCopy: options.whatsapp, notificationId, emailCopy: options.email, emailStatus: options.email ? "QUEUED" : "NOT_REQUESTED" };
   const saved = await tx.tenantMessage.createMany({ data, skipDuplicates: true });
   if (!saved.count) {
     const existing = await tx.tenantMessage.findUnique({ where: { organizationId_studentId_dedupKey: { organizationId, studentId: row.studentId, dedupKey: options.key } } });
     if (!existing) return null;
     const existingNotificationId = existing.notificationId ?? (options.whatsapp && row.phone ? `arrears_${existing.id}` : null);
     if (existingNotificationId && !existing.notificationId) {
-      await tx.notification.create({ data: { id: existingNotificationId, organizationId, studentId: row.studentId, createdById: options.actor, recipientType: "STUDENT", channel: "WHATSAPP", recipientName: row.name, recipientPhone: row.phone, message: row.message, scheduledAt: now } });
+      await tx.notification.create({ data: { id: existingNotificationId, organizationId, studentId: row.studentId, createdById: options.actor, recipientType: "STUDENT", channel: "WHATSAPP", recipientName: row.name, recipientPhone: row.phone, message: row.whatsappMessage, scheduledAt: now } });
       await tx.tenantMessage.update({ where: { id: existing.id }, data: { notificationId: existingNotificationId, whatsappCopy: true } });
     }
     if (options.email && !existing.emailCopy) await tx.tenantMessage.update({ where: { id: existing.id }, data: { emailCopy: true, emailStatus: "QUEUED" } });
-    return { notificationId: existingNotificationId, duplicate: true };
+    return { messageId: existing.id, notificationId: existingNotificationId, duplicate: true };
   }
-  if (notificationId) await tx.notification.create({ data: { id: notificationId, organizationId, studentId: row.studentId, createdById: options.actor, recipientType: "STUDENT", channel: "WHATSAPP", recipientName: row.name, recipientPhone: row.phone, message: row.message, scheduledAt: now } });
-  return { notificationId, duplicate: false };
+  if (notificationId) await tx.notification.create({ data: { id: notificationId, organizationId, studentId: row.studentId, createdById: options.actor, recipientType: "STUDENT", channel: "WHATSAPP", recipientName: row.name, recipientPhone: row.phone, message: row.whatsappMessage, scheduledAt: now } });
+  return { messageId, notificationId, duplicate: false };
 }
 async function manager(tx: Prisma.TransactionClient, session: SessionPayload) {
   await tx.$queryRaw`SELECT id FROM "Organization" WHERE id=${session.organizationId} FOR UPDATE`;
@@ -97,13 +99,13 @@ export async function requestArrears(database: PrismaClient, session: SessionPay
     if (value.manual && !current.rows[0].phone) return { error: "Add a valid registered tenant phone number first." };
     const day = now.toISOString().slice(0, 10), key = `arrears:${day}`;
     let saved = 0, skipped = 0, notificationId: string | undefined;
+    const messageIds: string[] = [];
     for (const row of current.rows) {
-      if (value.manual && row.lastNotificationId && row.lastAt && row.lastAt.slice(0, 10) === day) { notificationId = row.lastNotificationId; continue; }
       const result = await saveNotice(tx, session.organizationId, row, { key, whatsapp: value.whatsapp, email: value.email, actor: session.userId }, now);
-      if (result) { if (result.duplicate) skipped++; else saved++; notificationId = result.notificationId ?? undefined; } else skipped++;
+      if (result) { messageIds.push(result.messageId); if (result.duplicate) skipped++; else saved++; notificationId = result.notificationId ?? undefined; } else skipped++;
     }
-    if (saved) await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ARREARS_REQUESTS_CREATED", entityType: "TenantMessage", entityId: value.requestId, metadata: { count: saved, whatsapp: value.whatsapp, email: value.email } } });
-    return { success: `${saved} private payment request${saved === 1 ? "" : "s"} saved.${skipped ? ` ${skipped} already requested today.` : ""}${value.whatsapp ? " WhatsApp copies are queued where a valid phone is registered; open drafts that need manual sending." : ""}${value.email ? " Email copies are queued; missing addresses are shown in delivery history." : ""} Saving a notice does not confirm delivery.`, notificationId: value.manual ? notificationId : undefined };
+    if (messageIds.length) await tx.auditLog.create({ data: { organizationId: session.organizationId, actorUserId: session.userId, action: "ARREARS_REQUESTS_CREATED", entityType: "TenantMessage", entityId: value.requestId, metadata: { count: saved, whatsapp: value.whatsapp, email: value.email, messageIds } } });
+    return { success: `${ids.length} students selected. ${saved} reminders saved${skipped ? `; ${skipped} already saved today` : ""}. Open the delivery report to see the result for every student. Saved messages are not confirmed phone deliveries.`, reportId: value.requestId, notificationId: value.manual ? notificationId : undefined };
   }, { timeout: 30000 });
 }
 export async function setArrearsAutomation(database: PrismaClient, session: SessionPayload | null, input: { enabled: boolean; whatsapp: boolean; email: boolean }): Promise<ArrearsResult> {
@@ -135,12 +137,12 @@ export async function runArrearsAutomation(database: PrismaClient, now = new Dat
 }
 
 // Refresh only this feature's drafts. Historical notices and unrelated messages are untouched.
-export async function freshArrearsBody(tx: Prisma.TransactionClient, item: Pick<TenantMessage, "id" | "category" | "organizationId" | "studentId" | "createdAt">, now = new Date()) {
+export async function freshArrearsBody(tx: Prisma.TransactionClient, item: Pick<TenantMessage, "id" | "category" | "organizationId" | "studentId" | "createdAt">, now = new Date(), whatsapp = false) {
   if (now.getTime() - item.createdAt.getTime() >= ARREARS_INTERVAL_DAYS * 86400000) return null;
   const current = await readArrears(tx, item.organizationId, now, [item.studentId]);
   const row = current.rows[0];
   if (!row || current.review.length) return null;
-  return row.message;
+  return whatsapp ? row.whatsappMessage : row.message;
 }
 export async function refreshArrearsNotification(tx: Prisma.TransactionClient, item: Notification, now = new Date()): Promise<Notification | null> {
   if (!item.id.startsWith("arrears_")) {
@@ -152,7 +154,7 @@ export async function refreshArrearsNotification(tx: Prisma.TransactionClient, i
     return null;
   }
   const notice = await tx.tenantMessage.findFirst({ where: { organizationId: item.organizationId, studentId: item.studentId ?? "", notificationId: item.id, category: "ARREARS" } });
-  const body = notice ? await freshArrearsBody(tx, notice, now) : null;
+  const body = notice ? await freshArrearsBody(tx, notice, now, true) : null;
   if (!body) { await tx.notification.update({ where: { id: item.id }, data: { status: "CANCELLED", failureReason: "No eligible overdue balance remains, or the account needs review." } }); return null; }
   return tx.notification.update({ where: { id: item.id }, data: { message: body } });
 }

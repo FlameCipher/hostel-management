@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { arrearsPosition, arrearsMessage, arrearsCooldown, arrearsFingerprint, type ArrearsCharge } from "../src/lib/arrears-policy";
+import { arrearsPosition, arrearsMessage, arrearsWhatsAppMessage, arrearsCooldown, arrearsFingerprint, type ArrearsCharge } from "../src/lib/arrears-policy";
 const now = new Date("2026-10-23T05:00:00Z");
 const charge: ArrearsCharge = {id:"c",organizationId:"one",studentId:"s",currency:"KES",amount:"18000",dueDate:new Date("2026-10-01T00:00:00Z"),status:"OVERDUE",payments:[]};
 const payment = (amount: string, reversedAt: Date | null = null) => ({amount,organizationId:"one",studentId:"s",currency:"KES",reversedAt});
@@ -43,4 +43,10 @@ test("payment agreement lasts through its full local calendar date", async () =>
  assert.equal(parseAgreementDate("2026-10-22",now),null);
  assert.equal(parseAgreementDate("2028-01-01",now),null);
  assert.equal(parseAgreementDate("2026-10-23",now)?.toISOString().slice(0,10),"2026-10-23");
+});
+
+test("WhatsApp reminder fits the template and preserves amount, dates and private account link",()=>{
+ const input={hostel:"MMAMBUGUA HOSTEL",name:"Student with a longer registered full name",amount:13500,currency:"KES",due:"25 Oct 2026",login:"https://mmambugua.studentshostels.com/tenant/login",noticeDate:"1 Nov 2026"};
+ const message=arrearsWhatsAppMessage(input);
+ assert.ok(message.length<=1000);assert.match(message,/KES 13,500.00/);assert.ok(message.includes(input.login));assert.ok(message.includes(input.due));assert.ok(message.includes(input.noticeDate));
 });

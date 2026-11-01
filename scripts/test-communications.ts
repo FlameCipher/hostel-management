@@ -22,24 +22,19 @@ test("Nairobi schedule converts to UTC and rejects past or malformed date",()=>{
 test("Nairobi day uses local midnight",()=>{assert.equal(nairobiDay(new Date("2026-10-09T21:01:00Z")),"2026-10-10")});
 test("balance subtracts provided unreversed payments and never negative",()=>{assert.equal(outstanding("18000.10",[{amount:"5000.05"}]),13000.05);assert.equal(outstanding("100",[{amount:"101"}]),0)});
 
-test("notice composer offers all or selected tenants, search and review confirmation", async()=>{
- const { readFileSync } = await import("node:fs");
+test("composer preserves exact recipients while simplifying message and destination selection", async()=>{
+ const {readFileSync}=await import("node:fs");
  const source=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
- assert.match(source,/name="audience" value="ALL"/);
- assert.match(source,/name="audience" value="SELECTED"/);
- assert.match(source,/selected\.map\(id => <input key=\{id\} type="hidden" name="studentIds" value=\{id\}\/>\)/);
- assert.doesNotMatch(source,/name="studentIds" type="checkbox"/,
-   "Visible filtered checkboxes must not decide the submitted recipient list.");
- assert.match(source,/name="expectedRecipientCount" type="hidden" value=\{recipientCount\}/);
- assert.match(source,/name="confirmed" checked=\{confirmed\}/);
- assert.match(source,/Select all shown/);
- assert.match(source,/Clear selection/);
- assert.match(source,/recipientCount === 0 \|\| !confirmed/);
- assert.match(source,/private inbox record/);
- assert.match(source,/pendingPortalAccess/);
- assert.match(source,/not proof of delivery or reading/);
- assert.match(source,/Save notices for/);
- assert.match(source,/WhatsApp copies are queued as drafts/);
+ assert.match(source,/<option value="ALL">/);
+ assert.match(source,/<option value="SELECTED">/);
+ assert.match(source,/<option value="UNPAID">/);
+ assert.match(source,/name="reviewedStudentIds"/);
+ assert.match(source,/name="expectedRecipientCount"/);
+ assert.match(source,/name="studentIds" value=\{id\}/);
+ assert.doesNotMatch(source,/name="studentIds" type="checkbox"/);
+ assert.match(source,/type="submit" name="confirmed" value="on"/);
+ assert.match(source,/Automatic WhatsApp is not connected/);
+ assert.match(source,/MessageDeliveryReport/);
 });
 test("WhatsApp composer has all or selected recipients with explicit approval",async()=>{
  const { readFileSync } = await import("node:fs");
@@ -127,7 +122,7 @@ test("management action rejects missing acknowledgement and invalid count before
 test("generic balance broadcast cannot bypass individual overdue and agreement review",async()=>{
  const f=fixture(["one","two"]);
  const response=await publishCommunication(f.db,session,{...input,audience:"ALL",category:"BALANCE",studentIds:[]});
- assert.match(response.error!,/Rent payment demands/);assert.equal(f.messages.size,0);
+ assert.match(response.error!,/Unpaid rent reminders/);assert.equal(f.messages.size,0);
 });
 
 test("equal count with changed recipient identities fails before writing",async()=>{
@@ -144,4 +139,20 @@ test("male and female audiences constrain the database query without guessing",a
   const result=await publishCommunication(db,session,{...input,audience,studentIds:[],reviewedStudentIds:["recorded"],expectedRecipientCount:1});
   assert.ok("success" in result);assert.equal(where.gender,audience);assert.equal(where.organizationId,"hostel");assert.equal(writes,1);
  }
+});
+
+import {whatsappMessageState} from "../src/lib/message-delivery-policy";
+const deliveryInput={requested:true,ready:true,phone:true,consent:true};
+test("delivery counts never equate drafts, manual marks or provider acceptance with confirmed sending",()=>{
+ for(const manual of ["QUEUED","OPENED_FOR_SENDING","SENT"]) assert.equal(whatsappMessageState({...deliveryInput,manual,ready:false}).sent,false);
+ for(const provider of ["QUEUED","SENDING","ACCEPTED","REVIEW","FAILED","CANCELLED"]) assert.equal(whatsappMessageState({...deliveryInput,provider}).sent,false);
+ assert.equal(whatsappMessageState({...deliveryInput,provider:"SENT"}).sent,true);
+ assert.equal(whatsappMessageState({...deliveryInput,provider:"SENT"}).delivered,false);
+ for(const provider of ["DELIVERED","READ"]) assert.equal(whatsappMessageState({...deliveryInput,provider}).delivered,true);
+});
+test("blocked recipients need attention rather than appearing successfully queued",()=>{
+ for(const flags of [{ready:false},{phone:false},{consent:false},{predatesConnection:true},{tooLong:true},{needsNewDraft:true}]) {
+  const state=whatsappMessageState({...deliveryInput,...flags});assert.equal(state.attention,true);assert.equal(state.sent,false);assert.equal(state.queued,false);
+ }
+ assert.equal(whatsappMessageState(deliveryInput).queued,true);
 });

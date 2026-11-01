@@ -33,3 +33,7 @@ export const ARREARS_INTERVAL_DAYS = 7;
 export function arrearsCooldown(last: Date | null, now: Date, days = ARREARS_INTERVAL_DAYS) {
   return !!last && last.getTime() > now.getTime() - days * 86400000;
 }
+
+export function arrearsWhatsAppMessage(input: {hostel:string;name:string;amount:number;currency:string;due:string;login:string;noticeDate:string}) {
+ return `${input.hostel} — RENT REMINDER\n${input.noticeDate}\nDear ${input.name}, your overdue balance is ${formatMoney(input.amount,input.currency)}. Due: ${input.due}. Please pay or contact management today to agree a payment date. If already paid, share your payment reference for verification. Approved payment extensions are honoured. Your full notice and any applicable late fee are in your private account:\n${input.login}`;
+}

@@ -27,3 +27,8 @@ export async function updateWhatsAppDraftAction(form: FormData) {
   if (result.url) redirect(result.url);
   if (result.error) redirect(`/communications/whatsapp?error=${encodeURIComponent(result.error)}`);
 }
+
+export async function openMessageAction(id:string) {
+ const form=new FormData();form.set("id",id);form.set("action","OPEN");
+ await updateWhatsAppDraftAction(form);
+}
