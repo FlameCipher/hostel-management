@@ -1,3 +1,4 @@
+import { runLateFees } from "@/lib/late-fees";
 import { runArrearsAutomation } from "@/lib/arrears-reminders";
 import { prunePasswordRecovery } from "@/lib/password-recovery";
 import { NextResponse } from "next/server";
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
   }
   await prunePasswordRecovery(db);
   const healthfix = await runHealthfixMaintenance(db);
+  const lateFees = await runLateFees(db);
   const arrears = await runArrearsAutomation(db);
   const communications = await runCommunications(db);
   const email = await sendCommunicationEmails(db);
   const invitations = await runPortalInvitations(db);
-  return NextResponse.json({ ok: true, queued: communications.queued, communications, email, invitations, healthfix, arrears });
+  return NextResponse.json({ ok: true, queued: communications.queued, communications, email, invitations, healthfix, arrears, lateFees });
 }

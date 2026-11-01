@@ -3,6 +3,7 @@ import type { GuideRole } from "./system-guide";
 /** Deterministic navigation only. Sending and exports still require server-authorized review. */
 export function assistantServiceAction(question: string, role: GuideRole) {
   const q = question.toLowerCase();
+  if (/\b(?:penalty|penalties|late fee|late fees|late.payment charge)\b/.test(q) && role === "MANAGEMENT") return {mode:"guide" as const,text:"Open Rent payment demands to review the late-payment rule, student acceptance, automatic deadlines and recorded charges. The system fills notice dates and payment dates from account records and approved extensions. This request does not add a charge or send a notice.",links:[{title:"Late-payment rule and deadlines",href:"/reports/arrears",action:"Open Rent payment demands"}]};
   const unpaid = /\b(?:unpaid|not paid|not cleared|outstanding|overdue|arrears)\b|hasn.t paid|haven.t paid/.test(q);
   const report = (unpaid && /\b(?:pdf|export)\b/.test(q)) || (/\b(?:share|send)\b/.test(q) && /\b(?:staff|caretaker)\b/.test(q) && unpaid);
   const directory = /^(?:please\s+)?(?:open|show|give|list).*\b(?:service directory|all services|all links|service links)\b/.test(q);

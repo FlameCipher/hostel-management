@@ -44,6 +44,7 @@ export async function generateTermsPdf(record: Record) {
   line("Semester dates: " + snapshot.semesterStart.slice(0, 10) + " to " + snapshot.semesterEnd.slice(0, 10));
   line(snapshot.rentCharges.length ? "Recorded semester rent at " + (digital ? "acceptance" : "signing") + ": " + snapshot.rentCharges.map(c => "KES " + c.amount + " (account due date " + c.dueDate.slice(0, 10) + ")").join("; ") : "Semester rent has not yet been recorded. Confirm the amount with management; this agreement does not invent a rent charge.");
   snapshot.rules.forEach((rule, i) => { line(`${i + 1}. ${rule.title}`, true); line(rule.text); });
+  if (snapshot.lateFeePolicy) line("First eligible late-fee deadline: " + snapshot.lateFeePolicy.notBeforeDate + ". A later recorded rent due date or approved extension takes priority.");
   line("STUDENT ACCEPTANCE", true);
   line(snapshot.declaration);
   line((digital ? "Digital acceptance recorded for: " : "Electronic signature (typed full name): ") + record.signatureName, true);

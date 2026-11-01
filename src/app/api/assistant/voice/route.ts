@@ -32,9 +32,9 @@ export async function POST(request:Request) {
   subjectId:tenant?"studentId" in session?session.studentId:"":"userId" in session?session.userId:"",
   audience:tenant?"tenant" as const:"staff" as const,sessionVersion:session.sessionVersion??0};
  if(!verifyAssistantVoiceTicket(text,data.voiceTicket,principal,process.env.SESSION_SECRET??""))
-  return Response.json({error:"Narration request expired or does not match a verified assistant reply. Ask the assistant again to create a new Kinari reading."},{status:403,headers:responseHeaders});
+  return Response.json({error:"Narration request expired or does not match a verified assistant reply. Ask the assistant again to create a new hostel assistant reading."},{status:403,headers:responseHeaders});
  const key=process.env.OPENAI_API_KEY?.trim();
- if(!key)return Response.json({error:"Kinari narration is unavailable because the voice service is not configured."},{status:503,headers:responseHeaders});
+ if(!key)return Response.json({error:"hostel assistant narration is unavailable because the voice service is not configured."},{status:503,headers:responseHeaders});
  const voiceText=assistantSpeechText(text);
  if(!voiceText)return Response.json({error:"No readable text."},{status:400,headers:responseHeaders});
  // One-hourly budget prevents automated replays from becoming uncontrolled
@@ -51,7 +51,7 @@ export async function POST(request:Request) {
   if(userHourly>=20||userMinute>=3||orgHourly>=200)return null;
   return tx.assistantRun.create({data:{organizationId:session.organizationId,principal:who,model:"openai/tts"}});
  });
- if(!attempt)return Response.json({error:"Kinari narration limit reached. Try again later."},{status:429,headers:responseHeaders});
+ if(!attempt)return Response.json({error:"hostel assistant narration limit reached. Try again later."},{status:429,headers:responseHeaders});
  try {
   const controller=new AbortController();
   const abort=setTimeout(()=>controller.abort(),24000);
@@ -72,6 +72,6 @@ export async function POST(request:Request) {
   return new Response(audio,{status:200,headers:{...responseHeaders,"Content-Type":"audio/mpeg"}});
  }catch {
   await db.assistantRun.update({where:{id:attempt.id},data:{status:"FAILED"}}).catch(()=>undefined);
-  return Response.json({error:"Kinari narration could not be generated right now. Try again later."},{status:503,headers:responseHeaders});
+  return Response.json({error:"hostel assistant narration could not be generated right now. Try again later."},{status:503,headers:responseHeaders});
  }
 }

@@ -44,10 +44,10 @@ test("narration cleans markdown without removing finance-relevant content",()=>{
  assert.match(clean,/Room 41 owes KES 4,500.00/);
  assert.match(clean,/View account/);
  assert.doesNotMatch(clean,/\*\*|\/tenant\/account|# Heading/);
- assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Speak as Kinari: a calm, mature, deep male sacred narrator/);
+ assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Read as a calm, mature, professional hostel assistant/);
  assert.match(HOSTEL_VOICE_INSTRUCTIONS,/Preserve every meaningful word, name and meaning faithfully/);
 });
-test("Kinari premium uses explicit route authentication, tickets and volume controls in source",async()=>{
+test("Hostel speech uses explicit route authentication, tickets and volume controls in source",async()=>{
  const fs=await import("node:fs");
  const r=fs.readFileSync("src/app/api/assistant/voice/route.ts","utf8");
  const api=fs.readFileSync("src/app/api/assistant/route.ts","utf8");
@@ -65,16 +65,16 @@ test("Kinari premium uses explicit route authentication, tickets and volume cont
  assert.doesNotMatch(voiceHook,/speechSynthesis|SpeechSynthesisUtterance|useDevice|fallback to the device/i);
  assert.match(ui,/privateNarrationConfirmed/);
  assert.match(ui,/window.confirm\(/);
- assert.match(ui,/Kinari's actual narrator uses OpenAI speech generation/);
+ assert.match(ui,/Read aloud uses AI-generated speech from OpenAI/);
  assert.match(ui,/disabled=\{!message.voiceTicket\}/);
- assert.match(ui,/Listen · Kinari voice/);
+ assert.match(ui,/Listen/);
  assert.match(ui,/Read response aloud/);
  assert.match(ui,/Stop reading this response/);
 });
 
-test("Hostel reuses the exact Kinari narrator identity and reading rules",()=>{
+test("Hostel uses neutral professional narration and faithful reading rules",()=>{
  assert.equal(HOSTEL_VOICE_INSTRUCTIONS,
-  "Speak as Kinari: a calm, mature, deep male sacred narrator with premium audiobook quality. Warm, grounded, reassuring and conversational. Use natural sentence rhythm and meaningful pauses at paragraph and section boundaries. Read headings as ordinary phrases, never announce formatting or punctuation. Treat bullet items as natural spoken points. Do not vocalize markdown, decorative symbols, emoji names, asterisks, hashes, backticks, quotation markers, or formatting syntax. Preserve every meaningful word, name and meaning faithfully. Avoid robotic cadence, exaggerated drama, laughter-like rendering of symbols, shouting, and unnecessary pauses.");
+  "Read as a calm, mature, professional hostel assistant with premium audiobook quality. Warm, grounded, reassuring and conversational. Use natural sentence rhythm and meaningful pauses at paragraph and section boundaries. Read headings as ordinary phrases, never announce formatting or punctuation. Treat bullet items as natural spoken points. Do not vocalize markdown, decorative symbols, emoji names, asterisks, hashes, backticks, quotation markers, or formatting syntax. Preserve every meaningful word, name and meaning faithfully. Avoid robotic cadence, exaggerated drama, laughter-like rendering of symbols, shouting, and unnecessary pauses.");
 });
 test("Private answers keep their exact-text ticket; a different message cannot be substituted",()=>{
  const response="Room 41, Student A paid KES 9,000, outstanding KES 9,000.";

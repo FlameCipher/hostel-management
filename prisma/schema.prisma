@@ -826,6 +826,13 @@ model BreakReservation {
 }
 
 model Charge {
+  lateFeeForChargeId String? @unique
+  lateFeeTermsId String?
+  lateFeeBasis Decimal? @db.Decimal(15, 3)
+  lateFeeForCharge Charge? @relation("RentLateFee", fields: [lateFeeForChargeId], references: [id], onDelete: Restrict)
+  lateFeeCharge Charge? @relation("RentLateFee")
+  lateFeeTerms StudentTermsAcceptance? @relation(fields: [lateFeeTermsId], references: [id], onDelete: Restrict)
+
   rentPaymentRequests RentPaymentRequest[]
   currency String @default("KES")
   id                 String       @id @default(cuid())
@@ -1136,6 +1143,7 @@ model RoomPhoto {
 }
 
 model StudentTermsAcceptance {
+  lateFeeCharges Charge[]
   id             String   @id @default(cuid())
   organizationId String
   studentId      String

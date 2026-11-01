@@ -23,11 +23,11 @@ export function arrearsPosition(charges: ArrearsCharge[], organizationId: string
   if (!Number.isSafeInteger(balanceMinor)) return { error: "Account entries need review." };
   return { balance: balanceMinor / 10 ** currencyDigits(currency), oldest };
 }
-export function arrearsFingerprint(input: { studentId: string; amount: number; currency: string; due: string; phone: string; email: string; name: string; room: string }) {
+export function arrearsFingerprint(input: { studentId: string; amount: number; currency: string; due: string; phone: string; email: string; name: string; room: string; policy?: string }) {
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");
 }
-export function arrearsMessage(input: { hostel: string; name: string; amount: number; currency: string; due: string; login: string }) {
-  return `${input.hostel} — FORMAL PAYMENT DEMAND\n\nDear ${input.name},\nYour overdue rent balance is ${formatMoney(input.amount, input.currency)}. Payment was due from ${input.due}.\n\nPlease clear this balance immediately. If you cannot pay in full, contact management today to request a written payment arrangement. Failure to pay or obtain an approved arrangement will result in escalation for recovery under your accommodation agreement and applicable law.\n\nIf you have already paid, send your payment reference for verification. An approved payment extension will be honoured through its agreed date.\n\nView your balance, pay and contact management: ${input.login}`;
+export function arrearsMessage(input: { hostel: string; name: string; amount: number; currency: string; due: string; login: string; noticeDate?: string; penalty?: string }) {
+  return `${input.hostel} — FORMAL PAYMENT DEMAND${input.noticeDate ? `\nNotice date: ${input.noticeDate}` : ""}\n\nDear ${input.name},\nYour overdue account balance is ${formatMoney(input.amount, input.currency)}. Payment was due from ${input.due}.\n\nPlease clear this balance immediately. If you cannot pay in full, contact management today to request a written payment arrangement. Failure to pay or obtain an approved arrangement will result in escalation for recovery under your accommodation agreement and applicable law.\n\nIf you have already paid, send your payment reference for verification. An approved payment extension will be honoured through its agreed date.${input.penalty ? `\n\n${input.penalty}` : ""}\n\nView your balance, pay and contact management: ${input.login}`;
 }
 export const ARREARS_INTERVAL_DAYS = 7;
 export function arrearsCooldown(last: Date | null, now: Date, days = ARREARS_INTERVAL_DAYS) {

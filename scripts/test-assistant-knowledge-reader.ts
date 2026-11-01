@@ -1,4 +1,5 @@
 import test from "node:test";
+import { TERMS_VERSION } from "../src/lib/hostel-terms/policy";
 import assert from "node:assert/strict";
 import type {PrismaClient} from "../src/generated/prisma/client";
 import {answerHostelKnowledge} from "../src/lib/assistant-knowledge-reader";
@@ -22,7 +23,7 @@ test("official visitor policy is sourced from the versioned hostel terms and no 
  const {db,calls}=dbFixture();
  const answer=await answerHostelKnowledge(db,"mama-mbugua-hostel","TENANT","Can visitors stay in a student's room?");
  assert.equal(answer?.mode,"records");
- assert.match(answer?.text??"",/2026-10-08-v2/);
+ assert.ok(answer?.text.includes(TERMS_VERSION));
  assert.match(answer?.text??"",/Visitors are not permitted inside students' rooms/);
  assert.equal(calls.room,0);
 });
