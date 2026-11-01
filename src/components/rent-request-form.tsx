@@ -21,13 +21,13 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
     <label>Student and rent charge<select name="chargeId" value={chargeId} onChange={event => { setChargeId(event.target.value); setPayer("student"); }} required>{charges.map(c => <option key={c.id} value={c.id}>{c.label} · {formatMoney(c.balance, "KES")} due</option>)}</select></label>
     <label key={chargeId}>Amount to pay (KES)<input name="amount" type="number" min="0.01" step="0.01" max={charge?.balance} defaultValue={charge?.balance} required/></label>
     <label>Who will pay?<select value={payer} onChange={event => setPayer(event.target.value)}><option value="student">{tenant ? "I will pay" : "Student"}</option>{!tenant && charge?.guardian && <option value="guardian">Parent / guardian</option>}<option value="other">Someone else</option></select></label>
-    <fieldset key={chargeId + payer}><legend>Payer contact details</legend><p>The payer receives the payment request. The payment credits the student selected above.</p>
+    <fieldset key={chargeId + payer}><legend>Payer contact details</legend><p>No email address? Use the payer’s name and mobile number. The payment credits the student selected above.</p>
       <label>Payer name<input name="payerName" defaultValue={contact?.name || ""} maxLength={100} required autoComplete="name"/></label>
-      <label>Email<input name="payerEmail" type="email" defaultValue={contact?.email || ""} maxLength={254} autoComplete="email"/></label>
       <label>Mobile number<input name="payerPhone" type="tel" defaultValue={contact?.phone || ""} maxLength={25} placeholder="07… or +254…" autoComplete="tel"/></label>
-      <p>Enter an email address or mobile number. Email is required to send the request automatically by email.</p>
+      <label>Email (optional)<input name="payerEmail" type="email" defaultValue={contact?.email || ""} maxLength={254} autoComplete="email"/></label>
+      <p>A mobile number is enough. You can leave email blank, or use an email address instead of a mobile number.</p>
     </fieldset>
-    {!tenant && <label>Send the request<select name="delivery"><option value="email">Email the payer now</option><option value="link">Create a link to copy or share</option></select></label>}
+    {!tenant && <><label>How to share the request<select name="delivery" defaultValue="link"><option value="link">Create a link to copy or share</option><option value="email">Email the payer now (email required)</option></select></label><p>After creating the link, copy it or use Share to send it through WhatsApp or SMS. Creating a link does not send a message automatically.</p></>}
     <p>The payer opens secure Pesapal checkout and authorises payment. This does not send an immediate M-Pesa PIN prompt or take money automatically.</p>
     {state.error && <p role="alert">{state.error}</p>}
     <button className="primary-button" disabled={pending}>{pending ? "Preparing request…" : tenant ? "Continue to payment" : "Create payment request"}</button>
