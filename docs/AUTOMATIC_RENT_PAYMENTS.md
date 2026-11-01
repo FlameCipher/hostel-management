@@ -7,7 +7,8 @@ After connection:
 - Staff use `/payments/requests` to choose a student charge, amount and payer: student, saved guardian or another person. Requests can be emailed directly with Resend, or copied/shared. Email acceptance is distinguished from confirmed inbox delivery. A share window is not counted as a sent message.
 - Students use `/tenant/pay` after sign-in. New students need a registered record and rent charge first. The shared public guide remains `/pay-rent`.
 - A private, random 256-bit request link allows the chosen payer to review the amount and open Pesapal checkout. Only the bound charge can receive the payment; client input cannot select another student at checkout. The link expires for starting checkout after seven days.
-- Standard documented Pesapal API 3 returns hosted checkout. This integration does **not** claim to send a landlord-triggered direct M-Pesa STK/PIN prompt. The payer chooses the payment method and authorises it at Pesapal.
+- Staff can choose **M-Pesa prompt — open secure checkout** and supply the payer's mobile number without email. Creating this request opens the existing Pesapal checkout directly. Staff choose M-Pesa, confirm the number and amount, and initiate the prompt there; the payer authorises only on their own phone. This is a hosted-checkout flow, not a direct STK API call from the hostel. Link sharing and email remain separate options. Existing requests can be reopened without creating another request.
+- If opening checkout fails, keep the original request and display its current status. Ambiguous provider responses remain under reconciliation and cannot create a second order automatically.
 - Cash remains a staff entry, with a dedicated **Record cash received** shortcut. Existing offline and earlier general-store transactions still need matching; they are never retroactively guessed from a name or amount.
 
 ## Verification and accounting

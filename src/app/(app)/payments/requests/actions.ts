@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
 import { requireTenantSession } from "@/lib/auth/tenant-session";
-import { createRentRequest, sendRentRequestEmail, connectRentGateway } from "@/lib/rent-payments";
+import { createRentRequest, sendRentRequestEmail, connectRentGateway, beginRentCheckout } from "@/lib/rent-payments";
+import { safeCheckoutUrl } from "@/lib/pesapal-api";
 import type { RentActionState } from "@/components/rent-request-form";
 
 function input(data: FormData) {
@@ -19,15 +20,25 @@ export async function staffRentRequestAction(_state: RentActionState, data: Form
   const session = await requireStaffFinanceAccess();
   const values = input(data);
   const email = data.get("delivery") === "email";
+  const checkout = data.get("delivery") === "checkout";
+  if (checkout && !values.payerPhone.trim()) return { error: "Enter the payer’s M-Pesa mobile number to open prompt checkout. Email is optional." };
   if (email && !values.payerEmail) return { error: "Enter the payer’s email, or choose Create a link to copy or share." };
   let id: string;
+  let token: string;
   let sendFailed = false;
   try {
     const request = await createRentRequest(db, { staff: session }, values);
     id = request.id;
+    token = request.token;
     if (email) try { await sendRentRequestEmail(db, id, session.organizationId); } catch { sendFailed = true; }
   } catch (error) { return failure(error); }
   revalidatePath("/payments/requests");
+  if (checkout) {
+    let url: string | undefined;
+    try { url = await beginRentCheckout(db, token); } catch { /* Keep this request for recovery; never create a replacement on timeout. */ }
+    if (url && safeCheckoutUrl(url)) redirect(url);
+    redirect("/rent-request/" + token + "?checkout=unavailable");
+  }
   redirect("/payments/requests?created=" + id + (sendFailed ? "&send=failed" : ""));
 }
 export async function tenantRentRequestAction(_state: RentActionState, data: FormData): Promise<RentActionState> {

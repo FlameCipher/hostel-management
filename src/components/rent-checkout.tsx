@@ -3,7 +3,7 @@ import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 export function RentCheckoutButton({ action }: { action: (state: { error: string }) => Promise<{ error: string }> }) {
   const [state, submit, pending] = useActionState(action, { error: "" });
-  return <form action={submit}>{state.error && <p role="alert">{state.error}</p>}<button className="primary-button" disabled={pending}>{pending ? "Opening secure checkout…" : "Pay securely with Pesapal"}</button></form>;
+  return <form action={submit}>{state.error && <p role="alert">{state.error}</p>}<button className="primary-button" disabled={pending}>{pending ? "Opening secure checkout…" : "Open checkout — M-Pesa or card"}</button></form>;
 }
 export function RentPaymentRefresh() {
   const router = useRouter();
