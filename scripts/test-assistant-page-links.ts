@@ -53,5 +53,27 @@ test("portal and access links preserve existing account flows", () => {
   assert.equal(studentLinkIntent("Link for students to request access"), "register");
   assert.equal(studentLinkIntent("Approve pending student details update requests"), null);
   assert.equal(studentLinkIntent("Who has not paid?"), null);
+  assert.equal(studentLinkIntent("Register a new student"), null);
   assert.equal(studentLinkIntent("Correct student payment account"), null);
+});
+
+test("service requests distinguish new applicants, existing accounts and payment entry", async () => {
+  for (const [question,path] of [["Give me new student registration link","/book"],["Copy Pesapal payment link","/pay-rent"],["Open Pesapal","/payments/requests"]]) {
+    const answer=await answerHostelQuestion(database(),session,false,question,noModel);
+    if(question.startsWith("Open")) assert.equal("navigateTo" in answer && answer.navigateTo,path);
+    else assert.ok("shareLinks" in answer && Array.isArray(answer.shareLinks) && answer.shareLinks.some(link=>link.url.endsWith(path)));
+  }
+  const all=await answerHostelQuestion(database(),session,false,"Give me all service links",noModel);
+  assert.ok("shareLinks" in all && Array.isArray(all.shareLinks) && all.shareLinks.length===5);
+  assert.ok(all.links?.some(link=>link.href==="/services"));
+  assert.equal(studentLinkIntent("New and existing student registration links"),"all");
+  assert.equal(assistantPage("Open Pesapal","CARETAKER","CARETAKER"),null);
+});
+
+test("assistant routes message audiences and staff PDF requests without sending", async () => {
+  for(const [q,path] of [["Send message to female students","/communications?audience=FEMALE"],["Message male students","/communications?audience=MALE"],["Send message to selected tenants","/communications?audience=SELECTED"],["Send message to all students","/communications?audience=ALL"],["Send message to students who have not paid","/reports/arrears"],["Share unpaid list to caretaker via WhatsApp as PDF","/reports/unpaid"]]) {
+    const answer=await answerHostelQuestion(database(),session,false,q,noModel);
+    assert.equal(answer.links?.[0]?.href,path,q);
+    assert.match(answer.text!,/No (?:message|report) has been sent/);
+  }
 });

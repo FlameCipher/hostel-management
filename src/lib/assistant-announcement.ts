@@ -6,7 +6,7 @@ import { managedPropertyHost } from "@/lib/property-host-policy";
 export type AnnouncementIntent={kind:"account-update"|"general";audience:"ALL"};
 export type AnnouncementDraft={
   requestId:string;title:string;body:string;category:"GENERAL";
-  audience:"ALL";recipientCount:number;portalEnabledCount:number;emailCount:number;whatsappOptInCount:number;
+  audience:"ALL";recipientIds:string[];recipientCount:number;portalEnabledCount:number;emailCount:number;whatsappOptInCount:number;
   propertyName:string;updateLink:string|null;loginLink:string|null;registerLink:string|null;
 };
 
@@ -60,7 +60,7 @@ export async function prepareAnnouncementDraft(database:PrismaClient,organizatio
   const origin="https://"+host;
   const text=accountUpdateText(property.name,origin+"/update-details",origin+"/tenant/login",origin+"/tenant/register");
   const consentSet=new Set(consents.map(c=>c.accountId));
-  const draft:AnnouncementDraft={requestId:randomUUID(),...text,category:"GENERAL",audience:"ALL",recipientCount:students.length,
+  const draft:AnnouncementDraft={requestId:randomUUID(),...text,category:"GENERAL",audience:"ALL",recipientIds:students.map(s=>s.id),recipientCount:students.length,
    portalEnabledCount:students.filter(s=>s.portalEnabled).length,
    emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
    whatsappOptInCount:students.filter(s=>consentSet.has(s.id)).length,
@@ -73,6 +73,6 @@ export async function prepareAnnouncementDraft(database:PrismaClient,organizatio
  }
  return {mode:"workflow" as const,workflow:"announcement" as const,
   text:"I have opened an announcement editor for "+students.length+" current tenants. Please write the exact notice, review the audience and approve before publishing. No messages have been sent.",
-  links:base,draft:{requestId:randomUUID(),title:"Hostel management announcement",body:"",category:"GENERAL",audience:"ALL",recipientCount:students.length,portalEnabledCount:students.filter(s=>s.portalEnabled).length,emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
+  links:base,draft:{requestId:randomUUID(),title:"Hostel management announcement",body:"",category:"GENERAL",audience:"ALL",recipientIds:students.map(s=>s.id),recipientCount:students.length,portalEnabledCount:students.filter(s=>s.portalEnabled).length,emailCount:students.filter(s=>Boolean(s.email?.trim())).length,
    whatsappOptInCount:students.filter(s=>consents.some(c=>c.accountId===s.id)).length,propertyName:properties.length===1?properties[0].name:"Hostel",updateLink:null,loginLink:null,registerLink:null} satisfies AnnouncementDraft};
 }

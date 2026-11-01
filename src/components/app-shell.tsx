@@ -30,6 +30,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { label: "Hostel Assets", href: "/assets", icon: Wrench },
   ] },
   { title: "Communication", items: [
+    { label: "Service links", href: "/services", icon: Share2 },
     { label: "Student Inbox", href: "/communications/inbox", icon: MessageCircle },
     { label: "Communications", href: "/communications", icon: Bell },
     { label: "WhatsApp", href: "/communications/whatsapp", icon: MessageCircle },

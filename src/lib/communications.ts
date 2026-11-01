@@ -8,11 +8,12 @@ import { propertyTenantLogin } from "@/lib/whatsapp-policy";
 
 export const communicationSchema = z.object({
  title: z.string().trim().min(3).max(160), body: z.string().trim().min(10).max(3000),
- audience: z.enum(["ALL", "SELECTED"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
+ audience: z.enum(["ALL", "SELECTED", "MALE", "FEMALE"]), studentIds: z.array(z.string().min(1).max(128)).max(5000),
  category: z.enum(["GENERAL", "EXAM", "HOLIDAY", "BALANCE"]),
  publishAt: z.date(), email: z.boolean().default(false), whatsapp: z.boolean(), requestId: z.string().uuid(),
  // Optional for non-UI internal callers. The management composer always sends
  // its reviewed preview count, and publishing fails closed when records change.
+ reviewedStudentIds: z.array(z.string().min(1).max(128)).max(5000).optional(),
  expectedRecipientCount: z.number().int().min(1).max(5000).optional(),
 });
 export function tenantWhere(organizationId: string): Prisma.StudentWhereInput {
@@ -48,10 +49,11 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const org=await tx.organization.findUnique({where:{id:session.organizationId},select:{whatsappEnabled:true}});
  if(value.whatsapp && !org?.whatsappEnabled) return {error:"Enable WhatsApp in Settings first."};
  const ids=[...new Set(value.studentIds)];
- const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
+ const students=await tx.student.findMany({where:{...tenantWhere(session.organizationId), ...(value.audience === "SELECTED" ? {id:{in:ids}} : value.audience === "MALE" || value.audience === "FEMALE" ? {gender:value.audience} : {})},select:{id:true,portalEnabled:true,portalPasswordHash:true},take:5001});
  if(!students.length || students.length>5000 || (value.audience === "SELECTED" && students.length !== ids.length)) return {error:"Recipients must be current tenants of this hostel. Maximum 5,000 recipients."};
  if(value.expectedRecipientCount!==undefined && students.length!==value.expectedRecipientCount)
    return {error:"The recipient register changed since your review. Refresh the notice, check the recipients again, and confirm before saving."};
+ if(value.reviewedStudentIds && (new Set(value.reviewedStudentIds).size !== students.length || students.some(student=>!value.reviewedStudentIds!.includes(student.id)))) return {error:"The selected audience changed. Refresh and review the recipients again."};
  const accessiblePortals=students.filter(student=>student.portalEnabled && student.portalPasswordHash!==null).length;
  const awaitingPortal=students.length-accessiblePortals;
  let added=0;

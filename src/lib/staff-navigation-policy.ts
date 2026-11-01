@@ -11,6 +11,7 @@ export type StaffNavigationLink = {
  * rather than finance, staff administration, messaging campaigns or exports.
  */
 const links: StaffNavigationLink[] = [
+  {href:"/services",label:"Service links",section:"Communication"},
   {href:"/dashboard",label:"Dashboard",section:"Overview"},
   {href:"/assistant",label:"System Assistant",section:"Overview"},
   {href:"/rooms",label:"Rooms",section:"Property operations"},

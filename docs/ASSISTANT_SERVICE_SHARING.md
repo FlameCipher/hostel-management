@@ -1,0 +1,13 @@
+# Assistant service links, communications and staff PDFs
+
+The service directory provides verified public links for new accommodation applications (`/book`), existing student access (`/tenant/register`), record updates, student sign-in and rent payments. It also lists the signed-in staff member's permitted service pages, with copy buttons. Individual third-party payment links must still be created from the correct student's charge; the general payment page is not a payment confirmation or an STK request.
+
+Assistant requests for links and message audiences use deterministic routing. Male/female audiences use recorded gender only. The management composer supports all, selected, male and female current tenants, and checks the reviewed recipient identities as well as counts before publication. Overdue requests use the existing demand workflow and retain agreed-date exclusions. Announcement approval now supplies the acknowledgement and count required by the server action.
+
+The unpaid staff report lists current tenants with unpaid charges, including future balances and approved payment arrangements with distinct labels. Paid accounts are excluded; inconsistent ledgers are counted as needing review. Student phone numbers, email addresses and identity documents are omitted. An active management session, same-hostel active staff recipient, reviewed phone and unchanged report fingerprint are required before PDF preparation. Generation is audited as prepared, never sent. PDFs are returned directly with private/no-store headers and are not published at a public bearer URL.
+
+On supported phones, a separate user click shares the prepared file through the device's native share sheet. The user selects WhatsApp and the intended staff contact. A download and staff-chat fallback is available; a WhatsApp text link cannot attach the PDF automatically. Provider delivery is not claimed, and this feature does not grant caretakers direct access to management finance routes.
+
+The assistant writing desk corrects or drafts English and Kiswahili messages. It receives only the manager's supplied text/instructions, uses existing AI usage budgets, and does not query student records or send messages. Draft text remains editable before copy/share. Chat requests can be edited and resubmitted as new requests while keeping earlier conversation history. Editing does not recall or alter already delivered communications.
+
+Validation includes type checking, focused lint, assistant/navigation/communication tests, authorization and stale-report tests, multi-page PDF rendering and isolated PostgreSQL-compatible integration checks. Live tenant messages and staff documents are not sent during validation.

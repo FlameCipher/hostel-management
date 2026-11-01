@@ -81,7 +81,7 @@ test("only portal access flags are passed to the client, never password hashes",
  const {readFileSync}=await import("node:fs");
  const page=readFileSync(new URL("../src/app/(app)/communications/page.tsx",import.meta.url),"utf8");
  assert.match(page,/portalReady:student.portalEnabled && student.portalPasswordHash!==null/);
- assert.match(page,/<CommunicationForm students=\{students.map\(student=>\(\{/);
+ assert.match(page,/<CommunicationForm[^>]* students=\{students.map\(student=>\(\{/);
  const form=readFileSync(new URL("../src/components/communication-form.tsx",import.meta.url),"utf8");
  assert.match(form,/portalReady: boolean/);
  assert.doesNotMatch(form,/portalPasswordHash/);
@@ -128,4 +128,20 @@ test("generic balance broadcast cannot bypass individual overdue and agreement r
  const f=fixture(["one","two"]);
  const response=await publishCommunication(f.db,session,{...input,audience:"ALL",category:"BALANCE",studentIds:[]});
  assert.match(response.error!,/Rent payment demands/);assert.equal(f.messages.size,0);
+});
+
+test("equal count with changed recipient identities fails before writing",async()=>{
+ const f=fixture(["replacement"]);
+ const result=await publishCommunication(f.db,session,{...input,audience:"ALL",studentIds:[],reviewedStudentIds:["one"],expectedRecipientCount:1});
+ assert.match(result.error!,/audience changed/);assert.equal(f.messages.size,0);
+});
+
+test("male and female audiences constrain the database query without guessing",async()=>{
+ for(const audience of ["MALE","FEMALE"]) {
+  let where:Record<string,unknown>={};let writes=0;
+  const tx={organization:{findUnique:async()=>({whatsappEnabled:true})},student:{findMany:async(args:{where:Record<string,unknown>})=>{where=args.where;return[{id:"recorded",portalEnabled:false,portalPasswordHash:null}]}},tenantMessage:{createMany:async()=>{writes++;return{count:1}}},auditLog:{create:async()=>{}}};
+  const db={user:{findFirst:async()=>({id:"owner"})},$transaction:async(fn:(tx:unknown)=>unknown)=>fn(tx)} as unknown as PrismaClient;
+  const result=await publishCommunication(db,session,{...input,audience,studentIds:[],reviewedStudentIds:["recorded"],expectedRecipientCount:1});
+  assert.ok("success" in result);assert.equal(where.gender,audience);assert.equal(where.organizationId,"hostel");assert.equal(writes,1);
+ }
 });

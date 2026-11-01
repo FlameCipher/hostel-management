@@ -1,3 +1,6 @@
+import { writingIntent, writingLanguage } from "./assistant-writing-policy";
+import { prepareMessageDraft } from "./assistant-writing";
+import { assistantServiceAction } from "./assistant-service-actions";
 import { studentLinkIntent, answerStudentLinks, assistantPage } from "./assistant-navigation";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -41,13 +44,24 @@ export async function answerHostelQuestion(database:PrismaClient,session:Session
  const staff=tenant?null:await residentStaff(database,session as SessionPayload);
  if(tenant?!await residentTenant(database,session as TenantSession):!staff)return {error:"Your account is no longer eligible. Sign in again.",status:401};
  if(!question.trim()||question.length>1200)return {error:"Enter a question of up to 1,200 characters.",status:400};
+ const originalQuestion=question;
  question=normalizeAssistantQuestion(question);
  const role:GuideRole=tenant?"TENANT":staff?.role==="CARETAKER"?"CARETAKER":"MANAGEMENT";
+ if(role === "MANAGEMENT" && writingIntent(question)) {
+   const draft=await prepareMessageDraft(database,session as SessionPayload,{text:originalQuestion,language:writingLanguage(question)});
+   if(typeof draft.draft!=="string")return {error:draft.error??"Could not prepare the message.",status:draft.status??503};
+   return {mode:"ai" as const,text:draft.draft,links:[],writingDraft:{text:originalQuestion,draft:draft.draft,language:draft.language}};
+ }
+ const serviceAction = announcementIntent(question)?.kind === "account-update" ? null : assistantServiceAction(question, role);
+ if(serviceAction) {
+   if(serviceAction.links.some(link=>link.href==="/services")) { const publicLinks=await answerStudentLinks(database,session.organizationId,"all"); return {...publicLinks,...serviceAction,text:serviceAction.text+"\n\n"+publicLinks.text}; }
+   return serviceAction;
+ }
  const studentLink = announcementIntent(question) ? null : studentLinkIntent(question);
  if(studentLink){
    const answer=await answerStudentLinks(database,session.organizationId,studentLink);
    const first="shareLinks" in answer?answer.shareLinks?.[0]:null;
-   return {...answer,...(first&&/^(?:open|go to|take me to)\b/i.test(question)&&!/\b(?:copy|share|link|links)\b/i.test(question)?{navigateTo:first.url}:{})};
+   return {...answer,...(studentLink === "pay" && role === "MANAGEMENT" ? {links:[{title:"Individual payment request",href:"/payments/requests",action:"Create or copy a student payment request"}]}:{}),...(first&&/^(?:open|go to|take me to)\b/i.test(question)&&!/\b(?:copy|share|link|links)\b/i.test(question)?{navigateTo:first.url}:{})};
  }
  const page = assistantPage(question,role,staff?.role);
  if(page)return {mode:"guide" as const,text:"Opening "+page.label+".",navigateTo:page.href,links:[{title:page.label,href:page.href,action:"Open "+page.label}]};
