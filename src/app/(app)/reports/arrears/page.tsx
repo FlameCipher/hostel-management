@@ -1,3 +1,5 @@
+import { PaymentAgreementForm } from "@/components/payment-agreement-form";
+import { tenantWhere } from "@/lib/communications";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { requireStaffFinanceAccess } from "@/lib/staff-route-authorization";
@@ -6,7 +8,7 @@ import { readArrears } from "@/lib/arrears-reminders";
 import { ArrearsForm, ArrearsAutomationForm } from "@/components/arrears-form";
 import styles from "@/components/arrears-form.module.css";
 export const dynamic = "force-dynamic";
-export default async function ArrearsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function ArrearsPage({ searchParams }: { searchParams: Promise<{ error?: string; agreement?: string }> }) {
   const session = await requireStaffFinanceAccess();
   const [data, settings, connection, params] = await Promise.all([
     readArrears(db, session.organizationId),
@@ -14,6 +16,7 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
     db.whatsAppConnection.findUnique({ where: { organizationId: session.organizationId }, select: { enabled: true, verifiedAt: true } }),
     searchParams,
   ]);
+  const agreementStudent = params.agreement && params.agreement.length <= 128 ? await db.student.findFirst({ where: { ...tenantWhere(session.organizationId), id: params.agreement }, select: { id: true, fullName: true, paymentAgreedDate: true, paymentAgreementNote: true, paymentAgreementUpdatedAt: true } }) : null;
   const ids = data.rows.flatMap(row => row.lastNotificationId ? [row.lastNotificationId] : []);
   const [notifications, deliveries] = await Promise.all([
     db.notification.findMany({ where: { organizationId: session.organizationId, id: { in: ids } }, select: { id: true, status: true } }),
@@ -27,10 +30,13 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
     const manual: Record<string, string> = { QUEUED: "WhatsApp ready to forward", OPENED_FOR_SENDING: "WhatsApp opened — send unconfirmed", SENT: "Marked sent manually", CANCELLED: "Request cancelled", FAILED: "WhatsApp needs attention" };
     return { ...row, delivery: d ? labels[d.status] ?? d.status : n ? manual[n.status] ?? n.status : row.lastAt ? (row.lastRead ? "Read in tenant account" : "Saved in tenant account") : "No payment request yet" };
   });
-  return <div className={styles.page}><header className={styles.heading}><div><h1>Overdue payments</h1><p>{rows.length} current tenant{rows.length === 1 ? "" : "s"} with overdue rent. Cleared and future balances are excluded.</p></div><Link className={styles.linkButton} href="/reports">All reports</Link></header>
+  return <div className={styles.page}><header className={styles.heading}><div><h1>Rent payment demands</h1><p>{rows.length} current tenant{rows.length === 1 ? "" : "s"} with overdue rent. Cleared balances, future charges and approved payment extensions are excluded.</p></div><Link className={styles.linkButton} href="/reports">All reports</Link></header>
     {params.error && <p role="alert" className={styles.error}>{params.error.slice(0, 400)}</p>}
+    {agreementStudent && <PaymentAgreementForm key={agreementStudent.id + (agreementStudent.paymentAgreementUpdatedAt?.toISOString() ?? "")} student={{ id: agreementStudent.id, name: agreementStudent.fullName, date: agreementStudent.paymentAgreedDate?.toISOString().slice(0,10) ?? "", note: agreementStudent.paymentAgreementNote ?? "", updatedAt: agreementStudent.paymentAgreementUpdatedAt?.toISOString() ?? "" }}/>}
+    {params.agreement && !agreementStudent && <p role="alert">Current tenant not found.</p>}
     <ArrearsAutomationForm enabled={settings?.arrearsEnabled ?? false} whatsapp={settings?.arrearsWhatsappCopies ?? true} email={settings?.arrearsEmailCopies ?? false} whatsappEnabled={data.org.whatsappEnabled} emailReady={emailReady}/>
     <ArrearsForm rows={rows} requestId={randomUUID()} whatsappEnabled={data.org.whatsappEnabled} businessReady={businessReady} emailReady={emailReady}/>
+    {!!data.deferred.length && <section><h2>Agreed payment dates · {data.deferred.length}</h2><p>These students are excluded from payment demands through the dates below.</p><div className={styles.list}>{data.deferred.map(row => <article className={styles.tenant} key={row.studentId}><div className={styles.tenantHeader}><span><strong>{row.name}</strong><small>Room {row.room || "—"} · Agreed until {row.agreedDate}</small></span><strong>{row.balance}</strong></div><p>{row.note}</p><Link href={`/reports/arrears?agreement=${encodeURIComponent(row.studentId)}`}>Review agreement</Link></article>)}</div></section>}
     {!!data.review.length && <p className={styles.error}>{data.review.length} tenant account{data.review.length === 1 ? " needs" : "s need"} a ledger review and will not receive a payment request. <Link href="/payments/audit">Review account entries</Link></p>}
   </div>;
 }

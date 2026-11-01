@@ -11,7 +11,8 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
   charges: RentChargeOption[]; requestId: string; selectedId?: string; tenant?: boolean;
 }) {
   const [state, submit, pending] = useActionState(action, { error: "" });
-  const [chargeId, setChargeId] = useState(selectedId || charges[0]?.id || "");
+  const [chargeId, setChargeId] = useState(selectedId || "");
+  const [search, setSearch] = useState("");
   const [payer, setPayer] = useState("student");
   const charge = charges.find(c => c.id === chargeId);
   const contact = payer === "student" ? charge?.student : payer === "guardian" ? charge?.guardian : undefined;
@@ -24,7 +25,12 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
       <li><strong>Send the prompt</strong><span>On Pesapal, confirm the number and tap Proceed.</span></li>
       <li><strong>Confirm on phone</strong><span>The payer enters their PIN. Receipt follows after verification.</span></li>
     </ol>
-    <label>Student and rent charge<select name="chargeId" value={chargeId} onChange={event => { setChargeId(event.target.value); setPayer("student"); }} required>{charges.map(c => <option key={c.id} value={c.id}>{c.label} · {formatMoney(c.balance, "KES")} due</option>)}</select></label>
+    <input type="hidden" name="chargeId" value={chargeId}/>
+    <details className={styles.picker} key={chargeId} open={!charge}>
+      <summary>{charge ? <><strong>{charge.student.name}</strong><span>{charge.label.slice(charge.student.name.length).replace(/^ · /, "")} · {formatMoney(charge.balance, "KES")} due</span><small>Change student</small></> : <strong>Choose a student</strong>}</summary>
+      <label>Find student or room<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Type a name or room number"/></label>
+      <fieldset className={styles.chargeChoices}><legend>Students with unpaid balances</legend>{charges.filter(c => c.label.toLowerCase().includes(search.toLowerCase().trim())).map(c => <label className={styles.chargeChoice} key={c.id}><input type="radio" name="chargeChoice" checked={chargeId === c.id} onChange={() => { setChargeId(c.id); setPayer("student"); setSearch(""); }}/><span><strong>{c.student.name}</strong><small>{c.label.slice(c.student.name.length).replace(/^ · /, "")}</small></span><strong>{formatMoney(c.balance, "KES")}</strong></label>)}{!charges.some(c => c.label.toLowerCase().includes(search.toLowerCase().trim())) && <p>No matching student or room.</p>}</fieldset>
+    </details>
     <label key={chargeId}>Amount to pay (KES)<input name="amount" type="number" min="0.01" step="0.01" max={charge?.balance} defaultValue={charge?.balance} required/></label>
     <label>Who will pay?<select value={payer} onChange={event => setPayer(event.target.value)}><option value="student">{tenant ? "I will pay" : "Student"}</option>{!tenant && charge?.guardian && <option value="guardian">Parent / guardian</option>}<option value="other">Someone else</option></select></label>
     <fieldset key={chargeId + payer}><legend>Payer details</legend>
@@ -33,7 +39,7 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
       <p id="mpesa-phone-help">Use the number that will receive the prompt. No email needed.</p>
     </fieldset>
     {state.error && <p role="alert">{state.error}</p>}
-    <button className="primary-button" disabled={pending}>{pending ? "Opening M-Pesa checkout…" : "Continue with M-Pesa"}</button>
+    <button className="primary-button" disabled={pending || !charge}>{pending ? "Opening M-Pesa checkout…" : "Continue with M-Pesa"}</button>
     <p className={styles.reassurance}>The payer enters their PIN on their own phone. Confirmed payments update the rent balance and receipt automatically.</p>
   </form>;
 }

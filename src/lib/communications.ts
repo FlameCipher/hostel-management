@@ -1,3 +1,4 @@
+import { agreementActive } from "./payment-agreement-policy";
 import { formatMoney, minorUnits, currencyDigits } from "@/lib/currency";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -41,6 +42,7 @@ export async function publishCommunication(database: PrismaClient, session: Sess
  const parsed = communicationSchema.safeParse(input);
  if (!parsed.success) return { error: "Check the title, message, recipients and schedule." };
  const value=parsed.data;
+ if (value.category === "BALANCE") return { error: "Use Rent payment demands to check overdue balances and approved payment dates before sending." };
  if(value.audience === "SELECTED" && !value.studentIds.length) return { error: "Select at least one tenant." };
  return database.$transaction(async tx => {
  const org=await tx.organization.findUnique({where:{id:session.organizationId},select:{whatsappEnabled:true}});
@@ -64,8 +66,9 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  for(const rule of settings) {
  const scope=tenantWhere(rule.organizationId), day=nairobiDay(now), dom=Number(day.slice(-2));
  if(rule.balanceEnabled && !rule.arrearsEnabled && [7,10].includes(dom)) {
- const charges=await database.charge.findMany({where:{organizationId:rule.organizationId,student:scope,dueDate:{lte:new Date(now.getTime()+3*86400000)},status:{in:["UNPAID","PARTIALLY_PAID","OVERDUE"]}},include:{payments:{where:{reversedAt:null},select:{amount:true}}}});
+ const charges=await database.charge.findMany({where:{organizationId:rule.organizationId,student:scope,dueDate:{lte:new Date(now.getTime()+3*86400000)},status:{in:["UNPAID","PARTIALLY_PAID","OVERDUE"]}},include:{student:{select:{paymentAgreedDate:true}},payments:{where:{reversedAt:null},select:{amount:true}}}});
  for(const charge of charges) {
+ if(agreementActive(charge.student.paymentAgreedDate,now)) continue;
  const balance=outstanding(charge.amount.toString(),charge.payments,charge.currency); if(!balance) continue;
  const key=`balance:${charge.id}:${day}`;
  created+=await database.$transaction(tx=>addMessage(tx,{organizationId:rule.organizationId,studentId:charge.studentId,batchId:key,dedupKey:key,title:"Accommodation balance reminder",body:`Your outstanding balance for ${charge.description} is ${formatMoney(balance,charge.currency)}. Due date: ${charge.dueDate.toLocaleDateString("en-KE",{timeZone:"Africa/Nairobi"})}. Please pay by the agreed due date or contact management. View your statement in your tenant account.`,category:"BALANCE",publishAt:now,whatsappCopy:rule.whatsappCopies,emailCopy:rule.emailCopies}));
@@ -89,6 +92,11 @@ export async function runCommunications(database: PrismaClient, now=new Date()) 
  const item=await tx.tenantMessage.findUnique({where:{id:candidate.id}}); if(!item || item.notificationId) return;
  const [student,org]=await Promise.all([tx.student.findFirst({where:{...tenantWhere(item.organizationId),id:item.studentId},select:{id:true,fullName:true,phone:true}}),tx.organization.findUnique({where:{id:item.organizationId},select:{whatsappEnabled:true}})]);
  if(!student?.phone || !org?.whatsappEnabled) return;
+ if(item.category === "BALANCE") {
+   const { readArrears } = await import("./arrears-reminders");
+   const current = await readArrears(tx,item.organizationId,now,[item.studentId]);
+   if(!current.rows.length || current.review.length) { await tx.tenantMessage.update({where:{id:item.id},data:{whatsappCopy:false}}); return; }
+ }
  const properties=await tx.property.findMany({where:{organizationId:item.organizationId,active:true,publicListing:true},select:{customDomain:true,publicListing:true}});
  const notification=await tx.notification.create({data:{organizationId:item.organizationId,studentId:student.id,channel:"WHATSAPP",recipientType:"STUDENT",recipientName:student.fullName,recipientPhone:student.phone,message:`${item.title}\n\n${item.body}\n\nYour account: ${propertyTenantLogin(properties)}`,status:"QUEUED",scheduledAt:now}});
  await tx.tenantMessage.update({where:{id:item.id},data:{notificationId:notification.id}});queued++;

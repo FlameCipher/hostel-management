@@ -43,3 +43,13 @@
 .empty { padding: 24px; text-align: center; background: white; border-radius: 12px; color: #60717d; }
 .page :is(a,button,input,summary):focus-visible { outline: 3px solid #597a91; outline-offset: 3px; }
 @media(max-width:420px) { .tenant { padding: 14px; } .tenantHeader { gap: 8px; } .tenantHeader strong { font-size: 13px; } .amount { max-width: 38%; } }
+
+.search textarea { width: 100%; min-height: 90px; padding: 12px; font: inherit; border: 1px solid #cbd7df; border-radius: 10px; background: white; }
+.agreementCheck { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.recipientList { max-height: 420px; overflow-y: auto; margin-top: 12px; display: grid; gap: 8px; }
+.recipientRow { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #dce4e8; border-radius: 10px; cursor: pointer; background: white; }
+.recipientRow > span { display: grid; gap: 5px; flex: 1; min-width: 0; }
+.recipientRow strong { font-size: 14px; overflow-wrap: anywhere; }
+.recipientRow small { color: #60717d; font-size: 12px; }
+.recipientRow > input, .agreementCheck > input { width: 20px; height: 20px; min-height: 20px; flex-shrink: 0; accent-color: #176b52; }
+.recipientRow > strong { max-width: 32%; text-align: right; font-variant-numeric: tabular-nums; }
