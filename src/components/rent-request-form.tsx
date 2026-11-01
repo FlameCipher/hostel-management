@@ -13,26 +13,28 @@ export function RentRequestForm({ action, charges, requestId, selectedId, tenant
   const [state, submit, pending] = useActionState(action, { error: "" });
   const [chargeId, setChargeId] = useState(selectedId || charges[0]?.id || "");
   const [payer, setPayer] = useState("student");
-  const [delivery, setDelivery] = useState("link");
-  const mpesaCheckout = !tenant && delivery === "checkout";
   const charge = charges.find(c => c.id === chargeId);
   const contact = payer === "student" ? charge?.student : payer === "guardian" ? charge?.guardian : undefined;
   if (!charges.length) return <p>No outstanding charges. Add a charge before requesting payment.</p>;
   return <form action={submit} className={styles.form}>
     <input type="hidden" name="requestId" value={requestId}/>
+    <input type="hidden" name="delivery" value="checkout"/>
+    <ol className={styles.steps} aria-label="M-Pesa payment steps">
+      <li><strong>Enter details</strong><span>Student, amount and M-Pesa number.</span></li>
+      <li><strong>Send the prompt</strong><span>On Pesapal, confirm the number and tap Proceed.</span></li>
+      <li><strong>Confirm on phone</strong><span>The payer enters their PIN. Receipt follows after verification.</span></li>
+    </ol>
     <label>Student and rent charge<select name="chargeId" value={chargeId} onChange={event => { setChargeId(event.target.value); setPayer("student"); }} required>{charges.map(c => <option key={c.id} value={c.id}>{c.label} · {formatMoney(c.balance, "KES")} due</option>)}</select></label>
     <label key={chargeId}>Amount to pay (KES)<input name="amount" type="number" min="0.01" step="0.01" max={charge?.balance} defaultValue={charge?.balance} required/></label>
     <label>Who will pay?<select value={payer} onChange={event => setPayer(event.target.value)}><option value="student">{tenant ? "I will pay" : "Student"}</option>{!tenant && charge?.guardian && <option value="guardian">Parent / guardian</option>}<option value="other">Someone else</option></select></label>
-    <fieldset key={chargeId + payer}><legend>Payer contact details</legend><p>No email address? Use the payer’s name and mobile number. The payment credits the student selected above.</p>
+    <fieldset key={chargeId + payer}><legend>Payer details</legend>
       <label>Payer name<input name="payerName" defaultValue={contact?.name || ""} maxLength={100} required autoComplete="name"/></label>
-      <label>Mobile number<input name="payerPhone" type="tel" defaultValue={contact?.phone || ""} maxLength={25} placeholder="07… or +254…" autoComplete="tel" required={mpesaCheckout}/></label>
-      <label>Email (optional)<input name="payerEmail" type="email" defaultValue={contact?.email || ""} maxLength={254} autoComplete="email"/></label>
-      <p>{mpesaCheckout ? "Enter the payer’s M-Pesa mobile number. Email is optional." : "A mobile number is enough. You can leave email blank, or use an email address instead of a mobile number."}</p>
+      <label>M-Pesa mobile number<input name="payerPhone" type="tel" inputMode="tel" defaultValue={contact?.phone || ""} maxLength={25} placeholder="07… or +254…" autoComplete="tel" required aria-describedby="mpesa-phone-help"/></label>
+      <p id="mpesa-phone-help">Use the number that will receive the prompt. No email needed.</p>
     </fieldset>
-    {!tenant && <><label>How to request payment<select name="delivery" value={delivery} onChange={event => setDelivery(event.target.value)}><option value="link">Create a link to copy or share</option><option value="checkout">M-Pesa prompt — open secure checkout</option><option value="email">Email the payer now (email required)</option></select></label>{mpesaCheckout ? <p>On the next screen, choose M-Pesa, confirm the payer’s number and amount, then send the prompt. The payer enters their PIN only on their own phone. Opening checkout does not send the prompt or take money.</p> : delivery === "email" ? <p>The payment link will be emailed to the payer. They can choose M-Pesa at checkout to receive a PIN prompt.</p> : <p>After creating the link, copy it or use Share to send it through WhatsApp or SMS. Creating a link does not send a message automatically.</p>}</>}
-    <p>Confirmed payments update the student’s balance and create a receipt automatically. The payer must authorise payment.</p>
     {state.error && <p role="alert">{state.error}</p>}
-    <button className="primary-button" disabled={pending}>{pending ? mpesaCheckout ? "Opening secure checkout…" : "Preparing request…" : tenant ? "Continue to payment" : mpesaCheckout ? "Open M-Pesa checkout" : "Create payment request"}</button>
+    <button className="primary-button" disabled={pending}>{pending ? "Opening M-Pesa checkout…" : "Continue with M-Pesa"}</button>
+    <p className={styles.reassurance}>The payer enters their PIN on their own phone. Confirmed payments update the rent balance and receipt automatically.</p>
   </form>;
 }
 

@@ -40,3 +40,12 @@ HOSTEL_PAYMENT_TEST=local-fixtures PESAPAL_TEST_DATABASE_URL=postgresql://postgr
 The script rejects non-localhost URLs and databases containing organizations. Fixtures intentionally remain in that disposable database for inspection. Never point it at production.
 
 Live credentials, a completed real payment and live webhook delivery must be verified separately before describing end-to-end live collection as tested.
+
+
+## Default M-Pesa flow
+
+The rent form now goes directly to the existing Pesapal checkout for staff and tenants. It requires a payer name and mobile number; it does not show an email field or delivery-method selector. The three instructions are: enter details, confirm the number and press Proceed in Pesapal, then authorise the prompt on the payer’s phone. No PIN is collected by the hostel. The button is labelled “Continue with M-Pesa” because opening checkout does not send an STK prompt itself.
+
+Recent requests and share links are collapsed. An unattempted email is not reported as a delivery problem. Legacy email/link server submissions remain supported for already-open clients, but the default when delivery is omitted is checkout. Cash recording remains a separate staff link.
+
+Pesapal controls its hosted payment methods. M-Pesa was selected in the live checkout inspected on 1 November 2026. The published SubmitOrderRequest API does not document a method-filter parameter; this change does not hide or modify Pesapal’s other options, invent a direct STK endpoint, or change settlement settings. Payment completion still requires verified provider confirmation.

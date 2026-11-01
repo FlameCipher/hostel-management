@@ -15,3 +15,15 @@
 .form [role="alert"] { padding: 14px; border-radius: 9px; background: #fff0e5; color: #793d15; }
 .form button { align-self: flex-start; min-height: 48px; white-space: normal; }
 @media(max-width: 480px) { .page { padding: 20px 12px 36px; } .card { padding: 18px; } .form { padding: 12px; } .form fieldset { padding: 12px; } .form button { width: 100%; } }
+
+.steps { list-style: none; counter-reset: payment-step; display: grid; gap: 14px; padding: 18px; margin: 0 0 8px; background: #f0f8f5; border: 1px solid #cde4d9; border-radius: 12px; }
+.steps li { counter-increment: payment-step; display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 12px; align-items: start; line-height: 1.45; }
+.steps li::before { content: counter(payment-step); grid-row: span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #176b52; color: white; font-weight: 700; }
+.steps strong { font-size: 16px; color: #174c3e; }
+.steps span { font-size: 14px; color: #3f5b55; }
+.form .reassurance { color: #49616a; font-size: 14px; }
+.history { margin-top: 28px; border-top: 1px solid #d9e5e6; padding-top: 18px; }
+.history > summary { font-size: 18px; font-weight: 650; cursor: pointer; min-height: 44px; }
+.secondaryDetails { margin-top: 16px; }
+.secondaryDetails > summary { cursor: pointer; min-height: 44px; padding: 8px 0; }
+.cashLink { color: #49616a; }
