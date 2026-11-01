@@ -4,7 +4,7 @@ import styles from "./arrears-form.module.css";
 import { useActionState, useState } from "react";
 import { publishAction } from "@/app/(app)/communications/actions";
 
-type Audience = "ALL" | "SELECTED";
+export type Audience = "ALL" | "SELECTED" | "MALE" | "FEMALE";
 type NoticeType = "GENERAL" | "EXAM" | "HOLIDAY" | "BALANCE";
 const templates: Record<NoticeType, string> = {
   GENERAL: "",
@@ -15,26 +15,25 @@ const templates: Record<NoticeType, string> = {
 
 export function CommunicationForm({
   students,
-  requestId,
+  requestId, initialAudience = "SELECTED",
 }: {
-  students: Array<{ id: string; fullName: string; portalReady: boolean; room: string; balance: string; paymentStatus: string }>;
-  requestId: string;
+  students: Array<{ id: string; fullName: string; portalReady: boolean; room: string; balance: string; paymentStatus: string; gender: string | null }>;
+  requestId: string; initialAudience?: Audience;
 }) {
   const [state, action, pending] = useActionState(publishAction, {});
-  const [audience, setAudience] = useState<Audience>("SELECTED");
+  const [audience, setAudience] = useState<Audience>(initialAudience);
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<NoticeType>("GENERAL");
   const [body, setBody] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const visible = students.filter(student =>
+  const eligible = students.filter(student => audience === "ALL" || audience === "SELECTED" || student.gender === audience);
+  const recipients = audience === "SELECTED" ? students.filter(student=>selected.includes(student.id)) : eligible;
+  const visible = eligible.filter(student =>
     `${student.fullName} ${student.room}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
-  const recipientCount = audience === "ALL" ? students.length : selected.length;
-  const selectedIds = new Set(selected);
-  const accessiblePortals = students.filter(student =>
-    student.portalReady && (audience === "ALL" || selectedIds.has(student.id))
-  ).length;
+  const recipientCount = recipients.length;
+  const accessiblePortals = recipients.filter(student=>student.portalReady).length;
   const pendingPortalAccess = recipientCount - accessiblePortals;
 
   function changeAudience(next: Audience) {
@@ -55,6 +54,7 @@ export function CommunicationForm({
     <p>Choose recipients, write the notice, and review access before publishing. Each recipient gets a private inbox record, not a group chat or guaranteed delivered phone message.</p>
     <input name="requestId" type="hidden" value={requestId}/>
     <input name="expectedRecipientCount" type="hidden" value={recipientCount}/>
+    {recipients.map(student=><input key={student.id} type="hidden" name="reviewedStudentIds" value={student.id}/>)}
 
     <fieldset>
       <legend><strong>1. Send to</strong></legend>
@@ -66,8 +66,12 @@ export function CommunicationForm({
         <input type="radio" name="audience" value="SELECTED" checked={audience === "SELECTED"} onChange={() => changeAudience("SELECTED")}/>
         <span><strong>Selected tenants</strong></span>
       </label>
+      {(["MALE","FEMALE"] as const).map(value=><label className="check-field" key={value}><input type="radio" name="audience" value={value} checked={audience===value} onChange={()=>changeAudience(value)}/><span><strong>{value === "MALE" ? "Male students" : "Female students"}</strong> ({students.filter(student=>student.gender===value).length})</span></label>)}
+      <p>Gender groups use recorded student details only. Unrecorded gender is not guessed.</p>
+      <p><Link href="/reports/arrears">Send to students with overdue balances</Link> · <Link href="/reports/unpaid">Share unpaid list as PDF with staff</Link></p>
     </fieldset>
 
+    {audience !== "SELECTED" && <details><summary>Review {recipientCount} recipients</summary><div className={styles.recipientList}>{recipients.map(student=><div className={styles.recipientRow} key={student.id}><span><strong>{student.fullName}</strong><small>Room {student.room || "—"} · {student.paymentStatus}</small></span><strong>{student.balance}</strong></div>)}</div></details>}
     {audience === "SELECTED" && <fieldset>
       <legend>Choose tenants</legend>
       <label className="field-group">

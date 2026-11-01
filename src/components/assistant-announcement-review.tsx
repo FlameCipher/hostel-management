@@ -47,6 +47,8 @@ export function AssistantAnnouncementReview({draft,onClose}:{draft:AnnouncementD
    <input type="hidden" name="requestId" value={draft.requestId}/>
    <input type="hidden" name="category" value={draft.category}/>
    <input type="hidden" name="audience" value="ALL"/>
+   <input type="hidden" name="expectedRecipientCount" value={draft.recipientCount}/>
+   {draft.recipientIds.map(id=><input type="hidden" key={id} name="reviewedStudentIds" value={id}/>)}
    <label className="field-group"><span>Announcement title *</span>
     <input required minLength={3} maxLength={160} name="title" value={title} onChange={e=>{setTitle(e.target.value);changed();}}/>
    </label>
@@ -70,7 +72,7 @@ export function AssistantAnnouncementReview({draft,onClose}:{draft:AnnouncementD
     <p><strong>Recipients:</strong> {draft.recipientCount} current tenants</p>
     <p><strong>Channels:</strong> Private portal{review.email?", requested email copies":""}{review.whatsapp?", WhatsApp copy preparation":""}</p>
     <p><strong>Timing:</strong> {review.publishAt?"Scheduled, Nairobi time "+review.publishAt:"Publish immediately"}</p>
-    <label className="check-field"><input type="checkbox" checked={approved} onChange={e=>setApproved(e.target.checked)}/>
+    <label className="check-field"><input type="checkbox" name="confirmed" checked={approved} onChange={e=>setApproved(e.target.checked)}/>
      I have reviewed the exact notice, audience, links and channels and explicitly authorize publication to all eligible current tenants.
     </label>
    </div>:null}

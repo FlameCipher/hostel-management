@@ -1,4 +1,7 @@
 "use client";
+import { writingIntent } from "@/lib/assistant-writing-policy";
+import { AssistantMessageWriter } from "./assistant-message-writer";
+import { assistantServiceAction } from "@/lib/assistant-service-actions";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -23,7 +26,7 @@ import styles from "./assistant-chat.module.css";
 import { useAssistantNarrator } from "./use-assistant-narrator";
 
 type ChatLink = { title:string; href:string; action:string };
-type Message = { id:number; role:"user"|"assistant"; text:string; mode?:string; links?:ChatLink[];shareLinks?:StudentLink[];voiceTicket?:string };
+type Message = { id:number; role:"user"|"assistant"; text:string; editedFrom?:number; mode?:string; links?:ChatLink[];shareLinks?:StudentLink[];voiceTicket?:string };
 const safeLink = (candidate:unknown):candidate is ChatLink => {
   if(!candidate||typeof candidate!=="object")return false;
   const value=candidate as Partial<ChatLink>;
@@ -40,6 +43,9 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
   const [messages,setMessages]=useState<Message[]>([]);
   const [busy,setBusy]=useState(false);
   const [contextToken,setContextToken]=useState<string|null>(null);
+  const questionInput=useRef<HTMLTextAreaElement>(null);
+  const [editingRequest,setEditingRequest]=useState<number|null>(null);
+  const [writer,setWriter]=useState<{id:number;text:string;draft:string;language:string}|null>(null);
   const [workflow,setWorkflow]=useState<"register"|"payment"|null>(null);
   const [announcement,setAnnouncement]=useState<AnnouncementDraft|null>(null);
   const id=useRef(0);
@@ -63,7 +69,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     if(!value||busy)return;
     const routingQuestion=normalizeAssistantQuestion(value);
     const isFollowup=isRoomFinanceFollowup(routingQuestion)||isPersonSearchFollowup(routingQuestion)||contextualBalanceFollowup(routingQuestion);
-    if(role==="MANAGEMENT" && !studentLinkIntent(routingQuestion) && !assistantPage(routingQuestion,role,"OWNER") && !systemWorkflowIntent(routingQuestion) && !isFollowup) {
+    if(role==="MANAGEMENT" && !writingIntent(routingQuestion) && !assistantServiceAction(routingQuestion,role) && !studentLinkIntent(routingQuestion) && !assistantPage(routingQuestion,role,"OWNER") && !systemWorkflowIntent(routingQuestion) && !isFollowup) {
       if(transferReviewNavigationRequest(routingQuestion)){router.push("/occupancy/transfers");return;}
       if(financialAuditNavigationRequest(routingQuestion)){router.push("/payments/audit");return;}
       if(receiptQueueNavigationRequest(routingQuestion)){router.push("/payments?delivery=all");return;}
@@ -77,8 +83,9 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     // Send the signed, short-lived subject only for recognized follow-ups.
     // It is never saved to URLs, local storage, analytics or logs.
     const requestId=++id.current;
-    setMessages(items=>[...items.slice(-17),{id:requestId,role:"user",text:value}]);
+    setMessages(items=>[...items.slice(-17),{id:requestId,role:"user",text:value,...(editingRequest?{editedFrom:editingRequest}:{})}]);
     setQuestion("");
+    setEditingRequest(null);
     setSubmitted(value);
     setBusy(true);
     setWorkflow(null);
@@ -96,9 +103,10 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       // The server signs and scopes the context after rechecking the session.
       setContextToken(typeof result.contextToken==="string"&&result.contextToken.length<=1200?result.contextToken:null);
       const text=typeof result.text==="string"?result.text:"I could not verify an answer. Please try again.";
-      setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links,shareLinks:Array.isArray(result.shareLinks)?result.shareLinks.filter(safeStudentLink).slice(0,3):[],voiceTicket:typeof result.voiceTicket==="string"?result.voiceTicket:undefined}]);
+      setMessages(items=>[...items.slice(-17),{id:++id.current,role:"assistant",text,mode:result.mode,links,shareLinks:Array.isArray(result.shareLinks)?result.shareLinks.filter(safeStudentLink).slice(0,8):[],voiceTicket:typeof result.voiceTicket==="string"?result.voiceTicket:undefined}]);
       if(typeof result.navigateTo==="string"&&Array.isArray(result.shareLinks)&&result.shareLinks.some((link:unknown)=>safeStudentLink(link)&&link.url===result.navigateTo))window.location.assign(result.navigateTo);
       if(typeof result.navigateTo==="string"&&links.some((link:ChatLink)=>link.href===result.navigateTo))router.push(result.navigateTo);
+      if(role==="MANAGEMENT"&&result.writingDraft&&typeof result.writingDraft.draft==="string")setWriter({id:requestId,text:value,draft:result.writingDraft.draft,language:result.writingDraft.language==="Kiswahili"?"Kiswahili":"English"});
       if(role==="MANAGEMENT"&&workspace&&(result.workflow==="register"||result.workflow==="payment"))setWorkflow(result.workflow);
       if(role==="MANAGEMENT"&&result.workflow==="announcement"&&result.draft&&typeof result.draft==="object")setAnnouncement(result.draft as AnnouncementDraft);
     } catch(error) {
@@ -124,6 +132,8 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
       </div> : messages.map(message=><article key={message.id} className={styles.message+" "+(message.role==="user"?styles.user:styles.assistant)}>
         <span className={styles.messageLabel}>{message.role==="user"?"You":message.mode==="records"?"Live hostel records":message.mode==="workflow"?"Action review":message.mode==="error"?"Connection issue":"Hostel Assistant"}</span>
         <div className={message.mode==="error"?styles.subtleError:styles.bubble}>{message.text}</div>
+        {message.role==="user" && <button type="button" className={styles.narrationButton} disabled={busy} onClick={()=>{setQuestion(message.text);setEditingRequest(message.id);questionInput.current?.focus();questionInput.current?.scrollIntoView({behavior:"smooth",block:"center"});}}>Edit request{message.editedFrom ? " · revised" : ""}</button>}
+        {role==="MANAGEMENT"&&message.role==="assistant"&&message.mode!=="error"&&<button type="button" className={styles.narrationButton} disabled={busy} onClick={()=>setWriter({id:message.id,text:message.text,draft:message.text,language:"English"})}>Edit / copy message</button>}
         {message.role==="assistant"&&message.mode!=="error"&&message.text.trim()?<div className={styles.narrationActions}>
           <button type="button" className={styles.narrationButton}
            aria-label={narrator.state.id===message.id&&narrator.state.status==="playing"?"Pause narration":
@@ -165,11 +175,14 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
     </div>
 
     <div className={styles.quickActions} aria-label="Example questions">
+      {role==="MANAGEMENT"&&<button type="button" disabled={busy} onClick={()=>setWriter({id:++id.current,text:"",draft:"",language:"English"})}>Write a message · English / Kiswahili</button>}
       {suggestions.map(q=><button type="button" key={q} disabled={busy} onClick={()=>void ask(q)}>{q}</button>)}
     </div>
+    {writer&&<AssistantMessageWriter key={writer.id} initialText={writer.text} initialDraft={writer.draft} initialLanguage={writer.language} onClose={()=>setWriter(null)}/>}
+    {editingRequest&&<p role="status">Editing your request. Send it again for a new answer; earlier messages stay in the conversation. <button type="button" onClick={()=>{setEditingRequest(null);setQuestion("");}}>Cancel edit</button></p>}
     <form className={styles.composer} onSubmit={event=>{event.preventDefault();void ask(question);}}>
       <div className={styles.composeRow}>
-        <textarea aria-label="Ask your hostel assistant" rows={1} maxLength={1200} value={question}
+        <textarea ref={questionInput} aria-label="Ask your hostel assistant" rows={1} maxLength={1200} value={question}
           onChange={event=>setQuestion(event.target.value)}
           onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void ask(question);}}}
           placeholder="Ask anything about your hostel…" required />

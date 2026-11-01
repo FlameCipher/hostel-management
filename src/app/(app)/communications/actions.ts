@@ -15,7 +15,7 @@ export async function publishAction(_state:CommunicationState, form:FormData):Pr
  const date=scheduledDate(String(form.get("publishAt")??""));
  if(!date) return {error:"Choose a future date within one year. Schedule uses Nairobi time."};
  try {
- const result=await publishCommunication(db,session,{title:form.get("title"),body:form.get("body"),audience:form.get("audience"),studentIds:form.getAll("studentIds"),expectedRecipientCount:expected,category:form.get("category"),publishAt:date,email:form.get("email")==="on",whatsapp:form.get("whatsapp")==="on",requestId:form.get("requestId")});
+ const result=await publishCommunication(db,session,{title:form.get("title"),body:form.get("body"),audience:form.get("audience"),studentIds:form.getAll("studentIds"),expectedRecipientCount:expected,...(form.has("reviewedStudentIds")?{reviewedStudentIds:form.getAll("reviewedStudentIds")}:{}),category:form.get("category"),publishAt:date,email:form.get("email")==="on",whatsapp:form.get("whatsapp")==="on",requestId:form.get("requestId")});
  revalidatePath("/communications"); revalidatePath("/tenant/messages"); return result;
  } catch { return {error:"Publication could not be confirmed. Refresh the communication history before retrying."}; }
 }

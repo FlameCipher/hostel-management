@@ -5,7 +5,7 @@ export type ArrearsCharge = {
   id: string; organizationId: string; studentId: string; currency: string; amount: { toString(): string }; dueDate: Date; status: string;
   payments: { amount: { toString(): string }; organizationId: string; studentId: string; currency: string; reversedAt: Date | null }[];
 };
-export function arrearsPosition(charges: ArrearsCharge[], organizationId: string, studentId: string, currency: string, now: Date, timeZone: string) {
+export function arrearsPosition(charges: ArrearsCharge[], organizationId: string, studentId: string, currency: string, now: Date, timeZone: string, includeFuture = false) {
   const day = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   let balanceMinor = 0, oldest: Date | null = null;
   for (const charge of charges) {
@@ -16,7 +16,7 @@ export function arrearsPosition(charges: ArrearsCharge[], organizationId: string
     try { amount = minorUnits(Number(charge.amount), currency); paid = payments.reduce((sum, p) => sum + minorUnits(Number(p.amount), currency), 0); }
     catch { return { error: "Account entries need review." }; }
     if (!Number.isSafeInteger(amount) || !Number.isSafeInteger(paid) || amount < 0 || paid < 0 || paid > amount) return { error: "Account entries need review." };
-    if (day(charge.dueDate) >= day(now) || amount <= paid) continue;
+    if ((!includeFuture && day(charge.dueDate) >= day(now)) || amount <= paid) continue;
     balanceMinor += amount - paid;
     if (!oldest || charge.dueDate < oldest) oldest = charge.dueDate;
   }
