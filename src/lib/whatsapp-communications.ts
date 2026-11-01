@@ -98,6 +98,11 @@ export async function actOnManualNotification(database: PrismaClient, session: S
       } else if (item.studentId) {
         const student = await tx.student.findFirst({ where: { ...tenantWhere(session.organizationId), id: item.studentId }, select: { phone: true, guardian: { select: { phone: true } }, occupancies: { where: { organizationId: session.organizationId, status: { in: ["ACTIVE", "RESERVED"] } }, select: { room: { select: { propertyId: true } } }, orderBy: { createdAt: "desc" }, take: 1 } } });
         phone = item.recipientType === "GUARDIAN" ? student?.guardian?.phone : student?.phone;
+        if(student && item.recipientType === "GUARDIAN" && (item.id.startsWith("sponsor_") || item.id.startsWith("arrears_sponsor_"))) {
+          const approval=await tx.auditLog.findFirst({where:{organizationId:session.organizationId,entityId:item.id,action:"TYPED_GUARDIAN_MESSAGE_CREATED"},select:{metadata:true}});
+          const approved=approval?.metadata as {studentId?:string;recipientPhone?:string}|null;
+          phone=approved?.studentId===item.studentId && approved.recipientPhone===item.recipientPhone ? approved.recipientPhone : null;
+        }
         recipientCountry = properties.find(p => p.id === student?.occupancies[0]?.room.propertyId)?.countryCode ?? country;
       }
       const number = whatsappNumber(phone, recipientCountry), recorded = whatsappNumber(item.recipientPhone, recipientCountry);

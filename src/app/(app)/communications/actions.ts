@@ -2,12 +2,12 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { communicationManager, publishCommunication, scheduledDate } from "@/lib/communications";
-export type CommunicationState={error?:string;success?:string};
+import { communicationManager, publishCommunication, scheduledDate, queueCommunicationCopies } from "@/lib/communications";
+import { readMessageDelivery, type MessageDeliveryReport } from "@/lib/message-delivery";
+export type CommunicationState={error?:string;success?:string;reportId?:string;report?:MessageDeliveryReport};
 export async function publishAction(_state:CommunicationState, form:FormData):Promise<CommunicationState> {
  const session=await requireSession();
- // Client-side disabled buttons are not authorization. Require the owner/admin/
- // manager to submit an explicit review acknowledgement with a stable count.
+ // Sending is an explicit submit action; recheck the exact reviewed audience on the server.
  if(form.get("confirmed")!=="on") return {error:"Review and confirm the selected recipients and notice before saving."};
  const expected=Number(form.get("expectedRecipientCount"));
  if(!Number.isSafeInteger(expected) || expected<1 || expected>5000 || String(form.get("expectedRecipientCount"))!==String(expected))
@@ -16,7 +16,9 @@ export async function publishAction(_state:CommunicationState, form:FormData):Pr
  if(!date) return {error:"Choose a future date within one year. Schedule uses Nairobi time."};
  try {
  const result=await publishCommunication(db,session,{title:form.get("title"),body:form.get("body"),audience:form.get("audience"),studentIds:form.getAll("studentIds"),expectedRecipientCount:expected,...(form.has("reviewedStudentIds")?{reviewedStudentIds:form.getAll("reviewedStudentIds")}:{}),category:form.get("category"),publishAt:date,email:form.get("email")==="on",whatsapp:form.get("whatsapp")==="on",requestId:form.get("requestId")});
- revalidatePath("/communications"); revalidatePath("/tenant/messages"); return result;
+ revalidatePath("/communications"); revalidatePath("/tenant/messages");
+ if("reportId" in result && result.reportId) { await queueCommunicationCopies(db,new Date(),{organizationId:session.organizationId,batchId:result.reportId}); const report=await readMessageDelivery(db,session.organizationId,result.reportId); return {...result,report:report??undefined}; }
+ return result;
  } catch { return {error:"Publication could not be confirmed. Refresh the communication history before retrying."}; }
 }
 export async function settingsAction(form:FormData) {

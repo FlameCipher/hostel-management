@@ -7,12 +7,16 @@ import { requestArrears, setArrearsAutomation, type ArrearsResult } from "@/lib/
 import { savePaymentAgreement } from "@/lib/payment-agreements";
 import { actOnManualNotification } from "@/lib/whatsapp-communications";
 
+import { readMessageDelivery } from "@/lib/message-delivery";
+
 function refresh() { revalidatePath("/reports/arrears"); revalidatePath("/tenant/messages"); revalidatePath("/communications"); revalidatePath("/notifications"); }
 export async function sendArrearsAction(_state: ArrearsResult, form: FormData): Promise<ArrearsResult> {
   const session = await requireSession();
   try {
     const result = await requestArrears(db, session, { requestId: form.get("requestId"), recipients: JSON.parse(String(form.get("recipients") ?? "[]")), whatsapp: form.get("whatsapp") === "on", email: form.get("email") === "on" });
-    refresh(); return result;
+    refresh();
+    if(result.reportId) { const report=await readMessageDelivery(db,session.organizationId,result.reportId); return {...result,report:report??undefined}; }
+    return result;
   } catch { return { error: "The requests could not be confirmed. Refresh and check the delivery history before retrying." }; }
 }
 export async function forwardArrearsAction(studentId: string, fingerprint: string, requestId: string) {

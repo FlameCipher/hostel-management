@@ -1,145 +1,64 @@
 "use client";
+import { SponsorMessageForm } from "./sponsor-message-form";
 import Link from "next/link";
 import styles from "./arrears-form.module.css";
 import { useActionState, useState } from "react";
 import { publishAction } from "@/app/(app)/communications/actions";
-
-export type Audience = "ALL" | "SELECTED" | "MALE" | "FEMALE";
+import { ArrearsForm } from "./arrears-form";
+import type { ArrearsRow } from "@/lib/arrears-reminders";
+import { MessageDeliveryReport } from "./message-delivery-report";
+export type Audience = "ALL" | "SELECTED" | "MALE" | "FEMALE" | "UNPAID";
 type NoticeType = "GENERAL" | "EXAM" | "HOLIDAY" | "BALANCE";
-const templates: Record<NoticeType, string> = {
-  GENERAL: "",
-  EXAM: "We wish you success in your examinations. Prepare well, rest sufficiently and respect quiet study hours. Hostel management wishes you all the best.",
-  HOLIDAY: "Please contact management before leaving for the holiday to confirm whether you are returning next semester or vacating, your room reservation and arrangements for your belongings.",
-  BALANCE: "Please review your private rent statement and settle any outstanding balance by the deadline communicated by management. If a payment is missing, contact management for verification. If you have paid in full, please disregard this notice.",
+const templates = {
+ GENERAL:{title:"",body:""},
+ EXAM:{title:"Examination wishes",body:"We wish you success in your examinations. Prepare well, rest sufficiently and respect quiet study hours. Hostel management wishes you all the best."},
+ HOLIDAY:{title:"Holiday arrangements",body:"Please contact management before leaving for the holiday to confirm whether you are returning next semester or vacating, your room reservation and arrangements for your belongings."},
 };
-
-export function CommunicationForm({
-  students,
-  requestId, initialAudience = "SELECTED",
-}: {
-  students: Array<{ id: string; fullName: string; portalReady: boolean; room: string; balance: string; paymentStatus: string; gender: string | null }>;
-  requestId: string; initialAudience?: Audience;
+export function CommunicationForm({students,requestId,arrearsRequestId,sponsorRequestId,initialAudience="ALL",arrearsRows,whatsappEnabled,businessReady,emailReady}:{
+ students:Array<{id:string;fullName:string;portalReady: boolean;room:string;balance:string;paymentStatus:string;gender:string|null}>;
+ requestId:string;arrearsRequestId:string;sponsorRequestId:string;initialAudience?:Audience;arrearsRows:(ArrearsRow & {delivery:string})[];whatsappEnabled:boolean;businessReady:boolean;emailReady:boolean;
 }) {
-  const [state, action, pending] = useActionState(publishAction, {});
-  const [audience, setAudience] = useState<Audience>(initialAudience);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<NoticeType>("GENERAL");
-  const [body, setBody] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const eligible = students.filter(student => audience === "ALL" || audience === "SELECTED" || student.gender === audience);
-  const recipients = audience === "SELECTED" ? students.filter(student=>selected.includes(student.id)) : eligible;
-  const visible = eligible.filter(student =>
-    `${student.fullName} ${student.room}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
-  );
-  const recipientCount = recipients.length;
-  const accessiblePortals = recipients.filter(student=>student.portalReady).length;
-  const pendingPortalAccess = recipientCount - accessiblePortals;
-
-  function changeAudience(next: Audience) {
-    setAudience(next);
-    setConfirmed(false);
-  }
-  function toggleTenant(id: string, checked: boolean) {
-    setSelected(previous => checked ? [...new Set([...previous, id])] : previous.filter(value => value !== id));
-    setConfirmed(false);
-  }
-  function selectVisible() {
-    setSelected(previous => [...new Set([...previous, ...visible.map(student => student.id)])]);
-    setConfirmed(false);
-  }
-
-  return <form action={action} className="panel entity-form">
-    <h2>Publish a tenant notice</h2><p><Link className="primary-button" href="/reports/arrears">Prepare overdue rent demands</Link></p><p>Rent demands automatically exclude paid accounts and approved payment extensions.</p>
-    <p>Choose recipients, write the notice, and review access before publishing. Each recipient gets a private inbox record, not a group chat or guaranteed delivered phone message.</p>
-    <input name="requestId" type="hidden" value={requestId}/>
-    <input name="expectedRecipientCount" type="hidden" value={recipientCount}/>
-    {recipients.map(student=><input key={student.id} type="hidden" name="reviewedStudentIds" value={student.id}/>)}
-
-    <fieldset>
-      <legend><strong>1. Send to</strong></legend>
-      <label className="check-field">
-        <input type="radio" name="audience" value="ALL" checked={audience === "ALL"} onChange={() => changeAudience("ALL")}/>
-        <span><strong>All tenants</strong> ({students.length})</span>
-      </label>
-      <label className="check-field">
-        <input type="radio" name="audience" value="SELECTED" checked={audience === "SELECTED"} onChange={() => changeAudience("SELECTED")}/>
-        <span><strong>Selected tenants</strong></span>
-      </label>
-      {(["MALE","FEMALE"] as const).map(value=><label className="check-field" key={value}><input type="radio" name="audience" value={value} checked={audience===value} onChange={()=>changeAudience(value)}/><span><strong>{value === "MALE" ? "Male students" : "Female students"}</strong> ({students.filter(student=>student.gender===value).length})</span></label>)}
-      <p>Gender groups use recorded student details only. Unrecorded gender is not guessed.</p>
-      <p><Link href="/reports/arrears">Send to students with overdue balances</Link> · <Link href="/reports/unpaid">Share unpaid list as PDF with staff</Link></p>
-    </fieldset>
-
-    {audience !== "SELECTED" && <details><summary>Review {recipientCount} recipients</summary><div className={styles.recipientList}>{recipients.map(student=><div className={styles.recipientRow} key={student.id}><span><strong>{student.fullName}</strong><small>Room {student.room || "—"} · {student.paymentStatus}</small></span><strong>{student.balance}</strong></div>)}</div></details>}
-    {audience === "SELECTED" && <fieldset>
-      <legend>Choose tenants</legend>
-      <label className="field-group">
-        <span>Find tenant</span>
-        <input type="search" placeholder="Search by name or room" value={search} onChange={event => setSearch(event.target.value)}/>
-      </label>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        <button className="secondary-button" type="button" onClick={selectVisible} disabled={!visible.length}>Select all shown</button>
-        <button className="secondary-button" type="button" onClick={() => { setSelected([]); setConfirmed(false); }} disabled={!selected.length}>Clear selection</button>
-      </div>
-      <div className={styles.recipientList}>
-        {visible.length ? visible.map(student => <label className={styles.recipientRow} key={student.id}>
-          <input type="checkbox" value={student.id} checked={selected.includes(student.id)} onChange={event => toggleTenant(student.id,event.target.checked)}/>
-          <span><strong>{student.fullName}</strong><small>Room {student.room || "—"} · {student.paymentStatus}</small></span><strong>{student.balance}</strong>
-        </label>) : <p>No matching tenants.</p>}
-      </div>
-      {/* Keep the complete chosen audience in the form even when search hides checkboxes.
-          Never derive submitted studentIds from only the currently visible results. */}
-      {selected.map(id => <input key={id} type="hidden" name="studentIds" value={id}/>)}
-      <p role="status"><strong>{selected.length} tenant{selected.length === 1 ? "" : "s"} selected</strong></p>
-    </fieldset>}
-
-    <h3>2. Write your notice</h3>
-    <label className="field-group"><span>Subject</span>
-      <input name="title" required minLength={3} maxLength={160} placeholder="e.g. Rent balance clearance" onChange={() => setConfirmed(false)}/>
-    </label>
-    <label className="field-group"><span>Message type</span>
-      <select name="category" value={category} onChange={event => {
-        setCategory(event.target.value as NoticeType);
-        setBody(templates[event.target.value as NoticeType]);
-        setConfirmed(false);
-      }}>
-        <option value="GENERAL">General notice</option>
-        <option value="BALANCE">Rent balance reminder</option>
-        <option value="EXAM">Examination wishes</option>
-        <option value="HOLIDAY">Holiday arrangements</option>
-      </select>
-    </label>
-    {category === "BALANCE" && <p role="status">Use <Link href="/reports/arrears">Rent payment demands</Link> for individual balances and agreed-date exclusions.</p>}
-    <label className="field-group"><span>Message</span>
-      <textarea name="body" required minLength={10} maxLength={3000} rows={5} value={body} placeholder="Write the notice here…" onChange={event => {setBody(event.target.value);setConfirmed(false);}}/>
-    </label>
-
-    <details>
-      <summary>More options: schedule, email and WhatsApp</summary>
-      <label className="field-group"><span>Schedule (Nairobi time; leave blank to post now)</span>
-        <input name="publishAt" type="datetime-local" onChange={() => setConfirmed(false)}/>
-      </label>
-      <label className="check-field"><input name="email" type="checkbox" onChange={() => setConfirmed(false)}/>Queue an email copy for tenants with an email address</label>
-      <label className="check-field"><input name="whatsapp" type="checkbox" onChange={() => setConfirmed(false)}/>Prepare WhatsApp copies for manual sending</label>
-      <p className="policy-note">Email is processed by the configured delivery service. WhatsApp copies are queued as drafts and are not automatically sent by this option.</p>
-    </details>
-
-    <h3>3. Review and send</h3>
-    <p role="status"><strong>{recipientCount} private notice record{recipientCount === 1 ? "" : "s"} will be saved</strong> in the hostel system. {accessiblePortals} selected recipient{accessiblePortals === 1 ? "" : "s"} currently have enabled portal access.</p>
-    {pendingPortalAccess > 0 && <p className="policy-note" role="status"><strong>{pendingPortalAccess} selected tenant{pendingPortalAccess === 1 ? "" : "s"} cannot yet read their hostel inbox because their portals are not activated.</strong> Their notices stay saved. Email copies must be separately requested and successfully delivered; WhatsApp copies are drafts requiring manual sending or a verified automated sender.</p>}
-    <p className="policy-note">Saved, queued and drafted notices are <strong>not proof of delivery or reading</strong>. Check the message history and delivery statuses before assuming tenants were notified.</p>
-    {audience === "ALL" && <p className="policy-note">This includes tenants who have already paid. For a rent-arrears notice, choose Selected tenants if you only want to contact those who owe. Never put a named tenant’s balance in a notice to everyone.</p>}
-    <label className="check-field">
-      <input type="checkbox" name="confirmed" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>
-      I have checked the recipients and the message.
-    </label>
-
-    {state.error && <p className="form-error" role="alert">{state.error}</p>}
-    {state.success && <p className="form-success" role="status">{state.success}</p>}
-    <button type="submit" className="primary-button" disabled={pending || !!state.success || recipientCount === 0 || !confirmed || category === "BALANCE"}>
-      {pending ? "Saving…" : `Save notices for ${recipientCount} tenant${recipientCount === 1 ? "" : "s"}`}
-    </button>
-    {state.success && <a className="secondary-button" href="/communications">Write another notice</a>}
-  </form>;
+ const [state,action,pending]=useActionState(publishAction,{});
+ const [target,setTarget]=useState("STUDENTS");
+ const [category,setCategory]=useState<NoticeType>("GENERAL");
+ const [body,setBody]=useState(""); const [title,setTitle]=useState("");
+ const [audience,setAudience]=useState<Audience>(initialAudience);
+ const [selected,setSelected]=useState<string[]>([]); const [search,setSearch]=useState("");
+ const [channel,setChannel]=useState(whatsappEnabled?"WHATSAPP":"PORTAL");
+ const overdueIds=new Set(arrearsRows.map(row=>row.studentId));
+ const recipients=students.filter(s=>audience==="ALL" || (audience==="SELECTED"?selected.includes(s.id):audience==="UNPAID"?overdueIds.has(s.id):s.gender===audience));
+ const visible=students.filter(s=>`${s.fullName} ${s.room}`.toLowerCase().includes(search.trim().toLowerCase()));
+ const recipientCount=recipients.length;
+ const pendingPortalAccess=recipients.filter(s=>!s.portalReady).length;
+ return <section className="panel entity-form"><h2>Send a message</h2>
+ <label className="field-group"><strong>1. Choose a message</strong><select value={category} onChange={e=>{const next=e.target.value as NoticeType;setCategory(next);if(next!=="BALANCE"){setBody(templates[next].body);setTitle(templates[next].title);}}}>
+ <option value="GENERAL">Write a message</option><option value="BALANCE">Unpaid rent reminder</option><option value="EXAM">Examination wishes</option><option value="HOLIDAY">Holiday arrangements</option></select></label>
+ <label className="field-group"><span>Who should receive the message?</span><select value={target} onChange={e=>setTarget(e.target.value)}><option value="STUDENTS">Students</option><option value="SPONSOR">Sponsor or guardian — type a number</option></select></label>
+ {target==="SPONSOR"?<SponsorMessageForm key={category} students={category==="BALANCE"?arrearsRows.map(row=>({id:row.studentId,name:row.name,fingerprint:row.fingerprint})):students.map(s=>({id:s.id,name:s.fullName}))} requestId={sponsorRequestId} rent={category==="BALANCE"} title={title} body={body}/>:category==="BALANCE"?<ArrearsForm rows={arrearsRows} showRecipientTarget={false} requestId={arrearsRequestId} sponsorRequestId={sponsorRequestId} whatsappEnabled={whatsappEnabled} businessReady={businessReady} emailReady={emailReady}/>:<form action={action} className={styles.form}>
+ <input name="requestId" type="hidden" value={requestId}/><input name="category" type="hidden" value={category}/>
+ <input name="expectedRecipientCount" type="hidden" value={recipientCount}/><input name="audience" type="hidden" value={audience}/>
+ {recipients.map(s=><input key={s.id} type="hidden" name="reviewedStudentIds" value={s.id}/>)}
+ {selected.map(id => <input key={id} type="hidden" name="studentIds" value={id}/>)}
+ <label className="field-group"><span>Subject</span><input name="title" required minLength={3} maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Message subject"/></label>
+ <label className="field-group"><span>Message</span><textarea name="body" required minLength={10} maxLength={channel==="WHATSAPP"?700:3000} rows={5} value={body} onChange={e=>setBody(e.target.value)} placeholder="Write your message…"/></label>
+ <label className="field-group"><strong>2. Choose recipients</strong><select value={audience} onChange={e=>setAudience(e.target.value as Audience)}>
+ <option value="ALL">All students ({students.length})</option><option value="UNPAID">Unpaid — overdue balances ({arrearsRows.length})</option><option value="SELECTED">Select students</option>
+ <option value="MALE">Male students ({students.filter(s=>s.gender==="MALE").length})</option><option value="FEMALE">Female students ({students.filter(s=>s.gender==="FEMALE").length})</option></select></label>
+ {audience==="UNPAID" && <p>Paid accounts, future charges and approved payment extensions are excluded automatically.</p>}
+ {audience==="SELECTED"?<><label className="field-group"><span>Find a student</span><input type="search" placeholder="Search by name or room" value={search} onChange={e=>setSearch(e.target.value)}/></label>
+ <div className={styles.selection}><button type="button" onClick={()=>setSelected([...new Set([...selected,...visible.map(s=>s.id)])])}>Select all shown</button><button type="button" onClick={()=>setSelected([])}>Clear selection</button></div>
+ <div className={styles.recipientList}>{visible.map(s=><label className={styles.recipientRow} key={s.id}><input type="checkbox" checked={selected.includes(s.id)} onChange={e=>setSelected(ids=>e.target.checked?[...ids,s.id]:ids.filter(id=>id!==s.id))}/><span><strong>{s.fullName}</strong><small>Room {s.room||"—"}</small></span></label>)}</div></>:<details><summary>View {recipientCount} recipients</summary>{recipients.map(s=><p key={s.id}>{s.fullName} · Room {s.room||"—"}</p>)}</details>}
+ <h3>3. Send to {recipientCount} student{recipientCount===1?"":"s"}</h3>
+ <label className="field-group"><span>Send through</span><select value={channel} onChange={e=>setChannel(e.target.value)}><option value="WHATSAPP" disabled={!whatsappEnabled}>WhatsApp{!businessReady?" — manual sending":""}</option><option value="PORTAL">Student inbox</option><option value="EMAIL" disabled={!emailReady}>Email{!emailReady?" — not connected":""}</option></select></label>
+ <input type="hidden" name="whatsapp" value={channel==="WHATSAPP"?"on":""}/><input type="hidden" name="email" value={channel==="EMAIL"?"on":""}/>
+ {channel==="WHATSAPP"&&!businessReady?<p className="policy-note"><strong>Automatic WhatsApp is not connected.</strong> This saves {recipientCount} individual drafts; it does not send them to phones. <Link href="/communications/whatsapp">Connect WhatsApp to send to everyone</Link>.</p>:channel==="WHATSAPP"?<p>Messages are queued for students who have opted in. Check results for delivery confirmation.</p>:channel==="PORTAL"?<p>{recipientCount-pendingPortalAccess} students can read their inbox now.{pendingPortalAccess>0?` ${pendingPortalAccess} need to activate their account.`:""}</p>:<p>Email addresses are only needed for this sending method.</p>}
+ <p>Each student gets a private message. The results show every selected recipient.</p>
+ <button type="submit" name="confirmed" value="on" className={styles.primary} disabled={pending||!!state.success||recipientCount===0}>{pending?"Saving messages…":channel==="WHATSAPP"&&!businessReady?`Save ${recipientCount} WhatsApp drafts`:`Send to ${recipientCount} students`}</button>
+ {state.error&&<p className="form-error" role="alert">{state.error}</p>}
+ {state.success&&<p role="status">{state.success}</p>}
+ {state.report&&<MessageDeliveryReport report={state.report}/>}
+ {state.reportId&&!state.report&&<Link href={`/communications/delivery?batch=${encodeURIComponent(state.reportId)}`}>View results for every student</Link>}
+ {state.success&&<Link href="/communications">Write another message</Link>}
+ </form>}
+ </section>;
 }
