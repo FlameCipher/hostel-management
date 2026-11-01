@@ -1,3 +1,4 @@
+import { firstLateFeeDeadline } from "../late-fee-policy";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient, Prisma } from "@/generated/prisma/client";
 import type { TenantSession } from "@/lib/auth/tenant-session";
@@ -5,7 +6,7 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { TERMS_CONTACT, TERMS_DECLARATION, TERMS_ORGANIZATION_ID, TERMS_RULES, TERMS_VERSION, acceptanceSchema, snapshotSchema, termsHash } from "./policy";
 
 type Reader = Pick<Prisma.TransactionClient, "student" | "occupancy">;
-export async function currentTermsContext(database: Reader, session: TenantSession | null) {
+export async function currentTermsContext(database: Reader, session: TenantSession | null, now = new Date()) {
   if (!session || session.organizationId !== TERMS_ORGANIZATION_ID) return null;
   const student = await database.student.findFirst({ where: { id: session.studentId, organizationId: session.organizationId, portalEnabled: true, status: { not: "ARCHIVED" } }, select: { id: true, fullName: true, admissionNumber: true, university: true } });
   if (!student) return null;
@@ -17,7 +18,7 @@ export async function currentTermsContext(database: Reader, session: TenantSessi
   const snapshot = snapshotSchema.parse({ version: TERMS_VERSION, hostel: TERMS_CONTACT,
     student: { name: student.fullName, admissionNumber: student.admissionNumber ?? "Not recorded", institution: student.university },
     room: occupancy.room.number, semester: occupancy.semester.name, semesterStart: occupancy.semester.startDate.toISOString(), semesterEnd: occupancy.semester.endDate.toISOString(),
-    rentCharges: occupancy.charges.map(c => ({ amount: c.amount.toFixed(2), dueDate: c.dueDate.toISOString() })), rules: TERMS_RULES, declaration: TERMS_DECLARATION, acceptanceMethod: "DIGITAL_ACCEPTANCE",
+    rentCharges: occupancy.charges.map(c => ({ amount: c.amount.toFixed(2), dueDate: c.dueDate.toISOString() })), rules: TERMS_RULES, declaration: TERMS_DECLARATION, acceptanceMethod: "DIGITAL_ACCEPTANCE", lateFeePolicy: { rate: 10, notBeforeDate: firstLateFeeDeadline(now) },
   });
   return { student, occupancy, snapshot };
 }
@@ -30,13 +31,13 @@ export async function signStudentTerms(database: Pick<PrismaClient, "$transactio
     // The same student lock serializes duplicate submissions and portal eligibility changes.
     await tx.$queryRaw`SELECT id FROM "Student" WHERE id = ${session.studentId} AND "organizationId" = ${session.organizationId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "Occupancy" WHERE id = ${parsed.data.occupancyId} AND "studentId" = ${session.studentId} AND "organizationId" = ${session.organizationId} FOR UPDATE`;
-    const context = await currentTermsContext(tx, session);
+    const acceptedAt = new Date();
+    const context = await currentTermsContext(tx, session, acceptedAt);
     if (!context?.occupancy || !context.snapshot || context.occupancy.id !== parsed.data.occupancyId) return { error: "Your room allocation has changed or is unavailable. Reload the terms page." };
     if (parsed.data.documentHash !== termsHash(context.snapshot, "", new Date(0), "preview")) return { error: "The terms or allocation details have changed. Reload and read the current terms before signing." };
     const where = { organizationId: session.organizationId, studentId: session.studentId, occupancyId: context.occupancy.id, version: TERMS_VERSION };
     const existing = await tx.studentTermsAcceptance.findFirst({ where });
     if (existing) return { id: existing.id };
-    const acceptedAt = new Date();
     const reference = "MMH-TERMS-" + randomUUID().toUpperCase();
     // Identity is read from the authenticated student record, never supplied by the form.
     const signatureName = context.student.fullName;

@@ -12,7 +12,7 @@ export async function POST(request:Request) {
  const headers={"Cache-Control":"private, no-store","Vary":"Cookie"};
  if(!sameOrigin(request))return Response.json({error:"Request not allowed."},{status:403,headers});
  if(Number(request.headers.get("content-length")??0)>8000)return Response.json({error:"Question too long."},{status:413,headers});
- try {const raw=await request.text();if(raw.length>8000)return Response.json({error:"Question too long."},{status:413,headers});const body=JSON.parse(raw);const tenant=body.audience==="tenant";const session=tenant?await getTenantSession():await getSession();const contextToken=typeof body.contextToken==="string"&&body.contextToken.length<=1200?body.contextToken:null;const result=await answerHostelQuestion(db,session,tenant,typeof body.question==="string"?body.question:"",undefined,contextToken);// Every authenticated, non-error assistant reply can obtain the same Kinari
+ try {const raw=await request.text();if(raw.length>8000)return Response.json({error:"Question too long."},{status:413,headers});const body=JSON.parse(raw);const tenant=body.audience==="tenant";const session=tenant?await getTenantSession():await getSession();const contextToken=typeof body.contextToken==="string"&&body.contextToken.length<=1200?body.contextToken:null;const result=await answerHostelQuestion(db,session,tenant,typeof body.question==="string"?body.question:"",undefined,contextToken);// Every authenticated, non-error assistant reply can obtain the same hostel assistant
  // narrator through a short-lived, exact-text signed ticket. No audio or private
  // text is sent to the voice provider until the user explicitly presses Listen.
  // The UI obtains additional permission before private records are narrated.

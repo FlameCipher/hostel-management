@@ -1,3 +1,5 @@
+import { readLateFees } from "./late-fees";
+import { LATE_FEE_ORGANIZATION, hostelDay, displayHostelDate } from "./late-fee-policy";
 import { agreementActive } from "./payment-agreement-policy";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient, TenantMessage, Notification } from "@/generated/prisma/client";
@@ -10,7 +12,7 @@ import { whatsappNumber, propertyTenantLogin } from "@/lib/whatsapp-policy";
 import { arrearsCooldown, arrearsFingerprint, arrearsMessage, arrearsPosition, ARREARS_INTERVAL_DAYS } from "@/lib/arrears-policy";
 import { formatMoney } from "@/lib/currency";
 
-type Reader = Pick<Prisma.TransactionClient, "organization" | "student" | "property" | "tenantMessage">;
+type Reader = Pick<Prisma.TransactionClient, "organization" | "student" | "property" | "tenantMessage" | "charge" | "studentTermsAcceptance">;
 export async function readArrears(database: Reader, organizationId: string, now = new Date(), ids?: string[]) {
   const [org, properties, students] = await Promise.all([
     database.organization.findFirst({ where: { id: organizationId, status: "ACTIVE" }, select: { id: true, name: true, currency: true, whatsappEnabled: true } }),
@@ -24,6 +26,8 @@ export async function readArrears(database: Reader, organizationId: string, now 
   if (!org) throw Error("Hostel account unavailable.");
   if (students.length > 5000) throw Error("This register is too large. Select a smaller group of tenants.");
   const history = await database.tenantMessage.findMany({ where: { organizationId, category: "ARREARS", studentId: { in: students.map(s => s.id) } }, distinct: ["studentId"], orderBy: { createdAt: "desc" }, select: { id: true, studentId: true, createdAt: true, emailStatus: true, notificationId: true, readAt: true } });
+  const fees = organizationId === LATE_FEE_ORGANIZATION ? await readLateFees(database, organizationId, now, students.map(s => s.id)) : [];
+  const noticeDate = displayHostelDate(hostelDay(now));
   const lastByStudent = new Map(history.map(h => [h.studentId, h]));
   const review: { studentId: string; name: string; reason: string }[] = [];
   const deferred: { studentId: string; name: string; room: string; balance: string; agreedDate: string; note: string }[] = [];
@@ -42,10 +46,11 @@ export async function readArrears(database: Reader, organizationId: string, now 
     const email = z.string().email().safeParse(student.email).success ? student.email! : "";
     const room = occupancy?.room.number ?? "", login = propertyTenantLogin(property ? [property] : properties);
     const last = lastByStudent.get(student.id);
+    const penalty = fees.filter(f => f.studentId === student.id).map(f => f.message).filter(Boolean).join("\n\n");
     return [{ studentId: student.id, name: student.fullName, room, phone, email, amount: position.balance, balance: formatMoney(position.balance, org.currency), due,
       portalReady: student.portalEnabled && student.portalPasswordHash !== null,
-      fingerprint: arrearsFingerprint({ studentId: student.id, amount: position.balance, currency: org.currency, due, phone, email, name: student.fullName, room }),
-      message: arrearsMessage({ hostel: org.name, name: student.fullName, amount: position.balance, currency: org.currency, due, login }),
+      fingerprint: arrearsFingerprint({ studentId: student.id, amount: position.balance, currency: org.currency, due, phone, email, name: student.fullName, room, policy: noticeDate + penalty }),
+      message: arrearsMessage({ hostel: org.name, name: student.fullName, amount: position.balance, currency: org.currency, due, login, noticeDate, penalty }),
       lastAt: last?.createdAt.toISOString() ?? null, lastNotificationId: last?.notificationId ?? null, lastRead: !!last?.readAt, lastEmailStatus: last?.emailStatus ?? null }];
   });
   return { org, rows, review, deferred };

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** The genuine Kinari synthesized MP3 only. Never silently switch to device TTS. */
+/** The genuine hostel assistant synthesized MP3 only. Never silently switch to device TTS. */
 export type NarrationStatus = "idle"|"loading"|"playing"|"paused";
-type State={id:number|null;status:NarrationStatus;source:"kinari";error:string};
-const idle:State={id:null,status:"idle",source:"kinari",error:""};
+type State={id:number|null;status:NarrationStatus;source:"hostel";error:string};
+const idle:State={id:null,status:"idle",source:"hostel",error:""};
 
 export function useAssistantNarrator(audience:"staff"|"tenant") {
  const [state,setState]=useState<State>(idle);
@@ -33,16 +33,16 @@ export function useAssistantNarrator(audience:"staff"|"tenant") {
    if(current.status==="playing"){audioRef.current.pause();setBoth({...current,status:"paused"});}
    else {
     try {await audioRef.current.play();setBoth({...current,status:"playing",error:""});}
-    catch {setBoth({...current,status:"paused",error:"Tap Resume again to allow Kinari audio on this phone."});}
+    catch {setBoth({...current,status:"paused",error:"Tap Resume again to allow hostel assistant audio on this phone."});}
    }
    return;
   }
   stop();
-  if(!voiceTicket){setBoth({id,status:"idle",source:"kinari",error:"This narration ticket has expired. Ask the assistant the question again for a new Kinari reading."});return;}
+  if(!voiceTicket){setBoth({id,status:"idle",source:"hostel",error:"This narration ticket has expired. Ask the assistant the question again for a new hostel assistant reading."});return;}
   const generation=activeId.current;
   const controller=new AbortController();
   controllerRef.current=controller;
-  setBoth({id,status:"loading",source:"kinari",error:""});
+  setBoth({id,status:"loading",source:"hostel",error:""});
   try {
    const response=await fetch("/api/assistant/voice",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -50,12 +50,12 @@ export function useAssistantNarrator(audience:"staff"|"tenant") {
     cache:"no-store",signal:controller.signal
    });
    if(generation!==activeId.current)return;
-   if(!response.ok)throw Error(response.status===403?"This narration request expired. Ask your question again and retry Kinari voice.":response.status===429?"Voice limit reached. Try again later.":"Kinari narration is temporarily unavailable. Try again.");
+   if(!response.ok)throw Error(response.status===403?"This narration request expired. Ask your question again and retry hostel assistant voice.":response.status===429?"Voice limit reached. Try again later.":"hostel assistant narration is temporarily unavailable. Try again.");
    const type=response.headers.get("content-type")??"";
-   if(!type.includes("audio/"))throw Error("The Kinari speech service did not return audio.");
+   if(!type.includes("audio/"))throw Error("The hostel assistant speech service did not return audio.");
    const blob=await response.blob();
    if(generation!==activeId.current)return;
-   if(!blob.size||!blob.type.startsWith("audio/"))throw Error("The Kinari speech audio was empty or invalid.");
+   if(!blob.size||!blob.type.startsWith("audio/"))throw Error("The hostel assistant speech audio was empty or invalid.");
    const url=URL.createObjectURL(blob);
    urlRef.current=url;
    const audio=new Audio();
@@ -63,16 +63,16 @@ export function useAssistantNarrator(audience:"staff"|"tenant") {
    audio.src=url;
    audio.preload="auto";
    audio.onended=()=>{if(generation===activeId.current)stop();};
-   audio.onerror=()=>{if(generation===activeId.current){stop();setBoth({id,status:"idle",source:"kinari",error:"Unable to play Kinari audio. Check your phone volume and try again."});}};
+   audio.onerror=()=>{if(generation===activeId.current){stop();setBoth({id,status:"idle",source:"hostel",error:"Unable to play hostel assistant audio. Check your phone volume and try again."});}};
    try {
     await audio.play();
-    if(generation===activeId.current)setBoth({id,status:"playing",source:"kinari",error:""});
+    if(generation===activeId.current)setBoth({id,status:"playing",source:"hostel",error:""});
    }catch{
-    if(generation===activeId.current)setBoth({id,status:"paused",source:"kinari",error:"Tap Resume to allow your phone to play Kinari audio."});
+    if(generation===activeId.current)setBoth({id,status:"paused",source:"hostel",error:"Tap Resume to allow your phone to play hostel assistant audio."});
    }
   }catch(error){
    if(generation!==activeId.current||controller.signal.aborted)return;
-   setBoth({id,status:"idle",source:"kinari",error:error instanceof Error?error.message:"Kinari voice is unavailable. Try again later."});
+   setBoth({id,status:"idle",source:"hostel",error:error instanceof Error?error.message:"hostel assistant voice is unavailable. Try again later."});
   }finally{
    if(controllerRef.current===controller)controllerRef.current=null;
   }

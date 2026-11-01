@@ -143,7 +143,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
            disabled={!message.voiceTicket}
            onClick={()=>{
             if(message.mode!=="ai"&&!privateNarrationConfirmed.current.has(message.id)){
-              const allowed=window.confirm("Kinari's actual narrator uses OpenAI speech generation. This answer may contain private student or financial information. Do you approve sending this answer to the speech provider for reading aloud?");
+              const allowed=window.confirm("Read aloud uses AI-generated speech from OpenAI. This answer may contain private student or financial information. Do you approve sending this answer to the speech provider for reading aloud?");
               if(!allowed)return;
               privateNarrationConfirmed.current.add(message.id);
             }
@@ -155,7 +155,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
            <span>{narrator.state.id===message.id&&narrator.state.status==="loading"?"Preparing voice…":
              narrator.state.id===message.id&&narrator.state.status==="playing"?"Pause":
              narrator.state.id===message.id&&narrator.state.status==="paused"?"Resume":
-             message.voiceTicket?"Listen · Kinari voice":"Kinari voice unavailable"}</span>
+             message.voiceTicket?"Listen":"Audio unavailable"}</span>
           </button>
           {narrator.state.id===message.id&&["playing","paused","loading"].includes(narrator.state.status)?
            <button type="button" className={styles.narrationButton} onClick={narrator.stop} aria-label="Stop reading this response">
@@ -189,7 +189,7 @@ export function SystemAssistant({role,workspace}:{role:GuideRole;workspace?:Assi
         <button className={styles.send} type="submit" disabled={busy||!question.trim()} aria-label="Send question"><SendHorizontal size={20} aria-hidden="true"/></button>
       </div>
     </form>
-    <p className={styles.helper}><ShieldCheck size={12} style={{verticalAlign:"-2px"}} aria-hidden="true"/> Kinari narrator is generated on demand using OpenAI speech. Reading a private hostel answer requires your consent for that message; no ordinary phone voice is substituted. Financial changes still require confirmation.</p>
+    <p className={styles.helper}><ShieldCheck size={12} style={{verticalAlign:"-2px"}} aria-hidden="true"/> Read aloud uses AI-generated speech. You choose when to play it. Financial changes require confirmation.</p>
     {workflow&&workspace?<AssistantActionWorkspace key={workflow} kind={workflow} data={workspace} onClose={()=>setWorkflow(null)}/>:null}
     {announcement?<AssistantAnnouncementReview key={announcement.requestId} draft={announcement} onClose={()=>setAnnouncement(null)}/>:null}
     {submitted&&guides.length>0?<details className={styles.extras}>

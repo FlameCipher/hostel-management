@@ -1,10 +1,10 @@
 import { createHmac, createHash, timingSafeEqual } from "node:crypto";
-/** Exact Kinari teaching voice preset. Signed voice tickets authorize only an authenticated user's own explicit Listen request. */
+/** Hostel assistant reading voice preset. Signed voice tickets authorize only an authenticated user's own explicit Listen request. */
 export const ASSISTANT_VOICE_MAX_CHARS=5500;
 const VOICE_TICKET_TTL_MS=5*60*1000;
 export type VoicePrincipal={organizationId:string;subjectId:string;audience:"staff"|"tenant";sessionVersion:number};
 export const HOSTEL_VOICE_INSTRUCTIONS =
-  "Speak as Kinari: a calm, mature, deep male sacred narrator with premium audiobook quality. Warm, grounded, reassuring and conversational. Use natural sentence rhythm and meaningful pauses at paragraph and section boundaries. Read headings as ordinary phrases, never announce formatting or punctuation. Treat bullet items as natural spoken points. Do not vocalize markdown, decorative symbols, emoji names, asterisks, hashes, backticks, quotation markers, or formatting syntax. Preserve every meaningful word, name and meaning faithfully. Avoid robotic cadence, exaggerated drama, laughter-like rendering of symbols, shouting, and unnecessary pauses.";
+  "Read as a calm, mature, professional hostel assistant with premium audiobook quality. Warm, grounded, reassuring and conversational. Use natural sentence rhythm and meaningful pauses at paragraph and section boundaries. Read headings as ordinary phrases, never announce formatting or punctuation. Treat bullet items as natural spoken points. Do not vocalize markdown, decorative symbols, emoji names, asterisks, hashes, backticks, quotation markers, or formatting syntax. Preserve every meaningful word, name and meaning faithfully. Avoid robotic cadence, exaggerated drama, laughter-like rendering of symbols, shouting, and unnecessary pauses.";
 
 export function assistantSpeechText(raw: string) {
   return raw
