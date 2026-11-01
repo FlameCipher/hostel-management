@@ -60,3 +60,15 @@ test("untrusted provider redirects and errors never pass through", async () => {
   const transport = async (url: string | URL | Request) => Response.json(String(url).endsWith("RequestToken") ? { status: "200", token: "test" } : { status: "200", merchant_reference: order.id, order_tracking_id: tracking, redirect_url: "https://attacker.example/" });
   await assert.rejects(new PesapalApi({ consumer_key: "test", consumer_secret: "test" }, "SANDBOX", transport).submit({ id: order.id, amount: 1500, currency: "KES", notificationId: tracking, name: "Test", email: "test@example.com", phone: null }), /PESAPAL_INVALID_ORDER/);
 });
+test("mobile-only checkout sends the payer number without requiring or inventing an email", async () => {
+  let billing: Record<string, string> | undefined;
+  const transport = async (url: string | URL | Request, init?: RequestInit) => {
+    if (String(url).endsWith("RequestToken")) return Response.json({ status: "200", token: "fixture" });
+    billing = JSON.parse(String(init?.body)).billing_address;
+    return Response.json({ status: "200", merchant_reference: order.id, order_tracking_id: tracking, redirect_url: "https://cybqa.pesapal.com/checkout" });
+  };
+  const result = await new PesapalApi({ consumer_key: "fixture", consumer_secret: "fixture" }, "SANDBOX", transport).submit({ id: order.id, amount: 1500, currency: "KES", notificationId: tracking, name: "Test Payer", email: null, phone: "254700000000" });
+  assert.equal(billing?.phone_number, "254700000000");
+  assert.equal(billing?.email_address, "");
+  assert.equal(result.trackingId, tracking);
+});
