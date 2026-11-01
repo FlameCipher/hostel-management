@@ -27,3 +27,14 @@
 .secondaryDetails { margin-top: 16px; }
 .secondaryDetails > summary { cursor: pointer; min-height: 44px; padding: 8px 0; }
 .cashLink { color: #49616a; }
+
+.picker { border: 1px solid #cbd7df; border-radius: 12px; padding: 14px; min-width: 0; }
+.picker summary { cursor: pointer; min-height: 44px; }
+.picker summary span, .picker summary small { display: block; color: #49616a; font-size: 14px; margin: 4px 0; }
+.picker > label { margin: 16px 0; }
+.form .chargeChoices { max-height: 350px; overflow-y: auto; padding: 0; border: 0; gap: 8px; }
+.form .chargeChoice { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 12px; border: 1px solid #d9e5e6; border-radius: 10px; cursor: pointer; font-size: 14px; }
+.form .chargeChoice input { width: 20px; height: 20px; min-height: 20px; padding: 0; flex-shrink: 0; accent-color: #176b52; }
+.chargeChoice span { flex: 1; min-width: 0; }
+.chargeChoice small { display: block; color: #49616a; font-size: 12px; font-weight: 400; }
+.chargeChoice > strong { text-align: right; max-width: 35%; font-variant-numeric: tabular-nums; }

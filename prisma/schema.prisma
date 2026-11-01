@@ -654,6 +654,9 @@ model Student {
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  paymentAgreedDate DateTime? @db.Date
+  paymentAgreementNote String?
+  paymentAgreementUpdatedAt DateTime?
   portalInviteBlocked Boolean @default(false)
   portalEnabled      Boolean       @default(false)
   portalPasswordHash String?

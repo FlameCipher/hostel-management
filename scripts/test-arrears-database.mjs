@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {PrismaPg} from '@prisma/adapter-pg';
 import {PrismaClient} from '../src/generated/prisma/client.ts';
 import {readArrears,requestArrears,setArrearsAutomation,runArrearsAutomation} from '../src/lib/arrears-reminders.ts';
+import {savePaymentAgreement} from '../src/lib/payment-agreements.ts';
 import {actOnManualNotification} from '../src/lib/whatsapp-communications.ts';
 import {runWhatsAppDelivery} from '../src/lib/whatsapp-cloud.ts';
 import {sendCommunicationEmails} from '../src/lib/communication-email.ts';
@@ -59,6 +60,30 @@ try{
  await db.tenantMessage.deleteMany();await db.notification.deleteMany();await db.whatsAppDelivery.deleteMany();
  await requestArrears(db,owner,await payload({whatsapp:false,email:false}),now);assert.equal(await db.notification.count(),0);
  const forward=await requestArrears(db,owner,await payload({manual:true,email:false}),now);assert.ok(forward.notificationId);assert.equal(await db.tenantMessage.count(),1);assert.equal(await db.notification.count(),1);pass('later WhatsApp forwarding adds the missing copy to the existing notice');
+
+ const beforeAgreement=await payload();
+ const agreement={studentId:'student',date:new Date(now.getTime()+2*86400000).toISOString().slice(0,10),note:'Student and management agreed to the new date.',expectedUpdatedAt:'',clear:false,confirmed:true};
+ assert.ok((await savePaymentAgreement(db,null,agreement,now)).error);
+ assert.ok((await savePaymentAgreement(db,{...owner,organizationId:'two'},agreement,now)).error);
+ assert.ok((await savePaymentAgreement(db,{...owner,sessionVersion:1},agreement,now)).error);
+ assert.ok((await savePaymentAgreement(db,owner,{...agreement,confirmed:false},now)).error);
+ assert.ok((await savePaymentAgreement(db,owner,agreement,now)).success);
+ assert.ok((await savePaymentAgreement(db,owner,agreement,now)).error);
+ const deferred=await readArrears(db,'one',now);assert.equal(deferred.rows.length,0);assert.equal(deferred.deferred.length,1);assert.equal(deferred.deferred[0].agreedDate,agreement.date);
+ assert.ok((await requestArrears(db,owner,beforeAgreement,now)).error);
+ assert.equal((await runArrearsAutomation(db,now)).created,0);
+ const messagesBefore=await db.tenantMessage.count();
+ await db.tenantMessage.updateMany({data:{emailCopy:true,emailStatus:'QUEUED'}});
+ let agreementEmails=0;await sendCommunicationEmails(db,now,async()=>{agreementEmails++;return Response.json({id:'must-not-send'});},{apiKey:'fixture',from:'hostel@example.invalid'});
+ assert.equal(agreementEmails,0);
+ assert.ok((await actOnManualNotification(db,owner,forward.notificationId,'OPEN')).error);
+ assert.equal((await db.notification.findUnique({where:{id:forward.notificationId}})).status,'CANCELLED');
+ assert.equal(await db.tenantMessage.count(),messagesBefore);
+ assert.equal((await readArrears(db,'one',new Date(now.getTime()+3*86400000))).rows.length,1);
+ assert.equal(await db.auditLog.count({where:{action:'PAYMENT_AGREEMENT_RECORDED',entityId:'student'}}),1);
+ assert.ok((await savePaymentAgreement(db,owner,{...agreement,clear:true,expectedUpdatedAt:now.toISOString(),note:'Arrangement removed by management.'},new Date(now.getTime()+1))).success);
+ assert.equal((await readArrears(db,'one',now)).rows.length,1);
+ pass('approved dates enforce auth, scope, stale-review rejection, automatic exclusion, queued email and WhatsApp cancellation, expiry and audited removal');
  await db.occupancy.update({where:{id:'stay'},data:{status:'CHECKED_OUT'}});assert.equal((await readArrears(db,'one',now)).rows.length,0);assert.ok((await actOnManualNotification(db,owner,forward.notificationId,'OPEN')).error);pass('former tenant is excluded and pending forwarding is cancelled');
  console.log('All arrears integration checks passed; only synthetic records and mocked delivery providers were used.');
 }finally{await db.$disconnect();await server.stop();await pg.close();}

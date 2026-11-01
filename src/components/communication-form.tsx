@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import styles from "./arrears-form.module.css";
 import { useActionState, useState } from "react";
 import { publishAction } from "@/app/(app)/communications/actions";
 
@@ -15,17 +17,18 @@ export function CommunicationForm({
   students,
   requestId,
 }: {
-  students: Array<{ id: string; fullName: string; portalReady: boolean }>;
+  students: Array<{ id: string; fullName: string; portalReady: boolean; room: string; balance: string; paymentStatus: string }>;
   requestId: string;
 }) {
   const [state, action, pending] = useActionState(publishAction, {});
   const [audience, setAudience] = useState<Audience>("SELECTED");
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<NoticeType>("GENERAL");
   const [body, setBody] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const visible = students.filter(student =>
-    student.fullName.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
+    `${student.fullName} ${student.room}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   const recipientCount = audience === "ALL" ? students.length : selected.length;
   const selectedIds = new Set(selected);
@@ -48,7 +51,7 @@ export function CommunicationForm({
   }
 
   return <form action={action} className="panel entity-form">
-    <h2>Publish a tenant notice</h2>
+    <h2>Publish a tenant notice</h2><p><Link className="primary-button" href="/reports/arrears">Prepare overdue rent demands</Link></p><p>Rent demands automatically exclude paid accounts and approved payment extensions.</p>
     <p>Choose recipients, write the notice, and review access before publishing. Each recipient gets a private inbox record, not a group chat or guaranteed delivered phone message.</p>
     <input name="requestId" type="hidden" value={requestId}/>
     <input name="expectedRecipientCount" type="hidden" value={recipientCount}/>
@@ -69,16 +72,16 @@ export function CommunicationForm({
       <legend>Choose tenants</legend>
       <label className="field-group">
         <span>Find tenant</span>
-        <input type="search" placeholder="Search by name" value={search} onChange={event => setSearch(event.target.value)}/>
+        <input type="search" placeholder="Search by name or room" value={search} onChange={event => setSearch(event.target.value)}/>
       </label>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button className="secondary-button" type="button" onClick={selectVisible} disabled={!visible.length}>Select all shown</button>
         <button className="secondary-button" type="button" onClick={() => { setSelected([]); setConfirmed(false); }} disabled={!selected.length}>Clear selection</button>
       </div>
-      <div style={{maxHeight:220,overflowY:"auto",marginTop:12}}>
-        {visible.length ? visible.map(student => <label className="check-field" key={student.id}>
+      <div className={styles.recipientList}>
+        {visible.length ? visible.map(student => <label className={styles.recipientRow} key={student.id}>
           <input type="checkbox" value={student.id} checked={selected.includes(student.id)} onChange={event => toggleTenant(student.id,event.target.checked)}/>
-          {student.fullName}
+          <span><strong>{student.fullName}</strong><small>Room {student.room || "—"} · {student.paymentStatus}</small></span><strong>{student.balance}</strong>
         </label>) : <p>No matching tenants.</p>}
       </div>
       {/* Keep the complete chosen audience in the form even when search hides checkboxes.
@@ -92,7 +95,8 @@ export function CommunicationForm({
       <input name="title" required minLength={3} maxLength={160} placeholder="e.g. Rent balance clearance" onChange={() => setConfirmed(false)}/>
     </label>
     <label className="field-group"><span>Message type</span>
-      <select name="category" defaultValue="GENERAL" onChange={event => {
+      <select name="category" value={category} onChange={event => {
+        setCategory(event.target.value as NoticeType);
         setBody(templates[event.target.value as NoticeType]);
         setConfirmed(false);
       }}>
@@ -102,6 +106,7 @@ export function CommunicationForm({
         <option value="HOLIDAY">Holiday arrangements</option>
       </select>
     </label>
+    {category === "BALANCE" && <p role="status">Use <Link href="/reports/arrears">Rent payment demands</Link> for individual balances and agreed-date exclusions.</p>}
     <label className="field-group"><span>Message</span>
       <textarea name="body" required minLength={10} maxLength={3000} rows={5} value={body} placeholder="Write the notice here…" onChange={event => {setBody(event.target.value);setConfirmed(false);}}/>
     </label>
@@ -128,7 +133,7 @@ export function CommunicationForm({
 
     {state.error && <p className="form-error" role="alert">{state.error}</p>}
     {state.success && <p className="form-success" role="status">{state.success}</p>}
-    <button type="submit" className="primary-button" disabled={pending || !!state.success || recipientCount === 0 || !confirmed}>
+    <button type="submit" className="primary-button" disabled={pending || !!state.success || recipientCount === 0 || !confirmed || category === "BALANCE"}>
       {pending ? "Saving…" : `Save notices for ${recipientCount} tenant${recipientCount === 1 ? "" : "s"}`}
     </button>
     {state.success && <a className="secondary-button" href="/communications">Write another notice</a>}

@@ -1,3 +1,4 @@
+import { agreementActive } from "./payment-agreement-policy";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient, TenantMessage, Notification } from "@/generated/prisma/client";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -15,7 +16,7 @@ export async function readArrears(database: Reader, organizationId: string, now 
     database.organization.findFirst({ where: { id: organizationId, status: "ACTIVE" }, select: { id: true, name: true, currency: true, whatsappEnabled: true } }),
     database.property.findMany({ where: { organizationId, active: true }, select: { id: true, customDomain: true, publicListing: true, timeZone: true, countryCode: true } }),
     database.student.findMany({ where: { ...tenantWhere(organizationId), ...(ids ? { id: { in: ids } } : {}) }, select: {
-      id: true, fullName: true, phone: true, email: true, portalEnabled: true, portalPasswordHash: true,
+      id: true, fullName: true, phone: true, email: true, portalEnabled: true, portalPasswordHash: true, paymentAgreedDate: true, paymentAgreementNote: true,
       occupancies: { where: { organizationId, status: { in: ["ACTIVE", "RESERVED"] } }, select: { room: { select: { number: true, propertyId: true } } }, orderBy: { createdAt: "desc" }, take: 1 },
       charges: { where: { organizationId, status: { not: "WAIVED" } }, select: { id: true, organizationId: true, studentId: true, currency: true, amount: true, dueDate: true, status: true, payments: { where: { reversedAt: null }, select: { amount: true, organizationId: true, studentId: true, currency: true, reversedAt: true } } } },
     }, orderBy: { fullName: "asc" }, take: 5001 }),
@@ -25,12 +26,17 @@ export async function readArrears(database: Reader, organizationId: string, now 
   const history = await database.tenantMessage.findMany({ where: { organizationId, category: "ARREARS", studentId: { in: students.map(s => s.id) } }, distinct: ["studentId"], orderBy: { createdAt: "desc" }, select: { id: true, studentId: true, createdAt: true, emailStatus: true, notificationId: true, readAt: true } });
   const lastByStudent = new Map(history.map(h => [h.studentId, h]));
   const review: { studentId: string; name: string; reason: string }[] = [];
+  const deferred: { studentId: string; name: string; room: string; balance: string; agreedDate: string; note: string }[] = [];
   const rows = students.flatMap(student => {
     const occupancy = student.occupancies[0], property = properties.find(p => p.id === occupancy?.room.propertyId);
     const timeZone = hostelTimeZone(property?.timeZone, property?.countryCode ?? "");
     const position = arrearsPosition(student.charges, organizationId, student.id, org.currency, now, timeZone);
     if (position.error) { review.push({ studentId: student.id, name: student.fullName, reason: position.error }); return []; }
     if (!position.balance || !position.oldest) return [];
+    if (agreementActive(student.paymentAgreedDate, now, timeZone)) {
+      deferred.push({ studentId: student.id, name: student.fullName, room: occupancy?.room.number ?? "", balance: formatMoney(position.balance, org.currency), agreedDate: student.paymentAgreedDate!.toISOString().slice(0, 10), note: student.paymentAgreementNote ?? "" });
+      return [];
+    }
     const due = position.oldest.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone });
     const phone = whatsappNumber(student.phone, property?.countryCode ?? (organizationId === "mama-mbugua-hostel" ? "KE" : null)) ?? "";
     const email = z.string().email().safeParse(student.email).success ? student.email! : "";
@@ -42,7 +48,7 @@ export async function readArrears(database: Reader, organizationId: string, now 
       message: arrearsMessage({ hostel: org.name, name: student.fullName, amount: position.balance, currency: org.currency, due, login }),
       lastAt: last?.createdAt.toISOString() ?? null, lastNotificationId: last?.notificationId ?? null, lastRead: !!last?.readAt, lastEmailStatus: last?.emailStatus ?? null }];
   });
-  return { org, rows, review };
+  return { org, rows, review, deferred };
 }
 export type ArrearsRow = Awaited<ReturnType<typeof readArrears>>["rows"][number];
 export type ArrearsResult = { error?: string; success?: string; notificationId?: string };
@@ -50,7 +56,7 @@ const requestSchema = z.object({ requestId: z.string().uuid(), recipients: z.arr
 
 async function saveNotice(tx: Prisma.TransactionClient, organizationId: string, row: ArrearsRow, options: { key: string; whatsapp: boolean; email: boolean; actor?: string }, now: Date) {
   const messageId = randomUUID(), notificationId = options.whatsapp && row.phone ? `arrears_${messageId}` : null;
-  const data = { id: messageId, organizationId, studentId: row.studentId, batchId: options.key, dedupKey: options.key, category: "ARREARS", title: "Overdue rent — payment requested", body: row.message, publishAt: now, createdAt: now,
+  const data = { id: messageId, organizationId, studentId: row.studentId, batchId: options.key, dedupKey: options.key, category: "ARREARS", title: "Formal demand for overdue rent", body: row.message, publishAt: now, createdAt: now,
     whatsappCopy: !!notificationId, notificationId, emailCopy: options.email, emailStatus: options.email ? "QUEUED" : "NOT_REQUESTED" };
   const saved = await tx.tenantMessage.createMany({ data, skipDuplicates: true });
   if (!saved.count) {
@@ -132,7 +138,14 @@ export async function freshArrearsBody(tx: Prisma.TransactionClient, item: Pick<
   return row.message;
 }
 export async function refreshArrearsNotification(tx: Prisma.TransactionClient, item: Notification, now = new Date()): Promise<Notification | null> {
-  if (!item.id.startsWith("arrears_")) return item;
+  if (!item.id.startsWith("arrears_")) {
+    const legacy = item.studentId ? await tx.tenantMessage.findFirst({ where: { organizationId: item.organizationId, studentId: item.studentId, notificationId: item.id, category: "BALANCE" } }) : null;
+    if (!legacy) return item;
+    const current = await readArrears(tx, item.organizationId, now, [legacy.studentId]);
+    if (current.rows.length && !current.review.length) return item;
+    await tx.notification.update({ where: { id: item.id }, data: { status: "CANCELLED", failureReason: "No eligible overdue balance, or an approved payment date applies." } });
+    return null;
+  }
   const notice = await tx.tenantMessage.findFirst({ where: { organizationId: item.organizationId, studentId: item.studentId ?? "", notificationId: item.id, category: "ARREARS" } });
   const body = notice ? await freshArrearsBody(tx, notice, now) : null;
   if (!body) { await tx.notification.update({ where: { id: item.id }, data: { status: "CANCELLED", failureReason: "No eligible overdue balance remains, or the account needs review." } }); return null; }

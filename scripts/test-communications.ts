@@ -122,3 +122,10 @@ test("management action rejects missing acknowledgement and invalid count before
  assert.match(action,/expectedRecipientCount:expected/);
  assert.match(action,/Review and confirm the selected recipients/);
 });
+
+
+test("generic balance broadcast cannot bypass individual overdue and agreement review",async()=>{
+ const f=fixture(["one","two"]);
+ const response=await publishCommunication(f.db,session,{...input,audience:"ALL",category:"BALANCE",studentIds:[]});
+ assert.match(response.error!,/Rent payment demands/);assert.equal(f.messages.size,0);
+});

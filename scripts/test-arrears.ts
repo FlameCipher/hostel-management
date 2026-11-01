@@ -31,3 +31,16 @@ test("balance or recipient changes invalidate the reviewed snapshot",()=>{
  const row={studentId:"s",amount:4500,currency:"KES",due:"1 Oct 2026",phone:"254700000000",email:"",name:"Sample",room:"1"};
  assert.notEqual(arrearsFingerprint(row),arrearsFingerprint({...row,amount:2000}));assert.notEqual(arrearsFingerprint(row),arrearsFingerprint({...row,phone:"254700000001"}));
 });
+
+
+test("payment agreement lasts through its full local calendar date", async () => {
+ const { agreementActive, parseAgreementDate } = await import("../src/lib/payment-agreement-policy");
+ const date = new Date("2026-11-02T00:00:00Z");
+ assert.equal(agreementActive(date,new Date("2026-11-02T20:59:59Z")),true);
+ assert.equal(agreementActive(date,new Date("2026-11-02T21:00:00Z")),false);
+ assert.equal(agreementActive(null,now),false);
+ assert.equal(parseAgreementDate("2026-02-30",new Date("2026-02-01")),null);
+ assert.equal(parseAgreementDate("2026-10-22",now),null);
+ assert.equal(parseAgreementDate("2028-01-01",now),null);
+ assert.equal(parseAgreementDate("2026-10-23",now)?.toISOString().slice(0,10),"2026-10-23");
+});

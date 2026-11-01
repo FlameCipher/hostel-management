@@ -1,4 +1,4 @@
-import { freshArrearsBody } from "./arrears-reminders";
+import { freshArrearsBody, readArrears } from "./arrears-reminders";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { tenantWhere } from "@/lib/communications";
 import { z } from "zod";
@@ -16,6 +16,10 @@ export async function sendCommunicationEmails(db:PrismaClient,now=new Date(),fet
  const item=await db.$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "TenantMessage" WHERE id=${candidate.id} FOR UPDATE`;
  let message=await tx.tenantMessage.findUnique({where:{id:candidate.id}});if(!message || !["QUEUED","RETRY"].includes(message.emailStatus)||message.emailAttempts>=3)return null;
+ if(message.category === "BALANCE") {
+   const current = await readArrears(tx,message.organizationId,now,[message.studentId]);
+   if(!current.rows.length || current.review.length) { await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"CANCELLED",emailError:"No eligible overdue balance, or an approved payment date applies."}}); return null; }
+ }
  if(message.category==="ARREARS") {
    const body=await freshArrearsBody(tx,message,now);
    if(!body){await tx.tenantMessage.update({where:{id:message.id},data:{emailStatus:"CANCELLED",emailError:"No eligible overdue balance remains, or the reminder expired."}});return null;}
