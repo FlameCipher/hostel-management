@@ -16,11 +16,17 @@ function failure(error: unknown): RentActionState {
   const messages: Record<string, string> = { CHECK_PAYER_DETAILS: "Enter the payer’s name and a valid email or mobile number.", CHECK_AMOUNT: "Enter an amount greater than zero and no more than the current charge balance.", TOO_MANY_REQUESTS: "Several requests already exist for this charge. Use the latest request below.", GATEWAY_NOT_CONNECTED: "The owner needs to connect the payment gateway first.", CHARGE_NOT_FOUND: "This rent charge is no longer available. Refresh your account." };
   return { error: messages[code] || "We could not prepare the payment request. Refresh the page and try again." };
 }
+async function openMpesaCheckout(token: string): Promise<never> {
+  let url: string | undefined;
+  try { url = await beginRentCheckout(db, token); } catch { /* Preserve the request if checkout is unavailable; never create a replacement on timeout. */ }
+  if (url && safeCheckoutUrl(url)) redirect(url);
+  redirect("/rent-request/" + token + "?checkout=unavailable");
+}
 export async function staffRentRequestAction(_state: RentActionState, data: FormData): Promise<RentActionState> {
   const session = await requireStaffFinanceAccess();
   const values = input(data);
   const email = data.get("delivery") === "email";
-  const checkout = data.get("delivery") === "checkout";
+  const checkout = !data.get("delivery") || data.get("delivery") === "checkout";
   if (checkout && !values.payerPhone.trim()) return { error: "Enter the payer’s M-Pesa mobile number to open prompt checkout. Email is optional." };
   if (email && !values.payerEmail) return { error: "Enter the payer’s email, or choose Create a link to copy or share." };
   let id: string;
@@ -34,18 +40,17 @@ export async function staffRentRequestAction(_state: RentActionState, data: Form
   } catch (error) { return failure(error); }
   revalidatePath("/payments/requests");
   if (checkout) {
-    let url: string | undefined;
-    try { url = await beginRentCheckout(db, token); } catch { /* Keep this request for recovery; never create a replacement on timeout. */ }
-    if (url && safeCheckoutUrl(url)) redirect(url);
-    redirect("/rent-request/" + token + "?checkout=unavailable");
+    await openMpesaCheckout(token);
   }
   redirect("/payments/requests?created=" + id + (sendFailed ? "&send=failed" : ""));
 }
 export async function tenantRentRequestAction(_state: RentActionState, data: FormData): Promise<RentActionState> {
   const session = await requireTenantSession();
+  const values = input(data);
+  if (!values.payerPhone.trim()) return { error: "Enter the payer’s M-Pesa mobile number." };
   let token: string;
-  try { token = (await createRentRequest(db, { tenant: session }, input(data))).token; } catch (error) { return failure(error); }
-  redirect("/rent-request/" + token);
+  try { token = (await createRentRequest(db, { tenant: session }, values)).token; } catch (error) { return failure(error); }
+  return openMpesaCheckout(token);
 }
 export async function connectRentGatewayAction(_state: RentActionState, data: FormData): Promise<RentActionState> {
   const session = await requireStaffFinanceAccess();
